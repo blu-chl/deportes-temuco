@@ -19,22 +19,18 @@ html,body{min-height:100vh;background:var(--fondo);color:var(--blanco);font-fami
 .hdr{background:var(--vo);border-bottom:1px solid var(--borde2);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:50}
 .logo{display:flex;align-items:center;gap:10px}
 .esc{width:40px;height:40px;background:var(--v);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;border:2px solid var(--vc)}
-.lt h1{font-size:15px;font-weight:700;line-height:1}
-.lt p{font-size:10px;color:var(--gris)}
+.lt h1{font-size:15px;font-weight:700;line-height:1}.lt p{font-size:10px;color:var(--gris)}
 .hstats{display:flex;gap:14px}
 .hs{text-align:center}
 .hs-v{font-size:20px;font-weight:800;color:var(--vc);line-height:1}
 .hs-l{font-size:9px;color:var(--gris);text-transform:uppercase}
 nav{background:rgba(0,0,0,0.35);border-bottom:1px solid var(--borde);display:flex;overflow-x:auto}
 .nb{padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;border:none;background:none;color:var(--gris);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-family:var(--font)}
-.nb:hover{color:var(--blanco)}
-.nb.on{color:var(--vc);border-bottom-color:var(--vc)}
+.nb:hover{color:var(--blanco)}.nb.on{color:var(--vc);border-bottom-color:var(--vc)}
 .content{padding:14px 16px}
-.sec{display:none}.sec.on{display:block}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
-@media(max-width:600px){.g2,.g4{grid-template-columns:1fr}.g3{grid-template-columns:1fr 1fr}.hstats{display:none}}
+@media(max-width:600px){.g2,.g4{grid-template-columns:1fr}.hstats{display:none}}
 .mc{background:rgba(255,255,255,0.04);border:1px solid var(--borde);border-radius:8px;padding:12px 14px}
 .mc-l{font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
 .mc-v{font-size:24px;font-weight:800;color:white;line-height:1}
@@ -59,6 +55,8 @@ tr:hover td{background:rgba(46,168,79,0.05)}
 .btn:hover{background:var(--vc)}.btn:disabled{opacity:.5;cursor:not-allowed}
 .bsm{background:rgba(46,168,79,0.12);border:1px solid var(--borde2);border-radius:5px;padding:4px 10px;color:var(--vc);font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font)}
 .bsm:hover{background:rgba(46,168,79,0.25)}
+.bdel{background:rgba(204,68,68,0.12);border:1px solid rgba(204,68,68,0.3);border-radius:5px;padding:4px 10px;color:#ff8888;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.bdel:hover{background:rgba(204,68,68,0.25)}
 .fg{margin-bottom:10px}
 .fg label{display:block;font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;font-weight:600}
 .fg input,.fg select{width:100%;background:rgba(0,0,0,0.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font)}
@@ -67,8 +65,7 @@ tr:hover td{background:rgba(46,168,79,0.05)}
 .fr2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 .pcard{background:rgba(255,255,255,0.04);border:1px solid var(--borde);border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color .2s}
-.pcard:hover,.pcard.sel{border-color:var(--vc)}
-.pcard.sel{background:rgba(46,168,79,0.06)}
+.pcard:hover,.pcard.sel{border-color:var(--vc)}.pcard.sel{background:rgba(46,168,79,0.06)}
 .rbox{display:flex;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,0.3);border-radius:6px;padding:8px;margin:6px 0}
 .rscore{font-size:26px;font-weight:800;color:var(--vc)}
 .rsep{font-size:18px;color:var(--borde2)}
@@ -93,50 +90,53 @@ tr:hover td{background:rgba(46,168,79,0.05)}
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%,#0d2e18,var(--fondo) 65%)}
 .login-card{background:var(--panel);border:1px solid var(--borde2);border-radius:12px;padding:36px 32px;width:320px;text-align:center}
 .lerr{background:rgba(204,68,68,.15);border:1px solid rgba(204,68,68,.3);color:#ff8888;padding:8px 12px;border-radius:6px;font-size:11px;margin-bottom:12px}
+.modal-bg{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center}
+.modal{background:#0d1f10;border:1px solid var(--borde2);border-radius:12px;padding:24px;width:360px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal-titulo{font-size:13px;font-weight:700;color:var(--vc);text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <div class="toast" id="toast"></div>
-
+<div id="modal-root"></div>
 <script>
-const SB_URL = 'https://vskhzbstwadaabzyhzwh.supabase.co'
-const SB_KEY = 'sb_publishable_Xpm4vH8few7gjsDcIM_2qA_3rjYFHeu'
+const SB_URL='https://vskhzbstwadaabzyhzwh.supabase.co'
+const SB_KEY='sb_publishable_Xpm4vH8few7gjsDcIM_2qA_3rjYFHeu'
+let AUTH_TOKEN=SB_KEY
+const hdrs=()=>({'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+AUTH_TOKEN,'Prefer':'return=representation'})
 
-let AUTH_TOKEN = SB_KEY
-const hdrs = () => ({'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+AUTH_TOKEN,'Prefer':'return=representation'})
-
-async function sb(method, table, body, params='') {
-  const r = await fetch(`${SB_URL}/rest/v1/${table}${params}`,{method,headers:hdrs(),body:body?JSON.stringify(body):undefined})
-  const t = await r.text()
-  try{return JSON.parse(t)}catch(e){return[]}
+async function sb(method,table,body,params=''){
+  const r=await fetch(`${SB_URL}/rest/v1/${table}${params}`,{method,headers:hdrs(),body:body?JSON.stringify(body):undefined})
+  const t=await r.text();try{return JSON.parse(t)}catch(e){return[]}
 }
 const get=(t,p='')=>sb('GET',t,null,p)
 const post=(t,b)=>sb('POST',t,b)
 const patch=(t,b,p)=>sb('PATCH',t,b,p)
+const del=(t,p)=>sb('DELETE',t,null,p)
 
 function toast(msg,err=false){
   const el=document.getElementById('toast')
   el.textContent=msg;el.className='toast show'+(err?' err':'')
   setTimeout(()=>el.className='toast',2500)
 }
+function hoy(){return new Date().toISOString().split('T')[0]}
 
 const ICONOS={Gol:'⚽',Asistencia:'🅰️',Amarilla:'🟡',Roja:'🔴','Sustitución':'🔄'}
-const TIPOS_GOL=['Pie Derecho','Pie Izquierdo','Cabeza','Tiro Libre','Penal']
 const TIPOS_ASIST=['Centro','Pase Filtrado','Córner','Balón Parado']
+let TIPOS_GOL=['Pie Derecho','Pie Izquierdo','Cabeza','Tiro Libre','Penal']
 
 let S={
   pag:'login',jugadores:[],partidos:[],eventos:[],lesiones:[],
   partidoActivo:null,evPartido:[],
   filtPos:'todos',filtComp:'todos',filtCompEst:'todos',
   npShow:false,addJugShow:false,lesShow:false,
+  editTiposGol:false,nuevoTipoGol:'',
   np:{rival:'',competencia:'Primera B',condicion:'Local',fecha:hoy(),goles_favor:0,goles_contra:0},
   ev:{minuto:1,tipo:'Gol',subtipo:'Pie Derecho',jugador_id:'',jugador_sale_id:''},
   addJug:{numero:'',nombre:'',posicion:'MED',edad:22,pie:'Derecho'},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
+  minutaje:{},
 }
-
-function hoy(){return new Date().toISOString().split('T')[0]}
 
 async function cargarDatos(){
   const[jugs,parts,evs,less]=await Promise.all([
@@ -158,8 +158,7 @@ function jugNombre(id){const j=S.jugadores.find(x=>x.id===id);return j?j.nombre:
 function getStats(jugId){
   const evs=S.eventos.filter(e=>e.jugador_id===jugId)
   const mins=S.partidos.reduce((a,p)=>a+(S.eventos.some(e=>e.partido_id===p.id&&e.jugador_id===jugId)?90:0),0)
-  return{goles:evs.filter(e=>e.tipo==='Gol').length,asist:evs.filter(e=>e.tipo==='Asistencia').length,
-    amarillas:evs.filter(e=>e.tipo==='Amarilla').length,rojas:evs.filter(e=>e.tipo==='Roja').length,minutos:mins}
+  return{goles:evs.filter(e=>e.tipo==='Gol').length,asist:evs.filter(e=>e.tipo==='Asistencia').length,minutos:mins}
 }
 
 function calcHdr(){
@@ -170,6 +169,7 @@ function calcHdr(){
   return{pg,pe,pp,pts:pg*3+pe,gf:p.reduce((a,x)=>a+x.goles_favor,0),gc:p.reduce((a,x)=>a+x.goles_contra,0)}
 }
 
+// ===== LOGIN =====
 function renderLogin(){
   return`<div class="login-wrap"><div class="login-card">
     <div style="width:52px;height:52px;background:var(--v);border-radius:50%;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;border:2px solid var(--vc)">DT</div>
@@ -179,15 +179,14 @@ function renderLogin(){
     <div class="fg"><label>Correo</label><input id="l-email" type="email" placeholder="tu@correo.com"></div>
     <div class="fg"><label>Contraseña</label><input id="l-pass" type="password" placeholder="••••••••"></div>
     <button class="btn" style="width:100%;margin-top:6px" onclick="doLogin()" id="l-btn">Ingresar</button>
-    <p style="margin-top:16px;font-size:10px;color:var(--gris)">Acceso restringido al cuerpo técnico de Deportes Temuco</p>
+    <p style="margin-top:16px;font-size:10px;color:var(--gris)">Acceso restringido al cuerpo técnico</p>
   </div></div>`
 }
 
 async function doLogin(){
   const email=document.getElementById('l-email').value.trim()
   const pass=document.getElementById('l-pass').value
-  const btn=document.getElementById('l-btn')
-  const err=document.getElementById('lerr')
+  const btn=document.getElementById('l-btn'),err=document.getElementById('lerr')
   if(!email||!pass){err.textContent='Completa todos los campos';err.style.display='block';return}
   btn.textContent='Ingresando...';btn.disabled=true
   const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{
@@ -195,14 +194,8 @@ async function doLogin(){
     body:JSON.stringify({email,password:pass})
   })
   const d=await r.json()
-  if(d.access_token){
-    AUTH_TOKEN=d.access_token
-    S.pag='registro'
-    await cargarDatos()
-  }else{
-    err.textContent='Correo o contraseña incorrectos';err.style.display='block'
-    btn.textContent='Ingresar';btn.disabled=false
-  }
+  if(d.access_token){AUTH_TOKEN=d.access_token;S.pag='registro';await cargarDatos()}
+  else{err.textContent='Correo o contraseña incorrectos';err.style.display='block';btn.textContent='Ingresar';btn.disabled=false}
 }
 
 function doLogout(){AUTH_TOKEN=SB_KEY;S.pag='login';render()}
@@ -225,10 +218,126 @@ function renderHdr(){
 }
 
 function renderNav(){
-  const tabs=[{id:'registro',l:'Registro'},{id:'plantilla',l:'Plantilla'},{id:'partidos',l:'Partidos'},{id:'estadisticas',l:'Estadísticas'},{id:'medico',l:'Médico'}]
-  return`<nav>${tabs.map(t=>`<button class="nb ${S.pag===t.id?'on':''}" onclick="navTo('${t.id}')">${t.l}</button>`).join('')}</nav>`
+  return`<nav>${[{id:'registro',l:'Registro'},{id:'plantilla',l:'Plantilla'},{id:'partidos',l:'Partidos'},{id:'estadisticas',l:'Estadísticas'},{id:'medico',l:'Médico'}]
+    .map(t=>`<button class="nb ${S.pag===t.id?'on':''}" onclick="navTo('${t.id}')">${t.l}</button>`).join('')}</nav>`
 }
 
+// ===== MODALES =====
+function cerrarModal(){document.getElementById('modal-root').innerHTML=''}
+
+function abrirEditarJugador(id){
+  const j=S.jugadores.find(x=>x.id===id);if(!j)return
+  document.getElementById('modal-root').innerHTML=`<div class="modal-bg" onclick="if(event.target===this)cerrarModal()">
+    <div class="modal">
+      <div class="modal-titulo">✏️ Editar jugador</div>
+      <div class="fg"><label>Nombre</label><input id="ej-nom" value="${j.nombre}"></div>
+      <div class="fr2">
+        <div class="fg"><label>Número</label><input id="ej-num" type="number" value="${j.numero}" min="1" max="99"></div>
+        <div class="fg"><label>Edad</label><input id="ej-edad" type="number" value="${j.edad}" min="15" max="45"></div>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label>Posición</label><select id="ej-pos">${['POR','DEF','MED','DEL'].map(p=>`<option ${j.posicion===p?'selected':''}>${p}</option>`).join('')}</select></div>
+        <div class="fg"><label>Pie</label><select id="ej-pie">${['Derecho','Izquierdo','Ambidiestro'].map(p=>`<option ${j.pie===p?'selected':''}>${p}</option>`).join('')}</select></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <button class="btn" onclick="guardarEdicionJugador(${j.id})">Guardar</button>
+        <button class="bsm" onclick="cerrarModal()">Cancelar</button>
+        <button class="bdel" style="margin-left:auto" onclick="confirmarBorrarJugador(${j.id},'${j.nombre.replace(/'/g,"\\'")}')">🗑 Eliminar</button>
+      </div>
+    </div>
+  </div>`
+}
+
+function confirmarBorrarJugador(id,nombre){
+  document.getElementById('modal-root').innerHTML=`<div class="modal-bg"><div class="modal">
+    <div class="modal-titulo" style="color:var(--ro)">⚠️ Eliminar jugador</div>
+    <p style="font-size:13px;margin-bottom:18px;color:var(--gris)">¿Eliminar a <strong style="color:white">${nombre}</strong>? No se puede deshacer.</p>
+    <div style="display:flex;gap:8px">
+      <button class="bdel" onclick="borrarJugador(${id})">Sí, eliminar</button>
+      <button class="bsm" onclick="cerrarModal()">Cancelar</button>
+    </div>
+  </div></div>`
+}
+
+async function guardarEdicionJugador(id){
+  const nom=document.getElementById('ej-nom').value.trim()
+  const num=+document.getElementById('ej-num').value
+  const edad=+document.getElementById('ej-edad').value
+  const pos=document.getElementById('ej-pos').value
+  const pie=document.getElementById('ej-pie').value
+  if(!nom){toast('El nombre no puede estar vacío',true);return}
+  await patch('jugadores',{nombre:nom,numero:num,edad,posicion:pos,pie},`?id=eq.${id}`)
+  toast('Jugador actualizado');cerrarModal();await cargarDatos()
+}
+
+async function borrarJugador(id){
+  await patch('jugadores',{activo:false},`?id=eq.${id}`)
+  toast('Jugador eliminado');cerrarModal();await cargarDatos()
+}
+
+function abrirEditarPartido(id){
+  const p=S.partidos.find(x=>x.id===id);if(!p)return
+  document.getElementById('modal-root').innerHTML=`<div class="modal-bg" onclick="if(event.target===this)cerrarModal()">
+    <div class="modal">
+      <div class="modal-titulo">✏️ Editar partido</div>
+      <div class="fg"><label>Rival</label><input id="ep-rival" value="${p.rival}"></div>
+      <div class="fr2">
+        <div class="fg"><label>Competencia</label><select id="ep-comp"><option ${p.competencia==='Primera B'?'selected':''}>Primera B</option><option ${p.competencia==='Copa Chile'?'selected':''}>Copa Chile</option></select></div>
+        <div class="fg"><label>Condición</label><select id="ep-cond"><option ${p.condicion==='Local'?'selected':''}>Local</option><option ${p.condicion==='Visita'?'selected':''}>Visita</option></select></div>
+      </div>
+      <div class="fg"><label>Fecha</label><input id="ep-fecha" type="date" value="${p.fecha}"></div>
+      <div class="fr2">
+        <div class="fg"><label>Goles nuestros</label><input id="ep-gf" type="number" min="0" value="${p.goles_favor}"></div>
+        <div class="fg"><label>Goles rival</label><input id="ep-gc" type="number" min="0" value="${p.goles_contra}"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <button class="btn" onclick="guardarEdicionPartido(${p.id})">Guardar</button>
+        <button class="bsm" onclick="cerrarModal()">Cancelar</button>
+        <button class="bdel" style="margin-left:auto" onclick="confirmarBorrarPartido(${p.id},'${p.rival.replace(/'/g,"\\'")}')">🗑 Eliminar</button>
+      </div>
+    </div>
+  </div>`
+}
+
+function confirmarBorrarPartido(id,rival){
+  document.getElementById('modal-root').innerHTML=`<div class="modal-bg"><div class="modal">
+    <div class="modal-titulo" style="color:var(--ro)">⚠️ Eliminar partido</div>
+    <p style="font-size:13px;margin-bottom:18px;color:var(--gris)">¿Eliminar el partido vs <strong style="color:white">${rival}</strong>? Se borrarán todos sus eventos.</p>
+    <div style="display:flex;gap:8px">
+      <button class="bdel" onclick="borrarPartido(${id})">Sí, eliminar</button>
+      <button class="bsm" onclick="cerrarModal()">Cancelar</button>
+    </div>
+  </div></div>`
+}
+
+async function guardarEdicionPartido(id){
+  const rival=document.getElementById('ep-rival').value.trim()
+  if(!rival){toast('El rival no puede estar vacío',true);return}
+  await patch('partidos',{
+    rival,competencia:document.getElementById('ep-comp').value,
+    condicion:document.getElementById('ep-cond').value,
+    fecha:document.getElementById('ep-fecha').value,
+    goles_favor:+document.getElementById('ep-gf').value,
+    goles_contra:+document.getElementById('ep-gc').value,
+  },`?id=eq.${id}`)
+  toast('Partido actualizado');cerrarModal();await cargarDatos()
+}
+
+async function borrarPartido(id){
+  await del('eventos',`?partido_id=eq.${id}`)
+  await del('partidos',`?id=eq.${id}`)
+  if(S.partidoActivo===id){S.partidoActivo=null;S.evPartido=[]}
+  toast('Partido eliminado');cerrarModal();await cargarDatos()
+}
+
+async function borrarEvento(id){
+  await del('eventos',`?id=eq.${id}`)
+  toast('Evento eliminado')
+  S.evPartido=S.evPartido.filter(e=>e.id!==id)
+  await cargarDatos()
+}
+
+// ===== REGISTRO =====
 function renderRegistro(){
   const pid=S.partidoActivo
   const subtipos=S.ev.tipo==='Gol'?TIPOS_GOL:S.ev.tipo==='Asistencia'?TIPOS_ASIST:[]
@@ -236,7 +345,7 @@ function renderRegistro(){
 
   const npForm=S.npShow?`<div style="padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--borde)">
     <div class="fr2" style="margin-bottom:8px">
-      <div class="fg" style="margin-bottom:0"><label>Rival</label><input id="np-rival" placeholder="Ej: Cobreloa" oninput="S.np.rival=this.value"></div>
+      <div class="fg" style="margin-bottom:0"><label>Rival</label><input placeholder="Ej: Cobreloa" oninput="S.np.rival=this.value"></div>
       <div class="fg" style="margin-bottom:0"><label>Competencia</label><select onchange="S.np.competencia=this.value"><option>Primera B</option><option>Copa Chile</option></select></div>
     </div>
     <div class="fr2" style="margin-bottom:8px">
@@ -244,8 +353,8 @@ function renderRegistro(){
       <div class="fg" style="margin-bottom:0"><label>Fecha</label><input type="date" value="${S.np.fecha}" oninput="S.np.fecha=this.value"></div>
     </div>
     <div class="fr2" style="margin-bottom:10px">
-      <div class="fg" style="margin-bottom:0"><label>Goles nuestros</label><input type="number" min="0" value="${S.np.goles_favor}" oninput="S.np.goles_favor=+this.value"></div>
-      <div class="fg" style="margin-bottom:0"><label>Goles rival</label><input type="number" min="0" value="${S.np.goles_contra}" oninput="S.np.goles_contra=+this.value"></div>
+      <div class="fg" style="margin-bottom:0"><label>Goles nuestros</label><input type="number" min="0" value="0" oninput="S.np.goles_favor=+this.value"></div>
+      <div class="fg" style="margin-bottom:0"><label>Goles rival</label><input type="number" min="0" value="0" oninput="S.np.goles_contra=+this.value"></div>
     </div>
     <div style="display:flex;gap:6px"><button class="btn" onclick="guardarPartido()">Guardar</button><button class="bsm" onclick="S.npShow=false;render()">Cancelar</button></div>
   </div>`:''
@@ -257,7 +366,10 @@ function renderRegistro(){
     return`<div class="pcard ${pid===p.id?'sel':''}" onclick="selPartido(${p.id})">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <span style="font-size:10px;color:var(--gris)">${p.fecha} — ${p.competencia}</span>
-        <span class="badge ${rb}">${rl}</span>
+        <div style="display:flex;gap:5px;align-items:center">
+          <span class="badge ${rb}">${rl}</span>
+          <button class="bsm" style="padding:2px 6px;font-size:9px" onclick="event.stopPropagation();abrirEditarPartido(${p.id})">✏️</button>
+        </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:13px;font-weight:700">vs ${p.rival}</span>
@@ -269,7 +381,7 @@ function renderRegistro(){
   const evForm=pid?`
     <div class="fr3" style="margin-bottom:8px">
       <div class="fg" style="margin-bottom:0"><label>Minuto</label><input type="number" min="1" max="120" value="${S.ev.minuto}" oninput="S.ev.minuto=+this.value"></div>
-      <div class="fg" style="margin-bottom:0"><label>Tipo</label><select onchange="S.ev.tipo=this.value;S.ev.subtipo=this.value==='Gol'?'Pie Derecho':this.value==='Asistencia'?'Centro':'';render()">
+      <div class="fg" style="margin-bottom:0"><label>Tipo</label><select onchange="S.ev.tipo=this.value;S.ev.subtipo=this.value==='Gol'?TIPOS_GOL[0]:this.value==='Asistencia'?'Centro':'';render()">
         ${Object.keys(ICONOS).map(t=>`<option ${S.ev.tipo===t?'selected':''}>${t}</option>`).join('')}
       </select></div>
       ${subtipos.length?`<div class="fg" style="margin-bottom:0"><label>Subtipo</label><select onchange="S.ev.subtipo=this.value">
@@ -281,20 +393,39 @@ function renderRegistro(){
       ${S.ev.tipo==='Sustitución'?`<div class="fg" style="margin-bottom:0"><label>Sale</label><select onchange="S.ev.jugador_sale_id=+this.value">${jugOpts}</select></div>`:'<div></div>'}
     </div>
     <button class="btn" onclick="agregarEvento()">+ Agregar evento</button>
-  `:`<div class="empty">Selecciona un partido para registrar eventos</div>`
+  `:`<div class="empty">← Selecciona un partido para registrar eventos</div>`
 
   const evLista=S.evPartido.map(e=>`
     <div class="ev">
       <div class="ev-min">${e.minuto}'</div>
       <div style="font-size:15px">${ICONOS[e.tipo]||'•'}</div>
-      <div><div style="font-size:12px">${jugNombre(e.jugador_id)} ${e.subtipo?'('+e.subtipo+')':''}</div><div style="font-size:10px;color:var(--gris)">${e.tipo}</div></div>
+      <div style="flex:1"><div style="font-size:12px">${jugNombre(e.jugador_id)} ${e.subtipo?'('+e.subtipo+')':''}</div><div style="font-size:10px;color:var(--gris)">${e.tipo}</div></div>
+      <button class="bdel" style="padding:2px 7px;font-size:9px" onclick="borrarEvento(${e.id})">✕</button>
     </div>`).join('')||'<div class="empty">Sin eventos aún</div>'
 
+  const minutajeForm=pid?`<div class="panel">
+    <div class="ph"><span class="pt">Minutaje del partido</span><span style="font-size:10px;color:var(--gris)">minutos jugados</span></div>
+    <div class="pb">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:10px">
+        ${S.jugadores.map(j=>`<div style="background:rgba(0,0,0,.2);border-radius:6px;padding:8px 10px">
+          <div style="font-size:11px;font-weight:700;margin-bottom:5px;color:var(--gris)">#${j.numero} ${j.nombre.split(' ')[0]}</div>
+          <input type="number" min="0" max="120" placeholder="0" value="${S.minutaje[j.id]||''}"
+            style="width:100%;background:rgba(0,0,0,.4);border:1px solid var(--borde2);border-radius:5px;padding:5px 8px;color:white;font-size:13px;font-family:var(--font);font-weight:700"
+            oninput="S.minutaje[${j.id}]=+this.value">
+        </div>`).join('')}
+      </div>
+      <button class="btn" onclick="guardarMinutaje()">💾 Guardar minutaje</button>
+    </div>
+  </div>`:''
+
   return`<div class="content"><div class="g2">
-    <div><div class="panel">
-      <div class="ph"><span class="pt">Seleccionar partido</span><button class="bsm" onclick="S.npShow=!S.npShow;render()">+ Nuevo</button></div>
-      <div class="pb">${npForm}<div style="max-height:300px;overflow-y:auto">${S.partidos.length?listaP:'<div class="empty">Sin partidos. Crea uno.</div>'}</div></div>
-    </div></div>
+    <div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Seleccionar partido</span><button class="bsm" onclick="S.npShow=!S.npShow;render()">+ Nuevo</button></div>
+        <div class="pb">${npForm}<div style="max-height:280px;overflow-y:auto">${S.partidos.length?listaP:'<div class="empty">Sin partidos. Crea uno.</div>'}</div></div>
+      </div>
+      ${minutajeForm}
+    </div>
     <div>
       <div class="panel">
         <div class="ph"><span class="pt">Registrar evento</span>${pid?`<span style="font-size:10px;color:var(--gris)">vs ${S.partidos.find(p=>p.id===pid)?.rival||''}</span>`:''}</div>
@@ -302,16 +433,20 @@ function renderRegistro(){
       </div>
       <div class="panel">
         <div class="ph"><span class="pt">Eventos del partido</span></div>
-        <div class="pb"><div style="max-height:220px;overflow-y:auto">${evLista}</div></div>
+        <div class="pb"><div style="max-height:260px;overflow-y:auto">${evLista}</div></div>
       </div>
     </div>
   </div></div>`
 }
 
 async function selPartido(id){
-  S.partidoActivo=id
-  const evs=await get('eventos',`?partido_id=eq.${id}&order=minuto`)
+  S.partidoActivo=id;S.minutaje={}
+  const[evs,mins]=await Promise.all([
+    get('eventos',`?partido_id=eq.${id}&order=minuto`),
+    get('minutaje',`?partido_id=eq.${id}`)
+  ])
   S.evPartido=Array.isArray(evs)?evs:[]
+  if(Array.isArray(mins))mins.forEach(m=>S.minutaje[m.jugador_id]=m.minutos)
   render()
 }
 
@@ -321,9 +456,7 @@ async function guardarPartido(){
   if(Array.isArray(r)&&r[0]){
     toast('Partido guardado')
     S.np={rival:'',competencia:'Primera B',condicion:'Local',fecha:hoy(),goles_favor:0,goles_contra:0}
-    S.npShow=false
-    await cargarDatos()
-    await selPartido(r[0].id)
+    S.npShow=false;await cargarDatos();await selPartido(r[0].id)
   }else toast('Error al guardar',true)
 }
 
@@ -339,6 +472,20 @@ async function agregarEvento(){
   else toast('Error',true)
 }
 
+async function guardarMinutaje(){
+  if(!S.partidoActivo){toast('Selecciona un partido',true);return}
+  const ops=Object.entries(S.minutaje).filter(([,v])=>v>0).map(([jid,minutos])=>
+    fetch(`${SB_URL}/rest/v1/minutaje`,{
+      method:'POST',
+      headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
+      body:JSON.stringify({partido_id:S.partidoActivo,jugador_id:+jid,minutos})
+    })
+  )
+  await Promise.all(ops)
+  toast('Minutaje guardado ✓')
+}
+
+// ===== PLANTILLA =====
 function renderPlantilla(){
   const lista=S.filtPos==='todos'?S.jugadores:S.jugadores.filter(j=>j.posicion===S.filtPos)
   const addForm=S.addJugShow?`<div class="panel" style="margin-bottom:12px">
@@ -364,8 +511,11 @@ function renderPlantilla(){
     return`<div class="jcard">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <div class="jav">${ini}</div>
-        <div><div style="font-size:13px;font-weight:700">#${j.numero} ${j.nombre.split(' ')[0]}</div>
-        <div style="display:flex;gap:4px;margin-top:2px"><span class="pos-${j.posicion}">${j.posicion}</span><span class="badge ${les?'br':'bv'}">${les?'Lesionado':'OK'}</span></div></div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700">#${j.numero} ${j.nombre.split(' ')[0]}</div>
+          <div style="display:flex;gap:4px;margin-top:2px"><span class="pos-${j.posicion}">${j.posicion}</span><span class="badge ${les?'br':'bv'}">${les?'Lesionado':'OK'}</span></div>
+        </div>
+        <button class="bsm" style="padding:3px 8px;font-size:11px;align-self:flex-start" onclick="abrirEditarJugador(${j.id})">✏️</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
         <div style="text-align:center;background:rgba(0,0,0,.2);border-radius:4px;padding:4px"><div style="font-size:15px;font-weight:800;color:var(--vc)">${st.goles}</div><div style="font-size:9px;color:var(--gris)">Goles</div></div>
@@ -393,6 +543,7 @@ async function guardarJugador(){
   else toast('Error',true)
 }
 
+// ===== PARTIDOS =====
 function renderPartidos(){
   const fc=S.filtComp
   const lista=fc==='todos'?S.partidos:S.partidos.filter(p=>p.competencia===fc)
@@ -410,8 +561,11 @@ function renderPartidos(){
     const goles=S.eventos.filter(e=>e.partido_id===p.id&&e.tipo==='Gol').map(e=>`<span class="badge bv">⚽ ${jugNombre(e.jugador_id).split(' ')[0]} ${e.minuto}'</span>`).join(' ')
     return`<div class="pcard" style="cursor:default">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div style="display:flex;gap:4px"><span class="badge ${rb}">${rl}</span><span class="badge ${p.condicion==='Local'?'baz':'bg'}">${p.condicion}</span><span class="badge bg">${p.competencia}</span></div>
-        <span style="font-size:10px;color:var(--gris)">${p.fecha}</span>
+        <div style="display:flex;gap:4px;flex-wrap:wrap"><span class="badge ${rb}">${rl}</span><span class="badge ${p.condicion==='Local'?'baz':'bg'}">${p.condicion}</span><span class="badge bg">${p.competencia}</span></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:10px;color:var(--gris)">${p.fecha}</span>
+          <button class="bsm" style="padding:2px 8px;font-size:10px" onclick="abrirEditarPartido(${p.id})">✏️ Editar</button>
+        </div>
       </div>
       <div class="rbox">
         <div class="req" style="text-align:right">Deportes Temuco</div>
@@ -434,6 +588,7 @@ function renderPartidos(){
   </div>`
 }
 
+// ===== ESTADÍSTICAS =====
 function renderEstadisticas(){
   const fc=S.filtCompEst
   const partsFilt=fc==='todos'?S.partidos:S.partidos.filter(p=>p.competencia===fc)
@@ -459,6 +614,23 @@ function renderEstadisticas(){
   const tr=evsFilt.filter(e=>e.tipo==='Roja').length
   const pz=partsFilt.filter(p=>p.goles_contra===0).length
 
+  const panelTiposGol=S.editTiposGol?`<div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">⚙️ Gestionar tipos de gol</span><button class="bsm" onclick="S.editTiposGol=false;render()">Cerrar</button></div>
+    <div class="pb">
+      ${TIPOS_GOL.map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--borde)">
+        <span style="flex:1;font-size:12px">${t}</span>
+        <span style="font-size:10px;color:var(--gris);min-width:50px">${cGol[t]||0} goles</span>
+        <button class="bdel" style="padding:3px 8px;font-size:10px" onclick="eliminarTipoGol(${i})">✕ Quitar</button>
+      </div>`).join('')}
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <input id="inp-tipo-gol" placeholder="Nuevo tipo, ej: Chilena..." value="${S.nuevoTipoGol}"
+          style="flex:1;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font)"
+          oninput="S.nuevoTipoGol=this.value" onkeydown="if(event.key==='Enter')agregarTipoGol()">
+        <button class="btn" onclick="agregarTipoGol()">+ Agregar</button>
+      </div>
+    </div>
+  </div>`:''
+
   return`<div class="content">
     <div class="tabs">${['todos','Primera B','Copa Chile'].map(c=>`<button class="tab ${S.filtCompEst===c?'on':''}" onclick="S.filtCompEst='${c}';render()">${c==='todos'?'Todas':c}</button>`).join('')}</div>
     <div class="g4">
@@ -470,23 +642,45 @@ function renderEstadisticas(){
     <div class="g2">
       <div class="panel"><div class="ph"><span class="pt">Goleadores G/90</span></div>
         <table><thead><tr><th>Jugador</th><th class="num">G</th><th class="num">Min</th><th class="num">G/90</th></tr></thead><tbody>
-        ${goleadores.slice(0,8).map(j=>`<tr><td>${j.nombre}</td><td class="num">${j.goles}</td><td class="num">${j.min}'</td><td class="num" style="color:var(--vc);font-weight:800">${j.g90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
+        ${goleadores.slice(0,8).map(j=>`<tr><td>${j.nombre}</td><td class="num">${j.goles}</td><td class="num">${j.min}'</td><td class="num" style="color:var(--vc);font-weight:800">${j.g90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin goles registrados</td></tr>`}
         </tbody></table>
       </div>
       <div class="panel"><div class="ph"><span class="pt">Asistidores A/90</span></div>
         <table><thead><tr><th>Jugador</th><th class="num">A</th><th class="num">Min</th><th class="num">A/90</th></tr></thead><tbody>
-        ${asistidores.slice(0,8).map(j=>`<tr><td>${j.nombre}</td><td class="num">${j.asist}</td><td class="num">${j.min}'</td><td class="num" style="color:var(--az);font-weight:800">${j.a90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias</td></tr>`}
+        ${asistidores.slice(0,8).map(j=>`<tr><td>${j.nombre}</td><td class="num">${j.asist}</td><td class="num">${j.min}'</td><td class="num" style="color:var(--az);font-weight:800">${j.a90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias registradas</td></tr>`}
         </tbody></table>
       </div>
     </div>
-    <div class="panel"><div class="ph"><span class="pt">Desglose de goles</span></div><div class="pb">
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">
-        ${TIPOS_GOL.map(t=>{const pct=Math.round(cGol[t]/totG*100);return`<div class="mc"><div class="mc-l">${t}</div><div class="mc-v" style="font-size:18px">${cGol[t]}</div><div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div><div class="mc-s">${pct}%</div></div>`}).join('')}
+    ${panelTiposGol}
+    <div class="panel">
+      <div class="ph">
+        <span class="pt">Desglose de goles</span>
+        <button class="bsm" onclick="S.editTiposGol=!S.editTiposGol;render()">⚙️ Gestionar tipos</button>
       </div>
-    </div></div>
+      <div class="pb">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">
+          ${TIPOS_GOL.map(t=>{const pct=Math.round((cGol[t]||0)/totG*100);return`<div class="mc"><div class="mc-l">${t}</div><div class="mc-v" style="font-size:20px">${cGol[t]||0}</div><div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div><div class="mc-s">${pct}%</div></div>`}).join('')}
+        </div>
+      </div>
+    </div>
   </div>`
 }
 
+function agregarTipoGol(){
+  const val=S.nuevoTipoGol.trim()
+  if(!val){toast('Escribe un nombre para el tipo',true);return}
+  if(TIPOS_GOL.includes(val)){toast('Ese tipo ya existe',true);return}
+  TIPOS_GOL.push(val);S.nuevoTipoGol='';render();toast('Tipo "'+val+'" agregado')
+}
+
+function eliminarTipoGol(i){
+  const tipo=TIPOS_GOL[i]
+  const enUso=S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Gol')
+  if(enUso){toast('No se puede eliminar — hay goles registrados con este tipo',true);return}
+  TIPOS_GOL.splice(i,1);render();toast('Tipo eliminado')
+}
+
+// ===== MÉDICO =====
 function renderMedico(){
   const les=S.lesiones
   const jugOpts=S.jugadores.map(j=>`<option value="${j.id}">#${j.numero} ${j.nombre}</option>`).join('')
@@ -510,11 +704,11 @@ function renderMedico(){
     const pct=Math.min(100,Math.round(dias/(l.semanas_recuperacion*7)*100))
     return`<div class="pcard" style="cursor:default;margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div><div style="font-size:14px;font-weight:700">${j?.nombre||'?'}</div><div style="font-size:10px;color:var(--gris)">${l.tipo} · Alta: ${alta.toLocaleDateString('es-CL')}</div></div>
-        <div style="text-align:right"><div style="font-size:18px;font-weight:800;color:var(--ro)">${dias}</div><div style="font-size:9px;color:var(--gris)">días</div></div>
+        <div><div style="font-size:14px;font-weight:700">${j?.nombre||'?'}</div><div style="font-size:10px;color:var(--gris)">${l.tipo} · Alta estimada: ${alta.toLocaleDateString('es-CL')}</div></div>
+        <div style="text-align:right"><div style="font-size:20px;font-weight:800;color:var(--ro)">${dias}</div><div style="font-size:9px;color:var(--gris)">días restantes</div></div>
       </div>
       <div class="bar-w" style="margin-top:6px"><div class="bar-f" style="width:${pct}%;background:var(--ro)"></div></div>
-      <button class="bsm" style="margin-top:8px" onclick="darAlta(${l.id})">Dar alta</button>
+      <button class="bsm" style="margin-top:8px" onclick="darAlta(${l.id})">✅ Dar alta</button>
     </div>`
   }).join('')
 
@@ -526,10 +720,10 @@ function renderMedico(){
   return`<div class="content"><div class="g2">
     <div><div class="panel">
       <div class="ph"><span class="pt">Lesiones activas</span><button class="bsm" onclick="S.lesShow=!S.lesShow;render()">+ Registrar</button></div>
-      <div class="pb">${addForm}${les.length?lesCards:'<div class="empty">Sin lesiones activas</div>'}</div>
+      <div class="pb">${addForm}${les.length?lesCards:'<div class="empty">💪 Sin lesiones activas</div>'}</div>
     </div></div>
     <div><div class="panel">
-      <div class="ph"><span class="pt">Disponibilidad</span></div>
+      <div class="ph"><span class="pt">Disponibilidad plantilla</span></div>
       <table><thead><tr><th>Jugador</th><th>Pos</th><th class="center">Estado</th></tr></thead><tbody>${dispTabla}</tbody></table>
     </div></div>
   </div></div>`
@@ -545,13 +739,13 @@ async function guardarLesion(){
 
 async function darAlta(id){
   await patch('lesiones',{alta:true,fecha_alta:hoy()},`?id=eq.${id}`)
-  toast('Jugador dado de alta');await cargarDatos()
+  toast('Jugador dado de alta ✅');await cargarDatos()
 }
 
+// ===== RENDER =====
 function render(){
   const root=document.getElementById('root')
-  if(S.pag==='login'){document.body.style.background='var(--fondo)';root.innerHTML=renderLogin();return}
-  document.body.style.background='var(--fondo)'
+  if(S.pag==='login'){root.innerHTML=renderLogin();return}
   root.innerHTML=`<div id="app">${renderHdr()}${renderNav()}${
     S.pag==='registro'?renderRegistro():
     S.pag==='plantilla'?renderPlantilla():

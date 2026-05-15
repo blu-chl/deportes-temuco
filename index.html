@@ -781,8 +781,6 @@ function renderRegistro(){
 
 async function selPartido(id){
   S.partidoActivo=id;S.slotSeleccionado=null
-  // Siempre resetear formación al cambiar de partido
-  S.formacion='4-4-2';S.titulares=[]
   const[evs,part]=await Promise.all([
     get('eventos',`?partido_id=eq.${id}&order=minuto`),
     get('partidos',`?id=eq.${id}`)

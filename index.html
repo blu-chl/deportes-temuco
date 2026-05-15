@@ -1006,7 +1006,9 @@ function renderPlantilla(){
     const diasContrato=j.contrato_hasta?Math.ceil((new Date(j.contrato_hasta)-new Date())/86400000):null
     const contratoAlert=diasContrato!==null&&diasContrato<90
     const contratoTxt=j.contrato_hasta?`<span style="color:${contratoAlert?'var(--ro)':'inherit'}">${new Date(j.contrato_hasta).toLocaleDateString('es-CL')}${contratoAlert?' <span style="color:var(--ro)">⚠️</span>':''}</span>`:'-'
+    const ini=j.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
     return`<tr>
+      <td><div class="jav" style="width:32px;height:32px;font-size:10px">${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:`${ini}`}</div></td>
       <td style="font-weight:800;color:var(--vc)">${j.numero}</td>
       <td style="font-weight:700">${j.nombre}</td>
       <td><span class="pos-${j.posicion}" style="font-size:9px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td>
@@ -1077,7 +1079,7 @@ function renderPlantilla(){
     ${addForm}
     ${lista.length?`<div style="overflow-x:auto"><table>
       <thead><tr>
-        <th>#</th><th>Nombre</th><th>Pos. Específica</th><th class="center">Edad</th>
+        <th></th><th>#</th><th>Nombre</th><th>Pos. Específica</th><th class="center">Edad</th>
         <th class="center">Alt</th><th class="center">Pie</th><th class="center">Nac.</th>
         <th>Club Origen</th><th>Contrato</th><th class="center">Valor</th>
         <th>Notas</th><th class="center">Estado</th><th></th>

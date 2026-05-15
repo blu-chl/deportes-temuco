@@ -131,7 +131,9 @@ tr:hover td{background:rgba(46,168,79,0.05)}
 const SB_URL='https://vskhzbstwadaabzyhzwh.supabase.co'
 const SB_KEY='sb_publishable_Xpm4vH8few7gjsDcIM_2qA_3rjYFHeu'
 let AUTH_TOKEN=SB_KEY
-const API_F_URL='https://api-football-v1.p.rapidapi.com/v3'
+const API_F_URL='https://v3.football.api-sports.io'
+const API_F_TEAM=2317  // Deportes Temuco
+const API_F_LEAGUE=266 // Primera B Chile
 let liveTimer=null
 const hdrs=()=>({'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+AUTH_TOKEN,'Prefer':'return=representation'})
 
@@ -230,7 +232,8 @@ let S={
   ordenPlantilla:'dorsal',filtEstadoPlantilla:'todos',
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   bgImage:localStorage.getItem('dt-bg')||'',
-  apiF:{key:localStorage.getItem('dt-api-key')||'',teamId:localStorage.getItem('dt-team-id')||'',live:false,syncing:false,lastSync:''},
+  apiF:{key:localStorage.getItem('dt-api-key')||'',teamId:localStorage.getItem('dt-team-id')||'2317',live:false,syncing:false,lastSync:''},
+  hist:{year:'2024',data:{},loading:false},
 }
 
 async function cargarDatos(){
@@ -324,7 +327,7 @@ function renderNav(){
   return`<nav>${[
     {id:'registro',l:'Registro'},{id:'plantilla',l:'Plantilla'},
     {id:'partidos',l:'Partidos'},{id:'estadisticas',l:'Estadísticas'},
-    {id:'medico',l:'Médico'},{id:'config',l:'⚙ Config'}
+    {id:'historia',l:'📊 Historia'},{id:'medico',l:'Médico'},{id:'config',l:'⚙ Config'}
   ].map(t=>`<button class="nb ${S.pag===t.id?'on':''}" onclick="navTo('${t.id}')">${t.l}</button>`).join('')}</nav>`
 }
 
@@ -778,6 +781,8 @@ function renderRegistro(){
 
 async function selPartido(id){
   S.partidoActivo=id;S.slotSeleccionado=null
+  // Siempre resetear formación al cambiar de partido
+  S.formacion='4-4-2';S.titulares=[]
   const[evs,part]=await Promise.all([
     get('eventos',`?partido_id=eq.${id}&order=minuto`),
     get('partidos',`?id=eq.${id}`)
@@ -1243,10 +1248,14 @@ async function apiF(endpoint){
   if(!k){toast('Configura tu API Key en ⚙ Config',true);return null}
   try{
     const r=await fetch(`${API_F_URL}${endpoint}`,{
-      headers:{'X-RapidAPI-Key':k,'X-RapidAPI-Host':'api-football-v1.p.rapidapi.com'}
+      headers:{'x-apisports-key':k}
     })
     if(!r.ok){toast(`API error ${r.status}`,true);return null}
     const d=await r.json()
+    if(d.errors&&Object.keys(d.errors).length){
+      const msg=Object.values(d.errors)[0]
+      toast('API: '+msg,true);return null
+    }
     return d.response||[]
   }catch(e){toast('Sin conexión a la API',true);return null}
 }
@@ -1274,14 +1283,10 @@ function matchJugador(apiName){
 }
 
 async function buscarEquipo(){
-  toast('Buscando equipo...')
-  let res=await apiF('/teams?name=Deportes+Temuco&country=Chile')
-  if(!res||!res.length)res=await apiF('/teams?name=Deportes+Temuco')
-  if(!res||!res.length){toast('Equipo no encontrado en la API',true);return}
-  const id=res[0].team.id
-  S.apiF.teamId=String(id)
-  localStorage.setItem('dt-team-id',S.apiF.teamId)
-  toast(`Equipo encontrado — ID: ${id}`)
+  // Deportes Temuco ya tiene ID conocido, lo precargamos
+  S.apiF.teamId='2317'
+  localStorage.setItem('dt-team-id','2317')
+  toast('Equipo configurado — Deportes Temuco ID: 2317 ✓')
   render()
 }
 
@@ -1292,8 +1297,10 @@ async function sincPartido(silent=false){
   if(!partido)return
   if(!silent){S.apiF.syncing=true;render()}
 
+  // Detectar temporada desde la fecha del partido
+  const season=partido.fecha.split('-')[0]
   // Find fixture by date + team
-  const fixtures=await apiF(`/fixtures?team=${S.apiF.teamId}&date=${partido.fecha}&season=2026`)
+  const fixtures=await apiF(`/fixtures?team=${S.apiF.teamId}&date=${partido.fecha}&season=${season}&league=${API_F_LEAGUE}`)
   if(!fixtures||!fixtures.length){
     if(!silent)toast('Partido no encontrado en la API para '+partido.fecha,true)
     S.apiF.syncing=false;if(!silent)render();return
@@ -1393,8 +1400,10 @@ async function testApiConnection(){
   toast('Probando conexión...')
   const res=await apiF('/status')
   if(res!==null){
-    const req=res[0]||{}
-    toast(`API OK — ${req.requests?.current||'?'}/${req.requests?.limit_day||'?'} requests usadas hoy`)
+    const info=res[0]||{}
+    const used=info.requests?.current??'?'
+    const limit=info.requests?.limit_day??'?'
+    toast(`✓ Conectado — ${used}/${limit} requests usadas hoy`)
   }
 }
 
@@ -1448,24 +1457,18 @@ function renderConfig(){
     <div class="config-section">
       <div class="config-title">📡 API Football — Sincronización automática</div>
       <p style="font-size:10px;color:var(--gris);margin-bottom:10px;line-height:1.7">
-        Importa resultados, goles, tarjetas y sustituciones automáticamente desde la API oficial.<br>
-        1. Regístrate gratis en <strong style="color:var(--vc)">rapidapi.com</strong> → busca "API-Football"<br>
-        2. Copia tu API Key y pégala aquí<br>
-        3. Haz clic en 🔍 Buscar para obtener el ID de Deportes Temuco<br>
-        Plan gratuito: 100 requests/día
+        Importa resultados, goles, tarjetas y sustituciones desde api-sports.io.<br>
+        1. Regístrate gratis en <strong style="color:var(--vc)">dashboard.api-sports.io</strong><br>
+        2. Copia tu API Key y pégala abajo → Guardar<br>
+        Plan gratuito: 100 requests/día · Temporadas 2022–2024
       </p>
-      <div class="fg">
-        <label>API Key (RapidAPI)</label>
-        <input type="password" id="api-key-inp" value="${S.apiF.key}" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-          style="width:100%;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font)">
+      <div style="background:rgba(46,168,79,0.06);border:1px solid var(--borde);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:10px;color:var(--gris)">
+        ✅ Equipo: <strong style="color:white">Deportes Temuco</strong> · ID: 2317 &nbsp;|&nbsp; Liga: <strong style="color:white">Primera B Chile</strong> · ID: 266
       </div>
       <div class="fg">
-        <label>Team ID de Deportes Temuco</label>
-        <div style="display:flex;gap:6px">
-          <input id="api-team-inp" value="${S.apiF.teamId}" placeholder="Ej: 2299"
-            style="flex:1;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font)">
-          <button class="bsm" onclick="buscarEquipo()">🔍 Buscar</button>
-        </div>
+        <label>API Key (api-sports.io)</label>
+        <input type="password" id="api-key-inp" value="${S.apiF.key}" placeholder="Pega aquí tu API Key"
+          style="width:100%;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font)">
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" onclick="guardarApiConfig()">💾 Guardar</button>
@@ -1505,6 +1508,168 @@ async function testConnection(){
   catch(e){toast('Sin conexión',true)}
 }
 
+// ===== HISTORIA =====
+async function cargarHistoria(){
+  const year=S.hist.year
+  if(S.hist.data[year]){render();return}
+  if(!S.apiF.key){toast('Configura tu API Key en ⚙ Config',true);return}
+  S.hist.loading=true;render()
+  // 1 request: fixtures del año
+  const fixtures=await apiF(`/fixtures?team=${API_F_TEAM}&season=${year}&league=${API_F_LEAGUE}`)
+  // 1-2 requests: estadísticas de jugadores
+  const players=await apiF(`/players?team=${API_F_TEAM}&season=${year}&league=${API_F_LEAGUE}`)
+  if(!fixtures){S.hist.loading=false;render();return}
+  S.hist.data[year]={fixtures:fixtures||[],players:players||[]}
+  S.hist.loading=false;render()
+}
+
+function renderHistoria(){
+  const year=S.hist.year
+  const years=['2022','2023','2024']
+  const d=S.hist.data[year]
+  const noKey=!S.apiF.key
+
+  const yearTabs=`<div style="display:flex;gap:6px;margin-bottom:14px">
+    ${years.map(y=>`<button class="tab ${year===y?'on':''}" onclick="S.hist.year='${y}';render()">${y}</button>`).join('')}
+  </div>`
+
+  if(noKey) return`<div class="content">${yearTabs}
+    <div class="empty" style="padding:40px">
+      🔑 Configura tu API Key en <strong>⚙ Config</strong> para cargar datos históricos
+    </div></div>`
+
+  if(S.hist.loading) return`<div class="content">${yearTabs}
+    <div class="empty" style="padding:40px">⏳ Cargando datos ${year}...</div></div>`
+
+  if(!d) return`<div class="content">${yearTabs}
+    <div style="text-align:center;padding:40px">
+      <p style="color:var(--gris);margin-bottom:14px">Sin datos cargados para ${year}</p>
+      <button class="btn" onclick="cargarHistoria()">📥 Cargar temporada ${year}</button>
+    </div></div>`
+
+  const fixes=d.fixtures
+  const pg=fixes.filter(f=>{const isH=f.teams.home.id===API_F_TEAM;return isH?f.goals.home>f.goals.away:f.goals.away>f.goals.home}).length
+  const pe=fixes.filter(f=>f.goals.home===f.goals.away).length
+  const pp=fixes.length-pg-pe
+  const gf=fixes.reduce((a,f)=>{const isH=f.teams.home.id===API_F_TEAM;return a+(isH?f.goals.home:f.goals.away)},0)
+  const gc=fixes.reduce((a,f)=>{const isH=f.teams.home.id===API_F_TEAM;return a+(isH?f.goals.away:f.goals.home)},0)
+  const pts=pg*3+pe
+
+  // Player stats
+  const pstats=d.players.map(p=>{
+    const s=p.statistics[0]||{}
+    return{
+      name:p.player.name,
+      photo:p.player.photo,
+      pos:s.games?.position||'',
+      apps:s.games?.appearences||0,
+      mins:s.games?.minutes||0,
+      goles:s.goals?.total||0,
+      asist:s.goals?.assists||0,
+      amarillas:s.cards?.yellow||0,
+      rojas:s.cards?.red||0,
+    }
+  })
+  const goleadores=[...pstats].filter(p=>p.goles>0).sort((a,b)=>b.goles-a.goles).slice(0,8)
+  const asistidores=[...pstats].filter(p=>p.asist>0).sort((a,b)=>b.asist-a.asist).slice(0,8)
+  const disciplina=[...pstats].filter(p=>p.amarillas>0||p.rojas>0).sort((a,b)=>(b.amarillas+b.rojas*3)-(a.amarillas+a.rojas*3)).slice(0,8)
+  const minutos=[...pstats].filter(p=>p.mins>0).sort((a,b)=>b.mins-a.mins).slice(0,8)
+
+  // Last 10 matches form
+  const forma=[...fixes].slice(-10).map(f=>{
+    const isH=f.teams.home.id===API_F_TEAM
+    const gf2=isH?f.goals.home:f.goals.away
+    const gc2=isH?f.goals.away:f.goals.home
+    const r=gf2>gc2?'W':gf2===gc2?'D':'L'
+    const rival=isH?f.teams.away.name:f.teams.home.name
+    return`<span class="form-dot ${r}" title="${rival} ${gf2}-${gc2}">${r}</span>`
+  }).join('')
+
+  // All matches
+  const partidos=[...fixes].reverse().map(f=>{
+    const isH=f.teams.home.id===API_F_TEAM
+    const gf2=isH?f.goals.home:f.goals.away
+    const gc2=isH?f.goals.away:f.goals.home
+    const rival=isH?f.teams.away.name:f.teams.home.name
+    const cond=isH?'Local':'Visita'
+    const res=gf2>gc2?'W':gf2===gc2?'D':'L'
+    const rb=res==='W'?'bv':res==='D'?'ba':'br'
+    const fecha=f.fixture.date?.split('T')[0]||''
+    return`<tr>
+      <td style="color:var(--gris);font-size:10px">${fecha}</td>
+      <td>${rival}</td>
+      <td class="center"><span class="badge ${cond==='Local'?'baz':'bg'}" style="font-size:8px">${cond}</span></td>
+      <td class="center" style="font-weight:800;color:var(--vc)">${gf2}-${gc2}</td>
+      <td class="center"><span class="badge ${rb}" style="font-size:8px">${res==='W'?'V':res==='D'?'E':'D'}</span></td>
+    </tr>`
+  }).join('')
+
+  return`<div class="content">
+    ${yearTabs}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <span style="font-size:11px;font-weight:700;color:var(--vc)">Temporada ${year} — Primera B Chile</span>
+      <button class="bsm" onclick="S.hist.data['${year}']=null;cargarHistoria()">↺ Recargar</button>
+    </div>
+    <div class="g4">
+      <div class="mc verde"><div class="mc-l">Puntos</div><div class="mc-v">${pts}</div><div class="mc-s">${pg}G · ${pe}E · ${pp}D</div></div>
+      <div class="mc"><div class="mc-l">Partidos</div><div class="mc-v">${fixes.length}</div><div class="mc-s">${pg} ganados</div></div>
+      <div class="mc az"><div class="mc-l">Goles F / C</div><div class="mc-v">${gf}/${gc}</div><div class="mc-s">Dif: ${gf-gc>0?'+':''}${gf-gc}</div></div>
+      <div class="mc am"><div class="mc-l">Prom. goles</div><div class="mc-v">${fixes.length>0?(gf/fixes.length).toFixed(1):'0'}</div><div class="mc-s">por partido</div></div>
+    </div>
+    <div class="panel" style="margin-bottom:12px">
+      <div class="ph"><span class="pt">Últimos 10 partidos</span></div>
+      <div class="pb" style="display:flex;gap:4px;flex-wrap:wrap">${forma||'<span style="color:var(--gris);font-size:11px">Sin datos</span>'}</div>
+    </div>
+    <div class="g2">
+      <div class="panel"><div class="ph"><span class="pt">⚽ Goleadores</span></div>
+        <table><thead><tr><th>Jugador</th><th class="num">G</th><th class="num">PJ</th></tr></thead><tbody>
+        ${goleadores.map((p,i)=>`<tr>
+          <td><span style="color:var(--am);font-weight:800;margin-right:4px">${i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'.'}</span>${p.name}</td>
+          <td class="num" style="color:var(--vc);font-weight:800">${p.goles}</td>
+          <td class="num" style="color:var(--gris)">${p.apps}</td>
+        </tr>`).join('')||'<tr><td colspan="3" class="empty">Sin datos</td></tr>'}
+        </tbody></table>
+      </div>
+      <div class="panel"><div class="ph"><span class="pt">🅰️ Asistidores</span></div>
+        <table><thead><tr><th>Jugador</th><th class="num">A</th><th class="num">PJ</th></tr></thead><tbody>
+        ${asistidores.map((p,i)=>`<tr>
+          <td><span style="color:var(--am);font-weight:800;margin-right:4px">${i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'.'}</span>${p.name}</td>
+          <td class="num" style="color:var(--az);font-weight:800">${p.asist}</td>
+          <td class="num" style="color:var(--gris)">${p.apps}</td>
+        </tr>`).join('')||'<tr><td colspan="3" class="empty">Sin datos</td></tr>'}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="panel"><div class="ph"><span class="pt">⏱ Más minutos</span></div>
+        <table><thead><tr><th>Jugador</th><th class="num">Min</th><th class="num">PJ</th></tr></thead><tbody>
+        ${minutos.map(p=>`<tr>
+          <td>${p.name}</td>
+          <td class="num" style="color:var(--vc);font-weight:800">${p.mins}'</td>
+          <td class="num" style="color:var(--gris)">${p.apps}</td>
+        </tr>`).join('')||'<tr><td colspan="3" class="empty">Sin datos</td></tr>'}
+        </tbody></table>
+      </div>
+      <div class="panel"><div class="ph"><span class="pt">🟡 Disciplina</span></div>
+        <table><thead><tr><th>Jugador</th><th class="num">🟡</th><th class="num">🔴</th></tr></thead><tbody>
+        ${disciplina.map(p=>`<tr>
+          <td>${p.name}</td>
+          <td class="num" style="color:var(--am)">${p.amarillas}</td>
+          <td class="num" style="color:#ff8888">${p.rojas}</td>
+        </tr>`).join('')||'<tr><td colspan="3" class="empty">Sin tarjetas</td></tr>'}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">Todos los partidos ${year}</span><span style="font-size:10px;color:var(--gris)">${fixes.length} partidos</span></div>
+      <div style="max-height:380px;overflow-y:auto">
+        <table><thead><tr><th>Fecha</th><th>Rival</th><th class="center">Cond.</th><th class="center">Res.</th><th class="center">R</th></tr></thead>
+        <tbody>${partidos||'<tr><td colspan="5" class="empty">Sin partidos</td></tr>'}</tbody></table>
+      </div>
+    </div>
+  </div>`
+}
+
 // ===== RENDER =====
 function render(){
   const root=document.getElementById('root')
@@ -1515,6 +1680,7 @@ function render(){
     S.pag==='partidos'?renderPartidos():
     S.pag==='estadisticas'?renderEstadisticas():
     S.pag==='config'?renderConfig():
+    S.pag==='historia'?renderHistoria():
     renderMedico()
   }</div>`
 }

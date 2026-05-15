@@ -938,20 +938,45 @@ function renderPlantilla(){
     const wantLes=S.filtEstadoPlantilla==='lesionado'
     lista=lista.filter(j=>wantLes?S.lesiones.some(l=>l.jugador_id===j.id):!S.lesiones.some(l=>l.jugador_id===j.id))
   }
+  const dir=S.ordenDir||'asc'
+  const dm=dir==='asc'?1:-1
   if(S.ordenPlantilla==='apellido'){
-    lista.sort((a,b)=>{
-      const aa=a.nombre.split(' ').slice(1).join(' ')||a.nombre
-      const bb=b.nombre.split(' ').slice(1).join(' ')||b.nombre
-      return aa.localeCompare(bb)
-    })
+    lista.sort((a,b)=>{const aa=a.nombre.split(' ').slice(1).join(' ')||a.nombre;const bb=b.nombre.split(' ').slice(1).join(' ')||b.nombre;return aa.localeCompare(bb)*dm})
   }else if(S.ordenPlantilla==='posicion'){
-    lista.sort((a,b)=>(a.posicion_especifica||a.posicion).localeCompare(b.posicion_especifica||b.posicion))
+    lista.sort((a,b)=>(a.posicion_especifica||a.posicion).localeCompare(b.posicion_especifica||b.posicion)*dm)
   }else if(S.ordenPlantilla==='zona'){
     const zOrd={POR:0,DEF:1,MED:2,DEL:3}
-    lista.sort((a,b)=>(zOrd[a.posicion]||0)-(zOrd[b.posicion]||0))
+    lista.sort((a,b)=>((zOrd[a.posicion]||0)-(zOrd[b.posicion]||0))*dm)
+  }else if(S.ordenPlantilla==='edad'){
+    lista.sort((a,b)=>((a.edad||0)-(b.edad||0))*dm)
+  }else if(S.ordenPlantilla==='altura'){
+    lista.sort((a,b)=>((a.altura||0)-(b.altura||0))*dm)
+  }else if(S.ordenPlantilla==='valor'){
+    lista.sort((a,b)=>((a.valor||0)-(b.valor||0))*dm)
+  }else if(S.ordenPlantilla==='contrato'){
+    lista.sort((a,b)=>(a.contrato_hasta||'9999').localeCompare(b.contrato_hasta||'9999')*dm)
+  }else if(S.ordenPlantilla==='pie'){
+    lista.sort((a,b)=>(a.pie||'').localeCompare(b.pie||'')*dm)
+  }else if(S.ordenPlantilla==='nac'){
+    lista.sort((a,b)=>(a.nacionalidad||'').localeCompare(b.nacionalidad||'')*dm)
   }else{
-    lista.sort((a,b)=>a.numero-b.numero)
+    lista.sort((a,b)=>(a.numero-b.numero)*dm)
   }
+
+  // Stats generales de toda la plantilla
+  const tp=S.jugadores
+  const conEdad=tp.filter(j=>j.edad)
+  const conAlt=tp.filter(j=>j.altura)
+  const edadProm=conEdad.length?(tp.reduce((a,j)=>a+(j.edad||0),0)/conEdad.length).toFixed(1):'-'
+  const altProm=conAlt.length?Math.round(tp.reduce((a,j)=>a+(j.altura||0),0)/conAlt.length):'-'
+  const valorTotal=tp.reduce((a,j)=>a+(j.valor||0),0)
+  const nPOR=tp.filter(j=>j.posicion==='POR').length
+  const nDEF=tp.filter(j=>j.posicion==='DEF').length
+  const nMED=tp.filter(j=>j.posicion==='MED').length
+  const nDEL=tp.filter(j=>j.posicion==='DEL').length
+  const nDiestros=tp.filter(j=>j.pie==='Derecho').length
+  const nZurdos=tp.filter(j=>j.pie==='Izquierdo').length
+  const nAmbi=tp.filter(j=>j.pie==='Ambidiestro').length
 
   const posEspOpts=Object.entries(POS_GRUPOS).map(([g,lst])=>
     `<optgroup label="${g==='POR'?'Portería':g==='DEF'?'Defensa':g==='MED'?'Mediocampo':'Delantera'}">`+
@@ -989,9 +1014,14 @@ function renderPlantilla(){
       </div>
     </div></div>`:''
 
+  const sortOpts=[
+    {k:'dorsal',l:'Dorsal'},{k:'apellido',l:'Apellido'},{k:'zona',l:'Zona'},{k:'posicion',l:'Pos. Esp.'},
+    {k:'edad',l:'Edad'},{k:'altura',l:'Altura'},{k:'valor',l:'Valor'},{k:'contrato',l:'Contrato'},
+    {k:'pie',l:'Pie'},{k:'nac',l:'Nac.'},
+  ]
   const sortControls=`<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
     <span style="font-size:9px;color:var(--gris)">Ordenar:</span>
-    ${['dorsal','apellido','posicion','zona'].map(o=>`<button class="sort-toggle ${S.ordenPlantilla===o?'on':''}" onclick="S.ordenPlantilla='${o}';render()">${o==='dorsal'?'Dorsal':o==='apellido'?'Apellido':o==='posicion'?'Posición':'Zona'}</button>`).join('')}
+    ${sortOpts.map(o=>{const isOn=S.ordenPlantilla===o.k;const arr=isOn?(S.ordenDir||'asc')==='asc'?' ↑':' ↓':'';return`<button class="sort-toggle ${isOn?'on':''}" onclick="if(S.ordenPlantilla==='${o.k}'){S.ordenDir=(S.ordenDir||'asc')==='asc'?'desc':'asc'}else{S.ordenPlantilla='${o.k}';S.ordenDir='asc'};render()">${o.l}${arr}</button>`}).join('')}
   </div>`
 
   const filterControls=`<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:6px">
@@ -1070,8 +1100,23 @@ function renderPlantilla(){
     </div>`
   }
 
+  const statsPanel=`<div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">Resumen de plantilla</span><span style="font-size:10px;color:var(--gris)">${tp.length} jugadores</span></div>
+    <div class="pb" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
+      <div class="mc"><div class="mc-l">Edad promedio</div><div class="mc-v">${edadProm}</div></div>
+      <div class="mc"><div class="mc-l">Altura promedio</div><div class="mc-v">${altProm!=='-'?altProm+'cm':'-'}</div></div>
+      <div class="mc verde"><div class="mc-l">Valor total</div><div class="mc-v" style="font-size:18px">${valorTotal>0?fmtValor(valorTotal):'-'}</div></div>
+      <div class="mc"><div class="mc-l">Por zona</div><div class="mc-v" style="font-size:12px;line-height:1.8">
+        <span class="pos-POR">${nPOR} POR</span> <span class="pos-DEF">${nDEF} DEF</span><br>
+        <span class="pos-MED">${nMED} MED</span> <span class="pos-DEL">${nDEL} DEL</span>
+      </div></div>
+      <div class="mc"><div class="mc-l">Pie</div><div class="mc-v" style="font-size:14px">${nDiestros}D · ${nZurdos}I${nAmbi?` · ${nAmbi}A`:''}</div><div class="mc-s">Diestros · Zurdos${nAmbi?' · Ambi':''}</div></div>
+    </div>
+  </div>`
+
   return`<div class="content">
     ${vistaToggle}
+    ${statsPanel}
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div>${sortControls}${filterControls}</div>
       <button class="bsm" onclick="S.addJugShow=!S.addJugShow;render()">+ Jugador</button>

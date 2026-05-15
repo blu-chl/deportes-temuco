@@ -252,6 +252,12 @@ function jugApellido(id){
   const p=j.nombre.trim().split(' ')
   return p.length>1?p.slice(1).join(' '):p[0]
 }
+function fmtValor(v){
+  if(!v&&v!==0)return'-'
+  const m=S.moneda||'€'
+  return m==='CLP'?`$${(+v).toLocaleString('es-CL')} CLP`:`${m}${+v}`
+}
+
 // Label para dropdowns según modo de ordenamiento
 function jugOpts(){
   let lista=[...S.jugadores]
@@ -282,6 +288,11 @@ let S={
   ev:{minuto:1,tipo:'Gol',subtipo:'Pie Derecho',jugador_id:'',jugador_sale_id:'',asistidor_id:'',asist_subtipo:'Pase'},
   addJug:{numero:'',nombre:'',posicion:'MED',posicion_especifica:'',edad:22,pie:'Derecho',altura:'',club_origen:'',contrato_hasta:'',valor:'',nacionalidad:'Chilena',notas:''},
   ordenPlantilla:'dorsal',filtEstadoPlantilla:'todos',
+  plantillaVista:'jugadores',
+  moneda:localStorage.getItem('dt-moneda')||'€',
+  staff:JSON.parse(localStorage.getItem('dt-staff')||'[]'),
+  addStaff:{nombre:'',rol:'DT',foto_url:'',foto_link:'',nacionalidad:'Chilena',notas:''},
+  addStaffShow:false,
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   bgImage:localStorage.getItem('dt-bg')||'',
   apiF:{key:localStorage.getItem('dt-api-key')||'',teamId:localStorage.getItem('dt-team-id')||'2317',live:false,syncing:false,lastSync:''},
@@ -407,6 +418,9 @@ function abrirEditarJugador(id){
           <div style="font-size:11px;color:var(--gris);margin-bottom:5px">Foto del jugador</div>
           <input type="file" accept="image/*" onchange="handleFotoUpload(${j.id},this)"
             style="font-size:10px;color:var(--gris);background:transparent;border:none;width:100%;cursor:pointer">
+          <input type="url" id="ej-foto-link" placeholder="O pegar URL de foto..."
+            value="${j.foto_url&&j.foto_url.startsWith('http')?j.foto_url:''}"
+            style="margin-top:6px;width:100%;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:5px 8px;color:white;font-size:10px;font-family:var(--font)">
         </div>
       </div>
       <div class="fg"><label>Nombre completo</label><input id="ej-nom" value="${j.nombre}"></div>
@@ -427,7 +441,7 @@ function abrirEditarJugador(id){
         <div class="fg"><label>Contrato hasta</label><input id="ej-contrato" type="date" value="${j.contrato_hasta||''}"></div>
       </div>
       <div class="fr3">
-        <div class="fg"><label>Valor (UF)</label><input id="ej-valor" type="number" min="0" value="${j.valor||''}" placeholder="0"></div>
+        <div class="fg"><label>Valor (${S.moneda||'€'})</label><input id="ej-valor" type="number" min="0" value="${j.valor||''}" placeholder="0"></div>
         <div class="fg"><label>Nacionalidad</label><input id="ej-nac" value="${j.nacionalidad||'Chilena'}"></div>
         <div class="fg"><label>Notas</label><input id="ej-notas" value="${j.notas||''}" placeholder="Observaciones"></div>
       </div>
@@ -473,7 +487,8 @@ function confirmarBorrarJugador(id,nombre){
 async function guardarEdicionJugador(id){
   const nom=document.getElementById('ej-nom').value.trim()
   if(!nom){toast('El nombre no puede estar vacío',true);return}
-  await patch('jugadores',{
+  const fotoLink=document.getElementById('ej-foto-link')?.value.trim()
+  const data={
     nombre:nom,
     numero:+document.getElementById('ej-num').value,
     edad:+document.getElementById('ej-edad').value,
@@ -486,7 +501,9 @@ async function guardarEdicionJugador(id){
     valor:+document.getElementById('ej-valor').value||null,
     nacionalidad:document.getElementById('ej-nac').value.trim()||'Chilena',
     notas:document.getElementById('ej-notas').value.trim()||null,
-  },`?id=eq.${id}`)
+  }
+  if(fotoLink)data.foto_url=fotoLink
+  await patch('jugadores',data,`?id=eq.${id}`)
   toast('Jugador actualizado');cerrarModal();await cargarDatos()
 }
 
@@ -962,7 +979,7 @@ function renderPlantilla(){
         <div class="fg"><label>Contrato hasta</label><input type="date" oninput="S.addJug.contrato_hasta=this.value"></div>
       </div>
       <div class="fr3">
-        <div class="fg"><label>Valor (UF)</label><input type="number" min="0" placeholder="0" oninput="S.addJug.valor=+this.value"></div>
+        <div class="fg"><label>Valor (${S.moneda||'€'})</label><input type="number" min="0" placeholder="0" oninput="S.addJug.valor=+this.value"></div>
         <div class="fg"><label>Nacionalidad</label><input value="Chilena" oninput="S.addJug.nacionalidad=this.value"></div>
         <div class="fg"><label>Notas</label><input placeholder="Observaciones" oninput="S.addJug.notas=this.value"></div>
       </div>
@@ -999,14 +1016,60 @@ function renderPlantilla(){
       <td class="center">${j.nacionalidad||'Chilena'}</td>
       <td>${j.club_origen||'-'}</td>
       <td>${contratoTxt}</td>
-      <td class="center">${j.valor?j.valor+' UF':'-'}</td>
+      <td class="center">${fmtValor(j.valor)}</td>
       <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--gris);font-size:10px">${j.notas||''}</td>
       <td class="center"><span class="badge ${les?'br':'bv'}">${les?'Lesionado':'OK'}</span></td>
       <td class="center"><button class="bsm" style="padding:2px 7px;font-size:9px" onclick="abrirEditarJugador(${j.id})">✏️</button></td>
     </tr>`
   }).join('')
 
+  const vistaToggle=`<div style="display:flex;gap:6px;margin-bottom:12px">
+    <button class="tab ${S.plantillaVista==='jugadores'?'on':''}" onclick="S.plantillaVista='jugadores';render()">👥 Jugadores</button>
+    <button class="tab ${S.plantillaVista==='staff'?'on':''}" onclick="S.plantillaVista='staff';render()">🎽 Cuerpo Técnico</button>
+  </div>`
+
+  if(S.plantillaVista==='staff'){
+    const roles=['DT','Asistente DT','PF','Preparador de Arqueros','Médico','Kinesiólogo','Analista','Utilero']
+    const addStaffFormHtml=S.addStaffShow?`<div style="padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--borde)">
+      <div class="fr2">
+        <div class="fg"><label>Nombre</label><input placeholder="Nombre completo" oninput="S.addStaff.nombre=this.value"></div>
+        <div class="fg"><label>Rol</label><select onchange="S.addStaff.rol=this.value">${roles.map(r=>`<option ${S.addStaff.rol===r?'selected':''}>${r}</option>`).join('')}</select></div>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label>Foto (URL)</label><input type="url" placeholder="https://..." oninput="S.addStaff.foto_url=this.value"></div>
+        <div class="fg"><label>Nacionalidad</label><input value="${S.addStaff.nacionalidad||'Chilena'}" oninput="S.addStaff.nacionalidad=this.value"></div>
+      </div>
+      <div class="fg"><label>Notas</label><input placeholder="Cargo adicional, observaciones..." oninput="S.addStaff.notas=this.value"></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn" onclick="guardarStaff()">Guardar</button>
+        <button class="bsm" onclick="S.addStaffShow=false;render()">Cancelar</button>
+      </div>
+    </div>`:''
+    const staffCards=S.staff.length?S.staff.map((m,i)=>{
+      const ini=m.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
+      return`<div class="pcard" style="cursor:default;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="jav">${m.foto_url?`<img src="${m.foto_url}" style="width:100%;height:100%;object-fit:cover">`:`${ini}`}</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700">${m.nombre}</div>
+            <div style="font-size:10px;color:var(--vc);font-weight:700">${m.rol}</div>
+            ${m.nacionalidad||m.notas?`<div style="font-size:10px;color:var(--gris)">${[m.nacionalidad,m.notas].filter(Boolean).join(' · ')}</div>`:''}
+          </div>
+          <button class="bdel" style="padding:3px 8px;font-size:10px" onclick="borrarStaff(${i})">✕</button>
+        </div>
+      </div>`
+    }).join(''):'<div class="empty">Sin cuerpo técnico registrado</div>'
+    return`<div class="content">
+      ${vistaToggle}
+      <div class="panel">
+        <div class="ph"><span class="pt">Cuerpo técnico</span><button class="bsm" onclick="S.addStaffShow=!S.addStaffShow;render()">+ Agregar</button></div>
+        <div class="pb">${addStaffFormHtml}${staffCards}</div>
+      </div>
+    </div>`
+  }
+
   return`<div class="content">
+    ${vistaToggle}
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div>${sortControls}${filterControls}</div>
       <button class="bsm" onclick="S.addJugShow=!S.addJugShow;render()">+ Jugador</button>
@@ -1214,6 +1277,32 @@ function renderEstadisticas(){
         ${TIPOS_GOL.map(t=>{const pct=Math.round((cGol[t]||0)/totG*100);return`<div class="mc"><div class="mc-l">${t}</div><div class="mc-v" style="font-size:20px">${cGol[t]||0}</div><div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div><div class="mc-s">${pct}%</div></div>`}).join('')}
       </div></div>
     </div>
+    ${(()=>{
+      const fmap={}
+      partsFilt.forEach(p=>{
+        const f=p.formacion||'Sin formación'
+        if(!fmap[f])fmap[f]={f,pj:0,g:0,e:0,d:0}
+        fmap[f].pj++
+        if(p.goles_favor>p.goles_contra)fmap[f].g++
+        else if(p.goles_favor===p.goles_contra)fmap[f].e++
+        else fmap[f].d++
+      })
+      const fst=Object.values(fmap).sort((a,b)=>b.pj-a.pj)
+      if(!fst.length)return''
+      return`<div class="panel">
+        <div class="ph"><span class="pt">Rendimiento por formación</span></div>
+        <table><thead><tr><th>Formación</th><th class="center">PJ</th><th class="center">G</th><th class="center">E</th><th class="center">D</th><th class="num">%V</th></tr></thead><tbody>
+        ${fst.map(f=>{const pv=Math.round(f.g/f.pj*100);return`<tr>
+          <td><span class="badge bg">${f.f}</span></td>
+          <td class="center">${f.pj}</td>
+          <td class="center" style="color:var(--vc);font-weight:700">${f.g}</td>
+          <td class="center" style="color:var(--am)">${f.e}</td>
+          <td class="center" style="color:#ff8888">${f.d}</td>
+          <td class="num" style="font-weight:800;color:${pv>=50?'var(--vc)':'var(--gris)'}">${pv}%</td>
+        </tr>`}).join('')}
+        </tbody></table>
+      </div>`
+    })()}
   </div>`
 }
 
@@ -1294,6 +1383,22 @@ async function guardarLesion(){
 async function darAlta(id){
   await patch('lesiones',{alta:true,fecha_alta:hoy()},`?id=eq.${id}`)
   toast('Jugador dado de alta ✅');await cargarDatos()
+}
+
+function guardarStaff(){
+  const a=S.addStaff
+  if(!a.nombre.trim()){toast('Nombre requerido',true);return}
+  S.staff.push({...a,id:Date.now()})
+  localStorage.setItem('dt-staff',JSON.stringify(S.staff))
+  S.addStaffShow=false
+  S.addStaff={nombre:'',rol:'DT',foto_url:'',foto_link:'',nacionalidad:'Chilena',notas:''}
+  render();toast('Cuerpo técnico actualizado ✓')
+}
+
+function borrarStaff(idx){
+  S.staff.splice(idx,1)
+  localStorage.setItem('dt-staff',JSON.stringify(S.staff))
+  render();toast('Eliminado')
 }
 
 // ===== API FOOTBALL =====
@@ -1480,6 +1585,16 @@ function renderConfig(){
         <button class="btn" onclick="guardarBg()">Aplicar fondo</button>
         <button class="bsm" onclick="quitarBg()">Quitar fondo</button>
       </div>
+    </div>
+    <div class="config-section">
+      <div class="config-title">💱 Moneda para valores de jugadores</div>
+      <div class="fg" style="margin-bottom:8px"><label>Moneda por defecto</label>
+        <select onchange="S.moneda=this.value;localStorage.setItem('dt-moneda',this.value);render()"
+          style="width:auto;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:6px 10px;color:white;font-size:12px;font-family:var(--font)">
+          ${['€','$','£','CLP','R$','UF'].map(m=>`<option ${S.moneda===m?'selected':''}>${m}</option>`).join('')}
+        </select>
+      </div>
+      <div style="font-size:10px;color:var(--gris)">Ejemplo: <strong style="color:var(--vc)">${fmtValor(1000)}</strong></div>
     </div>
     <div class="config-section">
       <div class="config-title">📋 Resumen del sistema</div>

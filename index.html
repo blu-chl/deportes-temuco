@@ -98,28 +98,20 @@ tr:hover td{background:rgba(46,168,79,0.05)}
 .login-card{background:var(--panel);border:1px solid var(--borde2);border-radius:12px;padding:36px 32px;width:320px;text-align:center}
 .lerr{background:rgba(204,68,68,.15);border:1px solid rgba(204,68,68,.3);color:#ff8888;padding:8px 12px;border-radius:6px;font-size:11px;margin-bottom:12px}
 .modal-bg{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center}
-.modal{background:#0d1f10;border:1px solid var(--borde2);border-radius:12px;padding:24px;width:400px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal{background:#0d1f10;border:1px solid var(--borde2);border-radius:12px;padding:24px;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto}
 .modal-titulo{font-size:13px;font-weight:700;color:var(--vc);text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px}
-
-/* CANCHA */
-.cancha-wrap{display:flex;flex-direction:column;gap:10px}
-.cancha{background:linear-gradient(180deg,#1a5c2a 0%,#1e6b30 50%,#1a5c2a 100%);border:2px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px 8px;position:relative;min-height:340px;display:flex;flex-direction:column;justify-content:space-between}
+.cancha{background:linear-gradient(180deg,#1a5c2a 0%,#1e6b30 50%,#1a5c2a 100%);border:2px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px 8px;position:relative;min-height:320px;display:flex;flex-direction:column;justify-content:space-between}
 .cancha::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.12);transform:translateX(-50%)}
 .cancha::after{content:'';position:absolute;left:50%;top:50%;width:60px;height:60px;border:1px solid rgba(255,255,255,0.15);border-radius:50%;transform:translate(-50%,-50%)}
 .linea-pos{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:4px 0}
-.slot{width:60px;height:60px;border-radius:50%;border:2px dashed rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;flex-direction:column;position:relative;flex-shrink:0}
+.slot{width:58px;height:58px;border-radius:50%;border:2px dashed rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;flex-direction:column;position:relative;flex-shrink:0}
 .slot:hover{border-color:var(--vc);background:rgba(46,168,79,0.15)}
 .slot.filled{border-style:solid;border-color:var(--vc);background:rgba(46,168,79,0.2)}
-.slot-num{font-size:16px;font-weight:800;color:rgba(255,255,255,0.4)}
+.slot-num{font-size:14px;font-weight:800;color:rgba(255,255,255,0.4)}
 .slot.filled .slot-num{color:var(--vc)}
-.slot-name{font-size:8px;color:rgba(255,255,255,0.7);text-align:center;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot-name{font-size:7px;color:rgba(255,255,255,0.85);text-align:center;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
 .slot-avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--vc)}
-.slot-pos-badge{position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:800;padding:1px 4px;border-radius:3px;white-space:nowrap}
-.mins-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px}
-.mins-item{background:rgba(0,0,0,.25);border-radius:6px;padding:7px 10px;display:flex;align-items:center;justify-content:space-between}
-.mins-name{font-size:10px;font-weight:700;color:var(--gris)}
-.mins-val{font-size:14px;font-weight:800;color:var(--vc)}
-.mins-item.titular .mins-name{color:var(--blanco)}
+.slot-pos-badge{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:800;padding:1px 4px;border-radius:3px;white-space:nowrap}
 .form-dot{display:inline-flex;width:18px;height:18px;border-radius:50%;align-items:center;justify-content:center;font-size:9px;font-weight:800;margin-right:2px}
 .form-dot.W{background:rgba(46,168,79,.3);color:var(--vc)}
 .form-dot.D{background:rgba(232,184,75,.3);color:var(--am)}
@@ -127,6 +119,8 @@ tr:hover td{background:rgba(46,168,79,0.05)}
 .config-section{background:rgba(255,255,255,0.03);border:1px solid var(--borde);border-radius:8px;padding:16px;margin-bottom:12px}
 .config-title{font-size:11px;font-weight:700;color:var(--vc);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
 .bg-preview{width:100%;height:80px;border-radius:6px;border:1px solid var(--borde2);background-size:cover;background-position:center;margin-bottom:8px;display:flex;align-items:center;justify-content:center;color:var(--gris);font-size:11px}
+.sort-toggle{background:rgba(46,168,79,0.08);border:1px solid var(--borde2);border-radius:5px;padding:3px 8px;color:var(--gris);font-size:9px;font-weight:700;cursor:pointer;font-family:var(--font);text-transform:uppercase}
+.sort-toggle.on{background:rgba(46,168,79,0.2);color:var(--vc)}
 </style>
 </head>
 <body>
@@ -159,6 +153,17 @@ const ICONOS={Gol:'⚽',Asistencia:'🅰️',Amarilla:'🟡',Roja:'🔴','Sustit
 const TIPOS_ASIST=['Centro','Pase Filtrado','Córner','Balón Parado']
 let TIPOS_GOL=['Pie Derecho','Pie Izquierdo','Cabeza','Tiro Libre','Penal']
 
+// Posiciones específicas agrupadas por zona
+const POS_GRUPOS={
+  POR:['Portero'],
+  DEF:['Central (DC)','Lateral Izquierdo (LI)','Lateral Derecho (LD)','Carrilero Izquierdo','Carrilero Derecho','Líbero'],
+  MED:['Volante Defensivo (VD)','Volante Central (VC)','Interior Izquierdo (MI)','Interior Derecho (MD)','Mediocampista Ofensivo (MCO)','Extremo Izquierdo (EI)','Extremo Derecho (ED)','Enganche'],
+  DEL:['Delantero Centro (DC)','Segunda Punta (SP)','Falso 9','Ariete']
+}
+// Zona general de cada posición específica (para formation slots)
+const POS_ZONA={}
+Object.entries(POS_GRUPOS).forEach(([zona,lista])=>lista.forEach(p=>POS_ZONA[p]=zona))
+
 const FORMACIONES={
   '4-4-2':[{pos:'POR',n:1},{pos:'DEF',n:4},{pos:'MED',n:4},{pos:'DEL',n:2}],
   '4-3-3':[{pos:'POR',n:1},{pos:'DEF',n:4},{pos:'MED',n:3},{pos:'DEL',n:3}],
@@ -168,35 +173,57 @@ const FORMACIONES={
   '4-1-4-1':[{pos:'POR',n:1},{pos:'DEF',n:4},{pos:'MED',n:1},{pos:'MED',n:4},{pos:'DEL',n:1}],
 }
 
-// Calcular minutos automáticamente desde titulares + sustituciones
-function calcMinutajeAuto(titularIds, evs, duracion=90){
+function calcMinutajeAuto(titularIds,evs,duracion=90){
   const mins={}
-  titularIds.forEach(id=>{ if(id) mins[id]=duracion })
-  evs.filter(e=>e.tipo==='Sustitución').forEach(sub=>{
+  titularIds.forEach(id=>{if(id)mins[id]=duracion})
+  evs.filter(e=>e.tipo==='Sustitución').sort((a,b)=>a.minuto-b.minuto).forEach(sub=>{
     const min=sub.minuto||0
-    if(sub.jugador_sale_id!=null && mins[sub.jugador_sale_id]!==undefined)
+    if(sub.jugador_sale_id!=null&&mins[sub.jugador_sale_id]!==undefined)
       mins[sub.jugador_sale_id]=min
     if(sub.jugador_id!=null){
-      if(mins[sub.jugador_id]===undefined) mins[sub.jugador_id]=0
+      if(mins[sub.jugador_id]===undefined)mins[sub.jugador_id]=0
       mins[sub.jugador_id]+=duracion-min
     }
   })
   return mins
 }
 
+// Helpers para nombre
+function jugNombre(id){const j=S.jugadores.find(x=>x.id===id);return j?j.nombre:'?'}
+function jugFoto(id){const j=S.jugadores.find(x=>x.id===id);return j?.foto_url||''}
+function jugApellido(id){
+  const j=S.jugadores.find(x=>x.id===id);if(!j)return'?'
+  const p=j.nombre.trim().split(' ')
+  return p.length>1?p.slice(1).join(' '):p[0]
+}
+// Label para dropdowns según modo de ordenamiento
+function jugOpts(){
+  let lista=[...S.jugadores]
+  if(S.ordenJug==='apellido') lista.sort((a,b)=>{
+    const aa=a.nombre.split(' ').slice(1).join(' ')||a.nombre
+    const bb=b.nombre.split(' ').slice(1).join(' ')||b.nombre
+    return aa.localeCompare(bb)
+  })
+  return lista.map(j=>{
+    const ap=j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre
+    const label=S.ordenJug==='apellido'?`${ap}${j.posicion_especifica?' · '+j.posicion_especifica:''}`:`#${j.numero} ${ap}`
+    return`<option value="${j.id}">${label}</option>`
+  }).join('')
+}
+
 let S={
   pag:'login',jugadores:[],partidos:[],eventos:[],lesiones:[],
   partidoActivo:null,evPartido:[],
   titulares:[],formacion:'4-4-2',slotSeleccionado:null,duracion:90,
+  ordenJug:'apellido',
   filtPos:'todos',filtComp:'todos',filtCompEst:'todos',
-  npShow:false,addJugShow:false,lesShow:false,formShow:false,
+  npShow:false,addJugShow:false,lesShow:false,
   editTiposGol:false,nuevoTipoGol:'',
   np:{rival:'',competencia:'Primera B',condicion:'Local',fecha:hoy(),goles_favor:0,goles_contra:0},
   ev:{minuto:1,tipo:'Gol',subtipo:'Pie Derecho',jugador_id:'',jugador_sale_id:''},
-  addJug:{numero:'',nombre:'',posicion:'MED',edad:22,pie:'Derecho'},
+  addJug:{numero:'',nombre:'',posicion:'MED',posicion_especifica:'',edad:22,pie:'Derecho',altura:'',club_origen:'',contrato_hasta:''},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   bgImage:localStorage.getItem('dt-bg')||'',
-  bgUrl:'',
 }
 
 async function cargarDatos(){
@@ -215,12 +242,8 @@ async function cargarDatos(){
     S.ev.jugador_sale_id=S.jugadores[0].id
     S.addLes.jugador_id=S.jugadores[0].id
   }
-  applyBg()
-  render()
+  applyBg();render()
 }
-
-function jugNombre(id){const j=S.jugadores.find(x=>x.id===id);return j?j.nombre:'?'}
-function jugFoto(id){const j=S.jugadores.find(x=>x.id===id);return j?.foto_url||''}
 
 function getStats(jugId){
   const evs=S.eventos.filter(e=>e.jugador_id===jugId)
@@ -304,6 +327,13 @@ function cerrarModal(){document.getElementById('modal-root').innerHTML=''}
 function abrirEditarJugador(id){
   const j=S.jugadores.find(x=>x.id===id);if(!j)return
   const ini=j.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
+  const zona=j.posicion||'MED'
+  const posEspOpts=Object.entries(POS_GRUPOS).map(([g,lista])=>
+    `<optgroup label="${g==='POR'?'Portería':g==='DEF'?'Defensa':g==='MED'?'Mediocampo':'Delantera'}">`+
+    lista.map(p=>`<option ${j.posicion_especifica===p?'selected':''}>${p}</option>`).join('')+
+    `</optgroup>`
+  ).join('')
+
   document.getElementById('modal-root').innerHTML=`<div class="modal-bg" onclick="if(event.target===this)cerrarModal()">
     <div class="modal">
       <div class="modal-titulo">✏️ Editar jugador</div>
@@ -317,14 +347,22 @@ function abrirEditarJugador(id){
             style="font-size:10px;color:var(--gris);background:transparent;border:none;width:100%;cursor:pointer">
         </div>
       </div>
-      <div class="fg"><label>Nombre</label><input id="ej-nom" value="${j.nombre}"></div>
-      <div class="fr2">
+      <div class="fg"><label>Nombre completo</label><input id="ej-nom" value="${j.nombre}"></div>
+      <div class="fr3">
         <div class="fg"><label>Número</label><input id="ej-num" type="number" value="${j.numero}" min="1" max="99"></div>
         <div class="fg"><label>Edad</label><input id="ej-edad" type="number" value="${j.edad}" min="15" max="45"></div>
+        <div class="fg"><label>Altura (cm)</label><input id="ej-alt" type="number" value="${j.altura||''}" min="150" max="210" placeholder="178"></div>
       </div>
       <div class="fr2">
-        <div class="fg"><label>Posición</label><select id="ej-pos">${['POR','DEF','MED','DEL'].map(p=>`<option ${j.posicion===p?'selected':''}>${p}</option>`).join('')}</select></div>
+        <div class="fg"><label>Zona general</label><select id="ej-pos">${['POR','DEF','MED','DEL'].map(p=>`<option ${j.posicion===p?'selected':''}>${p}</option>`).join('')}</select></div>
         <div class="fg"><label>Pie</label><select id="ej-pie">${['Derecho','Izquierdo','Ambidiestro'].map(p=>`<option ${j.pie===p?'selected':''}>${p}</option>`).join('')}</select></div>
+      </div>
+      <div class="fg"><label>Posición específica</label>
+        <select id="ej-posep"><option value="">— Sin especificar —</option>${posEspOpts}</select>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label>Club de origen</label><input id="ej-club" value="${j.club_origen||''}" placeholder="Ej: Rangers"></div>
+        <div class="fg"><label>Contrato hasta</label><input id="ej-contrato" type="date" value="${j.contrato_hasta||''}"></div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
         <button class="btn" onclick="guardarEdicionJugador(${j.id})">Guardar</button>
@@ -335,7 +373,7 @@ function abrirEditarJugador(id){
   </div>`
 }
 
-async function handleFotoUpload(jugId, input){
+async function handleFotoUpload(jugId,input){
   const file=input.files[0];if(!file)return
   toast('Subiendo foto...')
   const ext=file.name.split('.').pop()
@@ -349,9 +387,8 @@ async function handleFotoUpload(jugId, input){
     if(r.ok){
       const url=`${SB_URL}/storage/v1/object/public/jugadores/${filename}`
       await patch('jugadores',{foto_url:url},`?id=eq.${jugId}`)
-      toast('Foto actualizada ✓')
-      cerrarModal();await cargarDatos()
-    }else toast('Error al subir foto — verifica el bucket "jugadores" en Supabase',true)
+      toast('Foto actualizada ✓');cerrarModal();await cargarDatos()
+    }else toast('Error — verifica el bucket "jugadores" en Supabase',true)
   }catch(e){toast('Error de conexión',true)}
 }
 
@@ -368,12 +405,18 @@ function confirmarBorrarJugador(id,nombre){
 
 async function guardarEdicionJugador(id){
   const nom=document.getElementById('ej-nom').value.trim()
-  const num=+document.getElementById('ej-num').value
-  const edad=+document.getElementById('ej-edad').value
-  const pos=document.getElementById('ej-pos').value
-  const pie=document.getElementById('ej-pie').value
   if(!nom){toast('El nombre no puede estar vacío',true);return}
-  await patch('jugadores',{nombre:nom,numero:num,edad,posicion:pos,pie},`?id=eq.${id}`)
+  await patch('jugadores',{
+    nombre:nom,
+    numero:+document.getElementById('ej-num').value,
+    edad:+document.getElementById('ej-edad').value,
+    posicion:document.getElementById('ej-pos').value,
+    posicion_especifica:document.getElementById('ej-posep').value||null,
+    pie:document.getElementById('ej-pie').value,
+    altura:+document.getElementById('ej-alt').value||null,
+    club_origen:document.getElementById('ej-club').value.trim()||null,
+    contrato_hasta:document.getElementById('ej-contrato').value||null,
+  },`?id=eq.${id}`)
   toast('Jugador actualizado');cerrarModal();await cargarDatos()
 }
 
@@ -449,31 +492,30 @@ function renderPitch(){
   const form=FORMACIONES[S.formacion]||FORMACIONES['4-4-2']
   const slots=[]
   form.forEach((linea,li)=>{
-    for(let i=0;i<linea.n;i++) slots.push({linea:li,pos:linea.pos,idx:slots.length})
+    for(let i=0;i<linea.n;i++)slots.push({linea:li,pos:linea.pos,idx:slots.length})
   })
-  const totalSlots=slots.length // should be 11
-
-  // Build lines from slots
   const lineas=[]
-  let cur=[]
-  let lastL=-1
+  let cur=[],lastL=-1
   slots.forEach(s=>{
     if(s.linea!==lastL&&cur.length>0){lineas.push(cur);cur=[]}
     cur.push(s);lastL=s.linea
   })
   if(cur.length)lineas.push(cur)
 
-  const jugOpts=S.jugadores.map(j=>`<option value="${j.id}">#${j.numero} ${j.nombre}</option>`).join('')
+  const jugOptsSlot=S.jugadores.map(j=>{
+    const ap=j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre
+    return`<option value="${j.id}">${ap}${j.posicion_especifica?' ('+j.posicion_especifica+')':''}</option>`
+  }).join('')
 
   const lineasHtml=[...lineas].reverse().map(linea=>`
     <div class="linea-pos">${linea.map(s=>{
       const jugId=S.titulares[s.idx]
       const j=S.jugadores.find(x=>x.id===jugId)
-      const ini=j?j.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase():(s.idx+1)
+      const ap=j?(j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre):''
       const posColor=s.pos==='POR'?'#e8b84b':s.pos==='DEF'?'#378ADD':s.pos==='DEL'?'#cc4444':'#2ea84f'
-      return`<div class="slot ${j?'filled':''}" onclick="selSlot(${s.idx})" title="${j?j.nombre:'Asignar jugador'}">
-        ${j&&j.foto_url?`<img class="slot-avatar" src="${j.foto_url}">`:`<span class="slot-num">${j?ini:(s.idx+1)}</span>`}
-        ${j?`<span class="slot-name">${j.nombre.split(' ')[0]}</span>`:''}
+      return`<div class="slot ${j?'filled':''}" onclick="selSlot(${s.idx})" title="${j?j.nombre:'Slot '+(s.idx+1)}">
+        ${j&&j.foto_url?`<img class="slot-avatar" src="${j.foto_url}">`:`<span class="slot-num">${j?j.numero:(s.idx+1)}</span>`}
+        ${j?`<span class="slot-name">${ap}</span>`:''}
         <span class="slot-pos-badge" style="background:${posColor}22;color:${posColor}">${s.pos}</span>
       </div>`
     }).join('')}</div>`).join('')
@@ -484,7 +526,8 @@ function renderPitch(){
     <div class="ph">
       <span class="pt">Formación y 11 inicial</span>
       <div style="display:flex;gap:6px;align-items:center">
-        <select onchange="S.formacion=this.value;S.titulares=[];render()" style="background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:5px;padding:4px 8px;color:white;font-size:11px;font-family:var(--font)">
+        <select onchange="S.formacion=this.value;S.titulares=[];render()"
+          style="background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:5px;padding:4px 8px;color:white;font-size:11px;font-family:var(--font)">
           ${Object.keys(FORMACIONES).map(f=>`<option ${S.formacion===f?'selected':''}>${f}</option>`).join('')}
         </select>
         <span style="font-size:10px;color:var(--gris)">${titCount}/11</span>
@@ -495,21 +538,20 @@ function renderPitch(){
       <div style="margin-top:10px">
         <div class="fg" style="margin-bottom:8px">
           <label>Duración del partido (min)</label>
-          <input type="number" min="45" max="120" value="${S.duracion}" oninput="S.duracion=+this.value" style="width:100px">
+          <input type="number" min="45" max="120" value="${S.duracion}" oninput="S.duracion=+this.value" style="width:90px">
         </div>
         ${S.slotSeleccionado!==null?`
         <div style="background:rgba(46,168,79,0.08);border:1px solid var(--borde2);border-radius:7px;padding:10px;margin-bottom:8px">
           <div style="font-size:10px;color:var(--vc);font-weight:700;margin-bottom:6px">Slot ${S.slotSeleccionado+1} — Asignar jugador</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div style="display:flex;gap:6px">
             <select id="sel-slot-jug" style="flex:1;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:5px;padding:5px 8px;color:white;font-size:12px;font-family:var(--font)">
-              <option value="">-- Sin asignar --</option>${jugOpts}
+              <option value="">— Sin asignar —</option>${jugOptsSlot}
             </select>
             <button class="btn" onclick="asignarSlot()">OK</button>
             <button class="bsm" onclick="S.slotSeleccionado=null;render()">✕</button>
           </div>
         </div>`:''}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn" onclick="aplicarMinutajeAuto()" ${!S.partidoActivo?'disabled':''}>⚡ Calcular minutaje</button>
           <button class="bsm" onclick="S.titulares=[];render()">Limpiar</button>
           ${S.partidoActivo?`<button class="bsm" onclick="guardarFormacionPartido()">💾 Guardar formación</button>`:''}
         </div>
@@ -519,58 +561,42 @@ function renderPitch(){
 }
 
 function selSlot(idx){
-  S.slotSeleccionado=idx
-  render()
-  // set current value in select
+  S.slotSeleccionado=idx;render()
   setTimeout(()=>{
     const sel=document.getElementById('sel-slot-jug')
-    if(sel&&S.titulares[idx]) sel.value=S.titulares[idx]
+    if(sel&&S.titulares[idx])sel.value=S.titulares[idx]
   },50)
 }
 
 function asignarSlot(){
-  const sel=document.getElementById('sel-slot-jug')
-  if(!sel)return
-  const val=+sel.value||null
-  S.titulares[S.slotSeleccionado]=val
-  S.slotSeleccionado=null
-  render()
+  const sel=document.getElementById('sel-slot-jug');if(!sel)return
+  S.titulares[S.slotSeleccionado]=+sel.value||null
+  S.slotSeleccionado=null;render()
 }
 
 async function guardarFormacionPartido(){
   if(!S.partidoActivo)return
-  const data={formacion:S.formacion,titulares:JSON.stringify(S.titulares)}
-  await patch('partidos',data,`?id=eq.${S.partidoActivo}`)
-  toast('Formación guardada ✓')
-  await cargarDatos()
-}
-
-async function aplicarMinutajeAuto(){
-  if(!S.partidoActivo){toast('Selecciona un partido',true);return}
+  await patch('partidos',{formacion:S.formacion,titulares:JSON.stringify(S.titulares)},`?id=eq.${S.partidoActivo}`)
+  // Auto-calc and save minutaje silently
   const titIds=S.titulares.filter(x=>x)
-  if(titIds.length===0){toast('Asigna el 11 inicial primero',true);return}
-  const mins=calcMinutajeAuto(titIds,S.evPartido,S.duracion)
-  // Save to minutaje table
-  const ops=Object.entries(mins).filter(([,v])=>v>0).map(([jid,minutos])=>
-    fetch(`${SB_URL}/rest/v1/minutaje`,{
-      method:'POST',
-      headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
-      body:JSON.stringify({partido_id:S.partidoActivo,jugador_id:+jid,minutos})
-    })
-  )
-  await Promise.all(ops)
-  toast(`Minutaje calculado para ${Object.keys(mins).length} jugadores ✓`)
-  // Update local minutaje display
-  S.minutaje={}
-  Object.entries(mins).forEach(([k,v])=>{S.minutaje[+k]=v})
-  render()
+  if(titIds.length>0){
+    const mins=calcMinutajeAuto(titIds,S.evPartido,S.duracion)
+    await Promise.all(Object.entries(mins).filter(([,v])=>v>0).map(([jid,minutos])=>
+      fetch(`${SB_URL}/rest/v1/minutaje`,{
+        method:'POST',
+        headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
+        body:JSON.stringify({partido_id:S.partidoActivo,jugador_id:+jid,minutos})
+      })
+    ))
+  }
+  toast('Formación y minutaje guardados ✓');await cargarDatos()
 }
 
 // ===== REGISTRO =====
 function renderRegistro(){
   const pid=S.partidoActivo
   const subtipos=S.ev.tipo==='Gol'?TIPOS_GOL:S.ev.tipo==='Asistencia'?TIPOS_ASIST:[]
-  const jugOpts=S.jugadores.map(j=>`<option value="${j.id}">#${j.numero} ${j.nombre}</option>`).join('')
+  const opts=jugOpts()
 
   const npForm=S.npShow?`<div style="padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--borde)">
     <div class="fr2" style="margin-bottom:8px">
@@ -597,6 +623,7 @@ function renderRegistro(){
         <span style="font-size:10px;color:var(--gris)">${p.fecha} — ${p.competencia}</span>
         <div style="display:flex;gap:5px;align-items:center">
           <span class="badge ${rb}">${rl}</span>
+          ${p.formacion?`<span class="badge bg">${p.formacion}</span>`:''}
           <button class="bsm" style="padding:2px 6px;font-size:9px" onclick="event.stopPropagation();abrirEditarPartido(${p.id})">✏️</button>
         </div>
       </div>
@@ -607,7 +634,15 @@ function renderRegistro(){
     </div>`
   }).join('')
 
+  // Ordenamiento toggle
+  const sortBtn=`<div style="display:flex;gap:4px;align-items:center">
+    <span style="font-size:9px;color:var(--gris)">Ordenar:</span>
+    <button class="sort-toggle ${S.ordenJug==='apellido'?'on':''}" onclick="S.ordenJug='apellido';render()">Apellido</button>
+    <button class="sort-toggle ${S.ordenJug==='numero'?'on':''}" onclick="S.ordenJug='numero';render()"># Dorsal</button>
+  </div>`
+
   const evForm=pid?`
+    <div style="margin-bottom:8px">${sortBtn}</div>
     <div class="fr3" style="margin-bottom:8px">
       <div class="fg" style="margin-bottom:0"><label>Minuto</label><input type="number" min="1" max="120" value="${S.ev.minuto}" oninput="S.ev.minuto=+this.value"></div>
       <div class="fg" style="margin-bottom:0"><label>Tipo</label><select onchange="S.ev.tipo=this.value;S.ev.subtipo=this.value==='Gol'?TIPOS_GOL[0]:this.value==='Asistencia'?'Centro':'';render()">
@@ -618,90 +653,65 @@ function renderRegistro(){
       </select></div>`:'<div></div>'}
     </div>
     <div class="fr2" style="margin-bottom:10px">
-      <div class="fg" style="margin-bottom:0"><label>${S.ev.tipo==='Sustitución'?'Entra':'Jugador'}</label><select onchange="S.ev.jugador_id=+this.value">${jugOpts}</select></div>
-      ${S.ev.tipo==='Sustitución'?`<div class="fg" style="margin-bottom:0"><label>Sale</label><select onchange="S.ev.jugador_sale_id=+this.value">${jugOpts}</select></div>`:'<div></div>'}
+      <div class="fg" style="margin-bottom:0"><label>${S.ev.tipo==='Sustitución'?'Entra':'Jugador'}</label>
+        <select onchange="S.ev.jugador_id=+this.value">${opts}</select>
+      </div>
+      ${S.ev.tipo==='Sustitución'?`<div class="fg" style="margin-bottom:0"><label>Sale</label>
+        <select onchange="S.ev.jugador_sale_id=+this.value">${opts}</select>
+      </div>`:'<div></div>'}
     </div>
     <button class="btn" onclick="agregarEvento()">+ Agregar evento</button>
   `:`<div class="empty">← Selecciona un partido para registrar eventos</div>`
 
-  const evLista=S.evPartido.map(e=>`
-    <div class="ev">
+  const evLista=S.evPartido.map(e=>{
+    const ap=jugApellido(e.jugador_id)
+    const apSale=e.jugador_sale_id?jugApellido(e.jugador_sale_id):''
+    return`<div class="ev">
       <div class="ev-min">${e.minuto}'</div>
       <div style="font-size:15px">${ICONOS[e.tipo]||'•'}</div>
       <div style="flex:1">
-        <div style="font-size:12px">${jugNombre(e.jugador_id)} ${e.subtipo?'('+e.subtipo+')':''}</div>
-        <div style="font-size:10px;color:var(--gris)">${e.tipo}${e.tipo==='Sustitución'&&e.jugador_sale_id?' → sale: '+jugNombre(e.jugador_sale_id):''}</div>
+        <div style="font-size:12px;font-weight:700">${ap} ${e.subtipo?'<span style="font-size:10px;color:var(--gris)">('+e.subtipo+')</span>':''}</div>
+        <div style="font-size:10px;color:var(--gris)">${e.tipo}${e.tipo==='Sustitución'&&apSale?' → sale: <strong>'+apSale+'</strong>':''}</div>
       </div>
       <button class="bdel" style="padding:2px 7px;font-size:9px" onclick="borrarEvento(${e.id})">✕</button>
-    </div>`).join('')||'<div class="empty">Sin eventos aún</div>'
+    </div>`
+  }).join('')||'<div class="empty">Sin eventos aún</div>'
 
-  // Minutaje display (auto-calculated)
-  const minutajePanel=pid?`<div class="panel">
-    <div class="ph"><span class="pt">Minutaje del partido</span><span style="font-size:10px;color:var(--gris)">editable</span></div>
-    <div class="pb">
-      <div class="mins-grid" style="margin-bottom:10px">
-        ${S.jugadores.map(j=>{
-          const esTitular=S.titulares.includes(j.id)
-          return`<div class="mins-item ${esTitular?'titular':''}">
-            <div>
-              <div class="mins-name">#${j.numero} ${j.nombre.split(' ')[0]}</div>
-              <div style="font-size:8px;color:var(--muted)">${esTitular?'Titular':'Reserva'}</div>
-            </div>
-            <input type="number" min="0" max="120" value="${S.minutaje[j.id]||''}" placeholder="0"
-              style="width:44px;background:rgba(0,0,0,.4);border:1px solid var(--borde2);border-radius:4px;padding:3px 5px;color:var(--vc);font-size:13px;font-weight:800;text-align:center;font-family:var(--font)"
-              oninput="S.minutaje[${j.id}]=+this.value">
-          </div>`
-        }).join('')}
+  return`<div class="content"><div class="g2">
+    <div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Seleccionar partido</span><button class="bsm" onclick="S.npShow=!S.npShow;render()">+ Nuevo</button></div>
+        <div class="pb">${npForm}<div style="max-height:280px;overflow-y:auto">${S.partidos.length?listaP:'<div class="empty">Sin partidos. Crea uno.</div>'}</div></div>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn" onclick="guardarMinutaje()">💾 Guardar minutaje</button>
-        <button class="bsm" onclick="aplicarMinutajeAuto()" ${S.titulares.filter(x=>x).length===0?'disabled':''}>⚡ Auto desde formación</button>
+      ${renderPitch()}
+    </div>
+    <div>
+      <div class="panel">
+        <div class="ph">
+          <span class="pt">Registrar evento</span>
+          ${pid?`<span style="font-size:10px;color:var(--gris)">vs ${S.partidos.find(p=>p.id===pid)?.rival||''}</span>`:''}
+        </div>
+        <div class="pb">${evForm}</div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Eventos del partido</span></div>
+        <div class="pb"><div style="max-height:320px;overflow-y:auto">${evLista}</div></div>
       </div>
     </div>
-  </div>`:''
-
-  if(!S.minutaje) S.minutaje={}
-
-  return`<div class="content">
-    <div class="g2">
-      <div>
-        <div class="panel">
-          <div class="ph"><span class="pt">Seleccionar partido</span><button class="bsm" onclick="S.npShow=!S.npShow;render()">+ Nuevo</button></div>
-          <div class="pb">${npForm}<div style="max-height:260px;overflow-y:auto">${S.partidos.length?listaP:'<div class="empty">Sin partidos. Crea uno.</div>'}</div></div>
-        </div>
-        ${renderPitch()}
-      </div>
-      <div>
-        <div class="panel">
-          <div class="ph"><span class="pt">Registrar evento</span>${pid?`<span style="font-size:10px;color:var(--gris)">vs ${S.partidos.find(p=>p.id===pid)?.rival||''}</span>`:''}</div>
-          <div class="pb">${evForm}</div>
-        </div>
-        <div class="panel">
-          <div class="ph"><span class="pt">Eventos del partido</span></div>
-          <div class="pb"><div style="max-height:240px;overflow-y:auto">${evLista}</div></div>
-        </div>
-        ${minutajePanel}
-      </div>
-    </div>
-  </div>`
+  </div></div>`
 }
 
 async function selPartido(id){
-  S.partidoActivo=id;S.minutaje={};S.slotSeleccionado=null
-  const[evs,mins,part]=await Promise.all([
+  S.partidoActivo=id;S.slotSeleccionado=null
+  const[evs,part]=await Promise.all([
     get('eventos',`?partido_id=eq.${id}&order=minuto`),
-    get('minutaje',`?partido_id=eq.${id}`),
     get('partidos',`?id=eq.${id}`)
   ])
   S.evPartido=Array.isArray(evs)?evs:[]
-  if(Array.isArray(mins))mins.forEach(m=>S.minutaje[m.jugador_id]=m.minutos)
-  // Load saved formation/titulares
   if(Array.isArray(part)&&part[0]){
     const p=part[0]
     if(p.formacion)S.formacion=p.formacion
-    if(p.titulares){
-      try{S.titulares=JSON.parse(p.titulares)||[]}catch(e){S.titulares=[]}
-    }
+    if(p.titulares){try{S.titulares=JSON.parse(p.titulares)||[]}catch(e){S.titulares=[]}}
   }
   render()
 }
@@ -724,37 +734,61 @@ async function agregarEvento(){
     subtipo:['Gol','Asistencia'].includes(ev.tipo)?ev.subtipo:null,
     minuto:+ev.minuto,jugador_sale_id:ev.tipo==='Sustitución'?+ev.jugador_sale_id:null,
   })
-  if(Array.isArray(r)&&r[0]){toast('Evento registrado');await cargarDatos();await selPartido(S.partidoActivo)}
-  else toast('Error',true)
-}
-
-async function guardarMinutaje(){
-  if(!S.partidoActivo){toast('Selecciona un partido',true);return}
-  const ops=Object.entries(S.minutaje).filter(([,v])=>v>0).map(([jid,minutos])=>
-    fetch(`${SB_URL}/rest/v1/minutaje`,{
-      method:'POST',
-      headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
-      body:JSON.stringify({partido_id:S.partidoActivo,jugador_id:+jid,minutos})
-    })
-  )
-  await Promise.all(ops)
-  toast('Minutaje guardado ✓')
+  if(Array.isArray(r)&&r[0]){
+    toast('Evento registrado')
+    await cargarDatos()
+    await selPartido(S.partidoActivo)
+    // Auto-recalcular minutaje si hay titulares y es sustitución
+    if(ev.tipo==='Sustitución'){
+      const titIds=S.titulares.filter(x=>x)
+      if(titIds.length>0){
+        const mins=calcMinutajeAuto(titIds,S.evPartido,S.duracion)
+        await Promise.all(Object.entries(mins).filter(([,v])=>v>0).map(([jid,minutos])=>
+          fetch(`${SB_URL}/rest/v1/minutaje`,{
+            method:'POST',
+            headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
+            body:JSON.stringify({partido_id:S.partidoActivo,jugador_id:+jid,minutos})
+          })
+        ))
+        toast('Minutaje actualizado automáticamente ✓')
+      }
+    }
+  }else toast('Error',true)
 }
 
 // ===== PLANTILLA =====
 function renderPlantilla(){
   const lista=S.filtPos==='todos'?S.jugadores:S.jugadores.filter(j=>j.posicion===S.filtPos)
+
+  const posEspOpts=Object.entries(POS_GRUPOS).map(([g,lista])=>
+    `<optgroup label="${g==='POR'?'Portería':g==='DEF'?'Defensa':g==='MED'?'Mediocampo':'Delantera'}">`+
+    lista.map(p=>`<option value="${p}">${p}</option>`).join('')+`</optgroup>`
+  ).join('')
+
   const addForm=S.addJugShow?`<div class="panel" style="margin-bottom:12px">
     <div class="ph"><span class="pt">Nuevo jugador</span></div>
     <div class="pb">
-      <div class="fr2"><div class="fg"><label>Nombre</label><input oninput="S.addJug.nombre=this.value" placeholder="Nombre completo"></div>
-      <div class="fg"><label>Número</label><input type="number" oninput="S.addJug.numero=this.value" min="1" max="99"></div></div>
+      <div class="fr2">
+        <div class="fg"><label>Nombre completo</label><input oninput="S.addJug.nombre=this.value" placeholder="Nombre y apellido"></div>
+        <div class="fg"><label>Número</label><input type="number" oninput="S.addJug.numero=this.value" min="1" max="99"></div>
+      </div>
       <div class="fr3">
-        <div class="fg"><label>Posición</label><select onchange="S.addJug.posicion=this.value"><option value="POR">Portero</option><option value="DEF">Defensa</option><option value="MED" selected>Mediocampista</option><option value="DEL">Delantero</option></select></div>
+        <div class="fg"><label>Zona</label><select onchange="S.addJug.posicion=this.value"><option value="POR">Portero</option><option value="DEF">Defensa</option><option value="MED" selected>Mediocampo</option><option value="DEL">Delantera</option></select></div>
         <div class="fg"><label>Edad</label><input type="number" value="22" oninput="S.addJug.edad=+this.value" min="15" max="45"></div>
         <div class="fg"><label>Pie</label><select onchange="S.addJug.pie=this.value"><option>Derecho</option><option>Izquierdo</option><option>Ambidiestro</option></select></div>
       </div>
-      <div style="display:flex;gap:6px"><button class="btn" onclick="guardarJugador()">Guardar</button><button class="bsm" onclick="S.addJugShow=false;render()">Cancelar</button></div>
+      <div class="fg"><label>Posición específica</label>
+        <select onchange="S.addJug.posicion_especifica=this.value"><option value="">— Sin especificar —</option>${posEspOpts}</select>
+      </div>
+      <div class="fr3">
+        <div class="fg"><label>Altura (cm)</label><input type="number" min="150" max="210" placeholder="178" oninput="S.addJug.altura=+this.value"></div>
+        <div class="fg"><label>Club origen</label><input placeholder="Ej: Rangers" oninput="S.addJug.club_origen=this.value"></div>
+        <div class="fg"><label>Contrato hasta</label><input type="date" oninput="S.addJug.contrato_hasta=this.value"></div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn" onclick="guardarJugador()">Guardar</button>
+        <button class="bsm" onclick="S.addJugShow=false;render()">Cancelar</button>
+      </div>
     </div></div>`:''
 
   const tabsH=`<div class="tabs">${['todos','POR','DEF','MED','DEL'].map(t=>`<button class="tab ${S.filtPos===t?'on':''}" onclick="S.filtPos='${t}';render()">${t==='todos'?'Todos':t==='POR'?'Porteros':t==='DEF'?'Defensas':t==='MED'?'Medios':'Delanteros'}</button>`).join('')}</div>`
@@ -765,23 +799,32 @@ function renderPlantilla(){
     const ini=j.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
     const g90=st.minutos>0?(st.goles/st.minutos*90).toFixed(2):'0.00'
     const a90=st.minutos>0?(st.asist/st.minutos*90).toFixed(2):'0.00'
+    const diasContrato=j.contrato_hasta?Math.ceil((new Date(j.contrato_hasta)-new Date())/86400000):null
+    const contratoAlert=diasContrato!==null&&diasContrato<90
     return`<div class="jcard">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <div class="jav">${j.foto_url?`<img src="${j.foto_url}" alt="${ini}" style="width:100%;height:100%;object-fit:cover">`:`${ini}`}</div>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:700">#${j.numero} ${j.nombre.split(' ')[0]}</div>
-          <div style="font-size:10px;color:var(--gris)">${j.nombre.split(' ').slice(1).join(' ')}</div>
-          <div style="display:flex;gap:4px;margin-top:3px"><span class="pos-${j.posicion}">${j.posicion}</span><span class="badge ${les?'br':'bv'}">${les?'Lesionado':'OK'}</span></div>
+        <div class="jav">${j.foto_url?`<img src="${j.foto_url}" alt="${ini}">`:`${ini}`}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700">#${j.numero} ${j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre}</div>
+          <div style="font-size:10px;color:var(--gris);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${j.nombre.trim().split(' ')[0]}</div>
+          <div style="display:flex;gap:4px;margin-top:3px;flex-wrap:wrap">
+            <span class="pos-${j.posicion}">${j.posicion_especifica||j.posicion}</span>
+            <span class="badge ${les?'br':'bv'}">${les?'Lesionado':'OK'}</span>
+          </div>
         </div>
-        <button class="bsm" style="padding:3px 8px;font-size:11px;align-self:flex-start" onclick="abrirEditarJugador(${j.id})">✏️</button>
+        <button class="bsm" style="padding:3px 8px;align-self:flex-start" onclick="abrirEditarJugador(${j.id})">✏️</button>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">
-        <div style="text-align:center;background:rgba(0,0,0,.2);border-radius:4px;padding:4px"><div style="font-size:14px;font-weight:800;color:var(--vc)">${st.goles}</div><div style="font-size:8px;color:var(--gris)">Goles</div></div>
-        <div style="text-align:center;background:rgba(0,0,0,.2);border-radius:4px;padding:4px"><div style="font-size:14px;font-weight:800;color:var(--az)">${st.asist}</div><div style="font-size:8px;color:var(--gris)">Asist</div></div>
-        <div style="text-align:center;background:rgba(0,0,0,.2);border-radius:4px;padding:4px"><div style="font-size:14px;font-weight:800;color:var(--am)">${g90}</div><div style="font-size:8px;color:var(--gris)">G/90</div></div>
-        <div style="text-align:center;background:rgba(0,0,0,.2);border-radius:4px;padding:4px"><div style="font-size:14px;font-weight:800;color:var(--am)">${a90}</div><div style="font-size:8px;color:var(--gris)">A/90</div></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:8px">
+        <div style="text-align:center;background:rgba(0,0,0,.2);border-radius:4px;padding:4px"><div style="font-size:13px;font-weight:800;color:var(--vc)">${st.goles}</div><div style="font-size:8px;color:var(--gris)">Goles</div></div>
+        <div style="text-align:center;background:rgba(0,0,0,.2);border-radius:4px;padding:4px"><div style="font-size:13px;font-weight:800;color:var(--az)">${st.asist}</div><div style="font-size:8px;color:var(--gris)">Asist</div></div>
+        <div style="text-align:center;background:rgba(0,0,0,.2);border-radius:4px;padding:4px"><div style="font-size:13px;font-weight:800;color:var(--am)">${g90}</div><div style="font-size:8px;color:var(--gris)">G/90</div></div>
+        <div style="text-align:center;background:rgba(0,0,0,.2);border-radius:4px;padding:4px"><div style="font-size:13px;font-weight:800;color:var(--am)">${a90}</div><div style="font-size:8px;color:var(--gris)">A/90</div></div>
       </div>
-      <div style="font-size:10px;color:var(--muted);margin-top:6px">${j.edad} años · ${j.pie}</div>
+      <div style="font-size:10px;color:var(--muted);line-height:1.7">
+        ${j.edad} años${j.altura?` · ${j.altura}cm`:''}${j.pie?' · '+j.pie:''}<br>
+        ${j.club_origen?`<span style="color:var(--gris)">Viene de: <strong>${j.club_origen}</strong></span><br>`:''}
+        ${j.contrato_hasta?`<span style="color:${contratoAlert?'var(--ro)':'var(--gris)'}">Contrato: ${new Date(j.contrato_hasta).toLocaleDateString('es-CL')}${contratoAlert?' ⚠️':''}</span>`:''}
+      </div>
     </div>`
   }).join('')
 
@@ -797,9 +840,19 @@ function renderPlantilla(){
 async function guardarJugador(){
   const j=S.addJug
   if(!j.nombre.trim()||!j.numero){toast('Completa nombre y número',true);return}
-  const r=await post('jugadores',{...j,numero:+j.numero,edad:+j.edad})
-  if(Array.isArray(r)&&r[0]){toast('Jugador agregado');S.addJugShow=false;S.addJug={numero:'',nombre:'',posicion:'MED',edad:22,pie:'Derecho'};await cargarDatos()}
-  else toast('Error',true)
+  const r=await post('jugadores',{
+    nombre:j.nombre.trim(),numero:+j.numero,edad:+j.edad,posicion:j.posicion,
+    posicion_especifica:j.posicion_especifica||null,
+    pie:j.pie,altura:+j.altura||null,
+    club_origen:j.club_origen||null,
+    contrato_hasta:j.contrato_hasta||null
+  })
+  if(Array.isArray(r)&&r[0]){
+    toast('Jugador agregado')
+    S.addJugShow=false
+    S.addJug={numero:'',nombre:'',posicion:'MED',posicion_especifica:'',edad:22,pie:'Derecho',altura:'',club_origen:'',contrato_hasta:''}
+    await cargarDatos()
+  }else toast('Error',true)
 }
 
 // ===== PARTIDOS =====
@@ -818,11 +871,15 @@ function renderPartidos(){
     const res=p.goles_favor>p.goles_contra?'W':p.goles_favor===p.goles_contra?'D':'L'
     const rb=res==='W'?'bv':res==='D'?'ba':'br'
     const rl=res==='W'?'Victoria':res==='D'?'Empate':'Derrota'
-    const goles=S.eventos.filter(e=>e.partido_id===p.id&&e.tipo==='Gol').map(e=>`<span class="badge bv">⚽ ${jugNombre(e.jugador_id).split(' ')[0]} ${e.minuto}'</span>`).join(' ')
-    const form=p.formacion?`<span class="badge bg" style="margin-left:4px">${p.formacion}</span>`:''
+    const goles=S.eventos.filter(e=>e.partido_id===p.id&&e.tipo==='Gol').map(e=>`<span class="badge bv">⚽ ${jugApellido(e.jugador_id)} ${e.minuto}'</span>`).join(' ')
     return`<div class="pcard" style="cursor:default">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:4px">
-        <div style="display:flex;gap:4px;flex-wrap:wrap"><span class="badge ${rb}">${rl}</span><span class="badge ${p.condicion==='Local'?'baz':'bg'}">${p.condicion}</span><span class="badge bg">${p.competencia}</span>${form}</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <span class="badge ${rb}">${rl}</span>
+          <span class="badge ${p.condicion==='Local'?'baz':'bg'}">${p.condicion}</span>
+          <span class="badge bg">${p.competencia}</span>
+          ${p.formacion?`<span class="badge bg">${p.formacion}</span>`:''}
+        </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:10px;color:var(--gris)">${p.fecha}</span>
           <button class="bsm" style="padding:2px 8px;font-size:10px" onclick="abrirEditarPartido(${p.id})">✏️ Editar</button>
@@ -880,19 +937,14 @@ function renderEstadisticas(){
   const cGol={};TIPOS_GOL.forEach(t=>cGol[t]=0)
   evsFilt.filter(e=>e.tipo==='Gol').forEach(e=>{if(e.subtipo)cGol[e.subtipo]=(cGol[e.subtipo]||0)+1})
   const totG=Math.max(1,Object.values(cGol).reduce((a,b)=>a+b,0))
-
   const gf=partsFilt.reduce((a,p)=>a+p.goles_favor,0)
-  const gc=partsFilt.reduce((a,p)=>a+p.goles_contra,0)
   const ta=evsFilt.filter(e=>e.tipo==='Amarilla').length
   const tr=evsFilt.filter(e=>e.tipo==='Roja').length
   const pz=partsFilt.filter(p=>p.goles_contra===0).length
-
   const locales=partsFilt.filter(p=>p.condicion==='Local')
   const visitas=partsFilt.filter(p=>p.condicion==='Visita')
   const locPts=locales.filter(p=>p.goles_favor>p.goles_contra).length*3+locales.filter(p=>p.goles_favor===p.goles_contra).length
   const visPts=visitas.filter(p=>p.goles_favor>p.goles_contra).length*3+visitas.filter(p=>p.goles_favor===p.goles_contra).length
-
-  // Goals by time period
   const golesT1=evsFilt.filter(e=>e.tipo==='Gol'&&e.minuto<=30).length
   const golesT2=evsFilt.filter(e=>e.tipo==='Gol'&&e.minuto>30&&e.minuto<=60).length
   const golesT3=evsFilt.filter(e=>e.tipo==='Gol'&&e.minuto>60).length
@@ -903,10 +955,10 @@ function renderEstadisticas(){
       ${TIPOS_GOL.map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--borde)">
         <span style="flex:1;font-size:12px">${t}</span>
         <span style="font-size:10px;color:var(--gris);min-width:50px">${cGol[t]||0} goles</span>
-        <button class="bdel" style="padding:3px 8px;font-size:10px" onclick="eliminarTipoGol(${i})">✕ Quitar</button>
+        <button class="bdel" style="padding:3px 8px;font-size:10px" onclick="eliminarTipoGol(${i})">✕</button>
       </div>`).join('')}
       <div style="display:flex;gap:8px;margin-top:12px">
-        <input id="inp-tipo-gol" placeholder="Nuevo tipo, ej: Chilena..." value="${S.nuevoTipoGol}"
+        <input id="inp-tipo-gol" placeholder="Nuevo tipo..." value="${S.nuevoTipoGol}"
           style="flex:1;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font)"
           oninput="S.nuevoTipoGol=this.value" onkeydown="if(event.key==='Enter')agregarTipoGol()">
         <button class="btn" onclick="agregarTipoGol()">+ Agregar</button>
@@ -922,14 +974,10 @@ function renderEstadisticas(){
       <div class="mc am"><div class="mc-l">Amarillas</div><div class="mc-v">${ta}</div></div>
       <div class="mc ro"><div class="mc-l">Rojas</div><div class="mc-v">${tr}</div></div>
     </div>
-
-    <!-- Local vs Visita -->
     <div class="g2">
-      <div class="mc az"><div class="mc-l">Puntos de Local (${locales.length} partidos)</div><div class="mc-v">${locPts}</div><div class="mc-s">${locales.filter(p=>p.goles_favor>p.goles_contra).length}G ${locales.filter(p=>p.goles_favor===p.goles_contra).length}E ${locales.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
-      <div class="mc"><div class="mc-l">Puntos de Visita (${visitas.length} partidos)</div><div class="mc-v">${visPts}</div><div class="mc-s">${visitas.filter(p=>p.goles_favor>p.goles_contra).length}G ${visitas.filter(p=>p.goles_favor===p.goles_contra).length}E ${visitas.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
+      <div class="mc az"><div class="mc-l">Pts Local (${locales.length} partidos)</div><div class="mc-v">${locPts}</div><div class="mc-s">${locales.filter(p=>p.goles_favor>p.goles_contra).length}G ${locales.filter(p=>p.goles_favor===p.goles_contra).length}E ${locales.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
+      <div class="mc"><div class="mc-l">Pts Visita (${visitas.length} partidos)</div><div class="mc-v">${visPts}</div><div class="mc-s">${visitas.filter(p=>p.goles_favor>p.goles_contra).length}G ${visitas.filter(p=>p.goles_favor===p.goles_contra).length}E ${visitas.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
     </div>
-
-    <!-- Goals by period -->
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">Goles por período</span></div>
       <div class="pb" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
@@ -944,71 +992,59 @@ function renderEstadisticas(){
         }).join('')}
       </div>
     </div>
-
     <div class="g2">
-      <!-- Goleadores -->
       <div class="panel"><div class="ph"><span class="pt">Goleadores</span></div>
-        <table><thead><tr><th>Jugador</th><th class="num">G</th><th class="num">Min</th><th class="num">G/90</th></tr></thead><tbody>
-        ${goleadores.slice(0,8).map((j,i)=>`<tr><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${j.nombre}</td><td class="num">${j.goles}</td><td class="num">${j.min}'</td><td class="num" style="color:var(--vc);font-weight:800">${j.g90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
+        <table><thead><tr><th>Jugador</th><th>Pos</th><th class="num">G</th><th class="num">G/90</th></tr></thead><tbody>
+        ${goleadores.slice(0,8).map((j,i)=>`<tr><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${jugApellido(j.id)}</td><td><span class="pos-${j.posicion}" style="font-size:8px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td><td class="num">${j.goles}</td><td class="num" style="color:var(--vc);font-weight:800">${j.g90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
         </tbody></table>
       </div>
-      <!-- Asistidores -->
       <div class="panel"><div class="ph"><span class="pt">Asistidores</span></div>
-        <table><thead><tr><th>Jugador</th><th class="num">A</th><th class="num">Min</th><th class="num">A/90</th></tr></thead><tbody>
-        ${asistidores.slice(0,8).map((j,i)=>`<tr><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${j.nombre}</td><td class="num">${j.asist}</td><td class="num">${j.min}'</td><td class="num" style="color:var(--az);font-weight:800">${j.a90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias</td></tr>`}
+        <table><thead><tr><th>Jugador</th><th>Pos</th><th class="num">A</th><th class="num">A/90</th></tr></thead><tbody>
+        ${asistidores.slice(0,8).map((j,i)=>`<tr><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${jugApellido(j.id)}</td><td><span class="pos-${j.posicion}" style="font-size:8px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td><td class="num">${j.asist}</td><td class="num" style="color:var(--az);font-weight:800">${j.a90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias</td></tr>`}
         </tbody></table>
       </div>
     </div>
     <div class="g2">
-      <!-- G/90 eficiencia -->
-      <div class="panel"><div class="ph"><span class="pt">Eficiencia G/90 (min 90 min)</span></div>
+      <div class="panel"><div class="ph"><span class="pt">Eficiencia G/90</span></div>
         <table><thead><tr><th>Jugador</th><th class="num">G</th><th class="num">G/90</th></tr></thead><tbody>
-        ${topG90.slice(0,6).map(j=>`<tr><td>${j.nombre}</td><td class="num">${j.goles}</td><td class="num" style="color:var(--am);font-weight:800">${j.g90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Datos insuficientes</td></tr>`}
+        ${topG90.slice(0,6).map(j=>`<tr><td>${jugApellido(j.id)}</td><td class="num">${j.goles}</td><td class="num" style="color:var(--am);font-weight:800">${j.g90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Datos insuficientes</td></tr>`}
         </tbody></table>
       </div>
-      <!-- Disciplina -->
       <div class="panel"><div class="ph"><span class="pt">Disciplina</span></div>
         <table><thead><tr><th>Jugador</th><th class="num">🟡</th><th class="num">🔴</th></tr></thead><tbody>
-        ${disciplina.slice(0,6).map(j=>`<tr><td>${j.nombre}</td><td class="num" style="color:var(--am)">${j.amarillas}</td><td class="num" style="color:#ff8888">${j.rojas}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Sin tarjetas</td></tr>`}
+        ${disciplina.slice(0,6).map(j=>`<tr><td>${jugApellido(j.id)}</td><td class="num" style="color:var(--am)">${j.amarillas}</td><td class="num" style="color:#ff8888">${j.rojas}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Sin tarjetas</td></tr>`}
         </tbody></table>
       </div>
     </div>
-
     ${panelTiposGol}
     <div class="panel">
-      <div class="ph">
-        <span class="pt">Desglose de goles</span>
-        <button class="bsm" onclick="S.editTiposGol=!S.editTiposGol;render()">⚙️ Gestionar tipos</button>
-      </div>
-      <div class="pb">
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">
-          ${TIPOS_GOL.map(t=>{const pct=Math.round((cGol[t]||0)/totG*100);return`<div class="mc"><div class="mc-l">${t}</div><div class="mc-v" style="font-size:20px">${cGol[t]||0}</div><div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div><div class="mc-s">${pct}%</div></div>`}).join('')}
-        </div>
-      </div>
+      <div class="ph"><span class="pt">Desglose de goles</span><button class="bsm" onclick="S.editTiposGol=!S.editTiposGol;render()">⚙️ Gestionar</button></div>
+      <div class="pb"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
+        ${TIPOS_GOL.map(t=>{const pct=Math.round((cGol[t]||0)/totG*100);return`<div class="mc"><div class="mc-l">${t}</div><div class="mc-v" style="font-size:20px">${cGol[t]||0}</div><div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div><div class="mc-s">${pct}%</div></div>`}).join('')}
+      </div></div>
     </div>
   </div>`
 }
 
 function agregarTipoGol(){
   const val=S.nuevoTipoGol.trim()
-  if(!val){toast('Escribe un nombre para el tipo',true);return}
+  if(!val){toast('Escribe un nombre',true);return}
   if(TIPOS_GOL.includes(val)){toast('Ese tipo ya existe',true);return}
   TIPOS_GOL.push(val);S.nuevoTipoGol='';render();toast('Tipo "'+val+'" agregado')
 }
 
 function eliminarTipoGol(i){
   const tipo=TIPOS_GOL[i]
-  const enUso=S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Gol')
-  if(enUso){toast('No se puede eliminar — hay goles registrados con este tipo',true);return}
+  if(S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Gol')){toast('No se puede eliminar — hay goles con este tipo',true);return}
   TIPOS_GOL.splice(i,1);render();toast('Tipo eliminado')
 }
 
 // ===== MÉDICO =====
 function renderMedico(){
   const les=S.lesiones
-  const jugOpts=S.jugadores.map(j=>`<option value="${j.id}">#${j.numero} ${j.nombre}</option>`).join('')
+  const jugOptsLes=S.jugadores.map(j=>`<option value="${j.id}">#${j.numero} ${jugApellido(j.id)}</option>`).join('')
   const addForm=S.lesShow?`<div style="padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--borde)">
-    <div class="fg"><label>Jugador</label><select onchange="S.addLes.jugador_id=+this.value">${jugOpts}</select></div>
+    <div class="fg"><label>Jugador</label><select onchange="S.addLes.jugador_id=+this.value">${jugOptsLes}</select></div>
     <div class="fg"><label>Tipo de lesión</label><select onchange="S.addLes.tipo=this.value">
       ${['Desgarro muscular','Esguince','Fractura','Contusión','Rotura de ligamentos','Sobrecarga','Otro'].map(t=>`<option>${t}</option>`).join('')}
     </select></div>
@@ -1037,7 +1073,11 @@ function renderMedico(){
 
   const dispTabla=S.jugadores.map(j=>{
     const lesion=les.find(l=>l.jugador_id===j.id)
-    return`<tr><td>#${j.numero} ${j.nombre}</td><td><span class="pos-${j.posicion}">${j.posicion}</span></td><td class="center"><span class="badge ${lesion?'br':'bv'}">${lesion?'Lesionado':'Disponible'}</span></td></tr>`
+    return`<tr>
+      <td>#${j.numero} ${jugApellido(j.id)}</td>
+      <td><span style="font-size:9px;color:var(--gris)">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td>
+      <td class="center"><span class="badge ${lesion?'br':'bv'}">${lesion?'Lesionado':'Disponible'}</span></td>
+    </tr>`
   }).join('')
 
   return`<div class="content"><div class="g2">
@@ -1074,12 +1114,10 @@ function renderConfig(){
       <div class="bg-preview" style="${bg?`background-image:url('${bg}');`:''}">
         ${!bg?'Sin fondo configurado':''}
       </div>
-      <div class="fg">
-        <label>URL de imagen (pega un enlace directo a imagen)</label>
+      <div class="fg"><label>URL de imagen</label>
         <input type="url" id="bg-url-inp" placeholder="https://ejemplo.com/imagen.jpg" value="${bg||''}">
       </div>
-      <div class="fg">
-        <label>O sube una imagen local</label>
+      <div class="fg"><label>O sube una imagen local</label>
         <input type="file" accept="image/*" onchange="handleBgFile(this)" style="color:var(--gris);cursor:pointer;font-size:11px">
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1087,33 +1125,29 @@ function renderConfig(){
         <button class="bsm" onclick="quitarBg()">Quitar fondo</button>
       </div>
     </div>
-
     <div class="config-section">
-      <div class="config-title">📋 Información del sistema</div>
+      <div class="config-title">📋 Resumen del sistema</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="mc"><div class="mc-l">Jugadores activos</div><div class="mc-v">${S.jugadores.length}</div></div>
-        <div class="mc"><div class="mc-l">Partidos registrados</div><div class="mc-v">${S.partidos.length}</div></div>
-        <div class="mc"><div class="mc-l">Eventos totales</div><div class="mc-v">${S.eventos.length}</div></div>
-        <div class="mc"><div class="mc-l">Lesiones activas</div><div class="mc-v ro">${S.lesiones.length}</div></div>
+        <div class="mc"><div class="mc-l">Jugadores</div><div class="mc-v">${S.jugadores.length}</div></div>
+        <div class="mc"><div class="mc-l">Partidos</div><div class="mc-v">${S.partidos.length}</div></div>
+        <div class="mc"><div class="mc-l">Eventos</div><div class="mc-v">${S.eventos.length}</div></div>
+        <div class="mc"><div class="mc-l">Lesiones</div><div class="mc-v ro">${S.lesiones.length}</div></div>
       </div>
     </div>
-
     <div class="config-section">
-      <div class="config-title">🗄 Configuración Supabase</div>
-      <p style="font-size:11px;color:var(--gris);line-height:1.6;margin-bottom:8px">
-        Para habilitar fotos de jugadores, crea un bucket público llamado <strong style="color:var(--vc)">jugadores</strong> en Supabase Storage.<br>
-        Para guardar formaciones, agrega las columnas <strong style="color:var(--vc)">formacion</strong> (text) y <strong style="color:var(--vc)">titulares</strong> (text) a la tabla <strong style="color:var(--vc)">partidos</strong>.<br>
-        Para fotos, agrega la columna <strong style="color:var(--vc)">foto_url</strong> (text) a la tabla <strong style="color:var(--vc)">jugadores</strong>.
+      <div class="config-title">🗄 Columnas nuevas en Supabase</div>
+      <p style="font-size:11px;color:var(--gris);line-height:1.7">
+        Agrega en la tabla <strong style="color:var(--vc)">jugadores</strong>:<br>
+        · <code style="color:var(--am)">posicion_especifica</code> (text)<br>
+        · <code style="color:var(--am)">altura</code> (int4)<br>
+        · <code style="color:var(--am)">club_origen</code> (text)<br>
+        · <code style="color:var(--am)">contrato_hasta</code> (date)<br>
+        · <code style="color:var(--am)">foto_url</code> (text)<br><br>
+        Agrega en la tabla <strong style="color:var(--vc)">partidos</strong>:<br>
+        · <code style="color:var(--am)">formacion</code> (text)<br>
+        · <code style="color:var(--am)">titulares</code> (text)
       </p>
-      <button class="bsm" onclick="testConnection()">Probar conexión</button>
-    </div>
-
-    <div class="config-section">
-      <div class="config-title">🎨 Tipos de gol personalizados</div>
-      <p style="font-size:11px;color:var(--gris);margin-bottom:8px">Configura desde la pestaña Estadísticas → Gestionar tipos</p>
-      <div style="display:flex;flex-wrap:wrap;gap:5px">
-        ${TIPOS_GOL.map(t=>`<span class="badge bg">${t}</span>`).join('')}
-      </div>
+      <button class="bsm" style="margin-top:8px" onclick="testConnection()">Probar conexión</button>
     </div>
   </div>`
 }
@@ -1121,32 +1155,18 @@ function renderConfig(){
 function handleBgFile(input){
   const file=input.files[0];if(!file)return
   const reader=new FileReader()
-  reader.onload=e=>{
-    const url=e.target.result
-    S.bgImage=url;localStorage.setItem('dt-bg',url)
-    applyBg();render();toast('Fondo aplicado ✓')
-  }
+  reader.onload=e=>{S.bgImage=e.target.result;localStorage.setItem('dt-bg',S.bgImage);applyBg();render();toast('Fondo aplicado ✓')}
   reader.readAsDataURL(file)
 }
-
 function guardarBg(){
   const url=document.getElementById('bg-url-inp')?.value.trim()
   if(!url){toast('Ingresa una URL',true);return}
-  S.bgImage=url;localStorage.setItem('dt-bg',url)
-  applyBg();render();toast('Fondo aplicado ✓')
+  S.bgImage=url;localStorage.setItem('dt-bg',url);applyBg();render();toast('Fondo aplicado ✓')
 }
-
-function quitarBg(){
-  S.bgImage='';localStorage.removeItem('dt-bg')
-  applyBg();render();toast('Fondo quitado')
-}
-
+function quitarBg(){S.bgImage='';localStorage.removeItem('dt-bg');applyBg();render();toast('Fondo quitado')}
 async function testConnection(){
-  try{
-    const r=await get('jugadores','?limit=1')
-    if(Array.isArray(r))toast('Conexión OK ✓ — Supabase responde correctamente')
-    else toast('Error de conexión',true)
-  }catch(e){toast('Sin conexión a Supabase',true)}
+  try{const r=await get('jugadores','?limit=1');if(Array.isArray(r))toast('Conexión OK ✓');else toast('Error',true)}
+  catch(e){toast('Sin conexión',true)}
 }
 
 // ===== RENDER =====
@@ -1163,9 +1183,7 @@ function render(){
   }</div>`
 }
 
-if(!S.minutaje) S.minutaje={}
-applyBg()
-render()
+applyBg();render()
 </script>
 </body>
 </html>

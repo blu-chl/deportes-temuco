@@ -194,6 +194,41 @@ const FORMACIONES={
   '5-2-2-1':[{pos:'POR',n:1},{pos:'DEF',n:5},{pos:'MED',n:2},{pos:'MED',n:2},{pos:'DEL',n:1}],
 }
 
+function parseFormacion(str){
+  const parts=str.trim().split('-').map(Number)
+  if(parts.length<2||parts.some(isNaN)||parts.some(n=>n<1))return null
+  if(parts.reduce((a,b)=>a+b,0)!==10)return null
+  const lineas=[{pos:'POR',n:1}]
+  parts.forEach((n,i)=>{
+    if(i===0)lineas.push({pos:'DEF',n})
+    else if(i===parts.length-1)lineas.push({pos:'DEL',n})
+    else lineas.push({pos:'MED',n})
+  })
+  return lineas
+}
+
+function aplicarFormacionCustom(){
+  const inp=document.getElementById('form-custom-inp');if(!inp)return
+  const str=inp.value.trim().replace(/\s+/g,'')
+  if(!str)return
+  const parsed=parseFormacion(str)
+  if(!parsed){toast('Debe sumar 10 (ej: 4-3-3, 3-4-1-2)',true);return}
+  FORMACIONES[str]=parsed
+  S.formacion=str
+  S.titulares=[]
+  // Guardar formaciones custom en localStorage
+  const customs=JSON.parse(localStorage.getItem('dt-formaciones')||'{}')
+  customs[str]=parsed
+  localStorage.setItem('dt-formaciones',JSON.stringify(customs))
+  render();toast(`Formación ${str} guardada ✓`)
+}
+
+// Cargar formaciones custom guardadas
+try{
+  const customs=JSON.parse(localStorage.getItem('dt-formaciones')||'{}')
+  Object.entries(customs).forEach(([k,v])=>{if(!FORMACIONES[k])FORMACIONES[k]=v})
+}catch(e){}
+
 function calcMinutajeAuto(titularIds,evs,duracion=90){
   const mins={}
   titularIds.forEach(id=>{if(id)mins[id]=duracion})
@@ -565,11 +600,15 @@ function renderPitch(){
   return`<div class="panel">
     <div class="ph">
       <span class="pt">Formación y 11 inicial</span>
-      <div style="display:flex;gap:6px;align-items:center">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <select onchange="S.formacion=this.value;S.titulares=[];render()"
           style="background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:5px;padding:4px 8px;color:white;font-size:11px;font-family:var(--font)">
           ${Object.keys(FORMACIONES).map(f=>`<option ${S.formacion===f?'selected':''}>${f}</option>`).join('')}
         </select>
+        <input id="form-custom-inp" placeholder="Ej: 4-3-1-2" value=""
+          style="width:90px;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:5px;padding:4px 8px;color:white;font-size:11px;font-family:var(--font)"
+          onkeydown="if(event.key==='Enter')aplicarFormacionCustom()">
+        <button class="bsm" onclick="aplicarFormacionCustom()" style="padding:3px 8px;font-size:10px">✓</button>
         <span style="font-size:10px;color:var(--gris)">${titCount}/11</span>
       </div>
     </div>

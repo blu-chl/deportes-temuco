@@ -516,7 +516,7 @@ function renderPitch(){
 
   const jugOptsSlot=[...S.jugadores].sort((a,b)=>a.numero-b.numero).map(j=>{
     const ap=j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre
-    return`<option value="${j.id}">${ap}${j.posicion_especifica?' ('+j.posicion_especifica+')':''}</option>`
+    return`<option value="${j.id}">#${j.numero} ${ap}${j.posicion_especifica?' · '+j.posicion_especifica:''}</option>`
   }).join('')
 
   const lineasHtml=[...lineas].reverse().map(linea=>`
@@ -525,10 +525,15 @@ function renderPitch(){
       const j=S.jugadores.find(x=>x.id===jugId)
       const ap=j?(j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre):''
       const posColor=s.pos==='POR'?'#e8b84b':s.pos==='DEF'?'#378ADD':s.pos==='DEL'?'#cc4444':'#2ea84f'
+      // Buscar si hubo sustitución para este titular
+      const subEv=j?S.evPartido.find(e=>e.tipo==='Sustitución'&&e.jugador_sale_id===jugId):null
+      const subEntra=subEv?S.jugadores.find(x=>x.id===subEv.jugador_id):null
+      const subAp=subEntra?(subEntra.nombre.trim().split(' ').slice(1).join(' ')||subEntra.nombre):''
       return`<div class="slot ${j?'filled':''}" onclick="selSlot(${s.idx})" title="${j?j.nombre:'Slot '+(s.idx+1)}">
         ${j&&j.foto_url?`<img class="slot-avatar" src="${j.foto_url}">`:`<span class="slot-num">${j?j.numero:(s.idx+1)}</span>`}
         ${j?`<span class="slot-name">${ap}</span>`:''}
         <span class="slot-pos-badge" style="background:${posColor}22;color:${posColor}">${s.pos}</span>
+        ${subEv?`<div style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:7px;color:#aaa;background:rgba(0,0,0,.7);padding:1px 4px;border-radius:3px">🔄${subEv.minuto}' ${subAp||'#'+subEntra?.numero}</div>`:''}
       </div>`
     }).join('')}</div>`).join('')
 

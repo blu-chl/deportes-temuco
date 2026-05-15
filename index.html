@@ -255,7 +255,8 @@ function jugApellido(id){
 function fmtValor(v){
   if(!v&&v!==0)return'-'
   const m=S.moneda||'€'
-  return m==='CLP'?`$${(+v).toLocaleString('es-CL')} CLP`:`${m}${+v}`
+  const num=(+v).toLocaleString('es-CL')
+  return m==='CLP'?`$${num} CLP`:`${m}${num}`
 }
 
 // Label para dropdowns según modo de ordenamiento

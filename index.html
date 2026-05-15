@@ -199,11 +199,15 @@ function jugApellido(id){
 // Label para dropdowns según modo de ordenamiento
 function jugOpts(){
   let lista=[...S.jugadores]
-  if(S.ordenJug==='apellido') lista.sort((a,b)=>{
-    const aa=a.nombre.split(' ').slice(1).join(' ')||a.nombre
-    const bb=b.nombre.split(' ').slice(1).join(' ')||b.nombre
-    return aa.localeCompare(bb)
-  }) else lista.sort((a,b)=>a.numero-b.numero)
+  if(S.ordenJug==='apellido'){
+    lista.sort((a,b)=>{
+      const aa=a.nombre.split(' ').slice(1).join(' ')||a.nombre
+      const bb=b.nombre.split(' ').slice(1).join(' ')||b.nombre
+      return aa.localeCompare(bb)
+    })
+  }else{
+    lista.sort((a,b)=>a.numero-b.numero)
+  }
   return lista.map(j=>{
     const ap=j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre
     return`<option value="${j.id}">#${j.numero} ${ap}</option>`

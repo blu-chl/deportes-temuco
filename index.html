@@ -131,6 +131,8 @@ tr:hover td{background:rgba(46,168,79,0.05)}
 const SB_URL='https://vskhzbstwadaabzyhzwh.supabase.co'
 const SB_KEY='sb_publishable_Xpm4vH8few7gjsDcIM_2qA_3rjYFHeu'
 let AUTH_TOKEN=SB_KEY
+const API_F_URL='https://api-football-v1.p.rapidapi.com/v3'
+let liveTimer=null
 const hdrs=()=>({'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+AUTH_TOKEN,'Prefer':'return=representation'})
 
 async function sb(method,table,body,params=''){
@@ -228,6 +230,7 @@ let S={
   ordenPlantilla:'dorsal',filtEstadoPlantilla:'todos',
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   bgImage:localStorage.getItem('dt-bg')||'',
+  apiF:{key:localStorage.getItem('dt-api-key')||'',teamId:localStorage.getItem('dt-team-id')||'',live:false,syncing:false,lastSync:''},
 }
 
 async function cargarDatos(){
@@ -745,6 +748,19 @@ function renderRegistro(){
       ${pid?renderPitch():''}
     </div>
     <div>
+      ${pid&&S.apiF.key&&S.apiF.teamId?`
+      <div style="background:rgba(55,138,221,0.07);border:1px solid rgba(55,138,221,0.25);border-radius:7px;padding:10px;margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+        <span style="font-size:10px;font-weight:700;color:#88bbee">📡 API Football</span>
+        ${S.apiF.lastSync?`<span style="font-size:9px;color:var(--gris)">Última sync: ${S.apiF.lastSync}</span>`:'<span style="font-size:9px;color:var(--gris)">Sin sincronizar</span>'}
+        <div style="display:flex;gap:6px;margin-left:auto">
+          <button class="bsm" onclick="sincPartido()" ${S.apiF.syncing?'disabled':''} style="color:#88bbee;border-color:rgba(55,138,221,0.4)">
+            ${S.apiF.syncing?'⏳ Sincronizando...':'🔄 Sincronizar'}
+          </button>
+          <button class="bsm" onclick="toggleLive()" style="${S.apiF.live?'background:rgba(55,138,221,0.3);color:#88bbee;border-color:rgba(55,138,221,0.6)':'color:#88bbee;border-color:rgba(55,138,221,0.4)'}">
+            ${S.apiF.live?'📡 En vivo ●':'📡 En vivo'}
+          </button>
+        </div>
+      </div>`:''}
       <div class="panel">
         <div class="ph">
           <span class="pt">Registrar evento</span>
@@ -1221,6 +1237,167 @@ async function darAlta(id){
   toast('Jugador dado de alta ✅');await cargarDatos()
 }
 
+// ===== API FOOTBALL =====
+async function apiF(endpoint){
+  const k=S.apiF.key
+  if(!k){toast('Configura tu API Key en ⚙ Config',true);return null}
+  try{
+    const r=await fetch(`${API_F_URL}${endpoint}`,{
+      headers:{'X-RapidAPI-Key':k,'X-RapidAPI-Host':'api-football-v1.p.rapidapi.com'}
+    })
+    if(!r.ok){toast(`API error ${r.status}`,true);return null}
+    const d=await r.json()
+    return d.response||[]
+  }catch(e){toast('Sin conexión a la API',true);return null}
+}
+
+function normN(s){
+  return(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim()
+}
+
+function matchJugador(apiName){
+  if(!apiName||!S.jugadores.length)return null
+  const n=normN(apiName)
+  const parts=n.split(/\s+/).filter(p=>p.length>2)
+  // Match by apellido (last word) first
+  for(const j of S.jugadores){
+    const jparts=normN(j.nombre).split(/\s+/)
+    const jAp=jparts.slice(1).join(' ')||jparts[0]
+    if(parts.some(p=>jAp.includes(p)||p.includes(jAp.split(' ')[0])))return j.id
+  }
+  // Fallback: any significant word match
+  for(const j of S.jugadores){
+    const jn=normN(j.nombre)
+    if(parts.some(p=>p.length>3&&jn.includes(p)))return j.id
+  }
+  return null
+}
+
+async function buscarEquipo(){
+  toast('Buscando equipo...')
+  let res=await apiF('/teams?name=Deportes+Temuco&country=Chile')
+  if(!res||!res.length)res=await apiF('/teams?name=Deportes+Temuco')
+  if(!res||!res.length){toast('Equipo no encontrado en la API',true);return}
+  const id=res[0].team.id
+  S.apiF.teamId=String(id)
+  localStorage.setItem('dt-team-id',S.apiF.teamId)
+  toast(`Equipo encontrado — ID: ${id}`)
+  render()
+}
+
+async function sincPartido(silent=false){
+  if(!S.partidoActivo){if(!silent)toast('Selecciona un partido primero',true);return}
+  if(!S.apiF.teamId){if(!silent)toast('Configura el Team ID en ⚙ Config',true);return}
+  const partido=S.partidos.find(p=>p.id===S.partidoActivo)
+  if(!partido)return
+  if(!silent){S.apiF.syncing=true;render()}
+
+  // Find fixture by date + team
+  const fixtures=await apiF(`/fixtures?team=${S.apiF.teamId}&date=${partido.fecha}&season=2026`)
+  if(!fixtures||!fixtures.length){
+    if(!silent)toast('Partido no encontrado en la API para '+partido.fecha,true)
+    S.apiF.syncing=false;if(!silent)render();return
+  }
+
+  // Pick best match by rival name
+  let fix=fixtures[0]
+  if(fixtures.length>1){
+    const rv=normN(partido.rival)
+    const best=fixtures.find(f=>{
+      const h=normN(f.teams.home.name),a=normN(f.teams.away.name)
+      return h.includes(rv.split(' ')[0])||a.includes(rv.split(' ')[0])||
+             rv.includes(h.split(' ')[0])||rv.includes(a.split(' ')[0])
+    })
+    if(best)fix=best
+  }
+
+  const fId=fix.fixture.id
+  const isLocal=partido.condicion==='Local'
+  const gf=isLocal?fix.goals.home:fix.goals.away
+  const gc=isLocal?fix.goals.away:fix.goals.home
+
+  // Update score
+  if(gf!==null&&gf!==undefined&&(gf!==partido.goles_favor||gc!==partido.goles_contra)){
+    await patch('partidos',{goles_favor:gf,goles_contra:gc},`?id=eq.${S.partidoActivo}`)
+    if(!silent)toast(`Marcador: ${gf}-${gc} ✓`)
+  }
+
+  // Get events filtered by our team
+  const evs=await apiF(`/fixtures/events?fixture=${fId}&team=${S.apiF.teamId}`)
+  if(evs&&evs.length){
+    const curEvs=await get('eventos',`?partido_id=eq.${S.partidoActivo}`)
+    const cur=Array.isArray(curEvs)?curEvs:[]
+    let imported=0
+
+    for(const ev of evs){
+      const min=(ev.time?.elapsed||0)+(ev.time?.extra||0)
+      let tipo=null,subtipo=null
+
+      if(ev.type==='Goal'&&ev.detail!=='Missed Penalty'&&ev.detail!=='Own Goal'){tipo='Gol';subtipo=TIPOS_GOL[0]}
+      else if(ev.type==='Card'&&ev.detail==='Yellow Card')tipo='Amarilla'
+      else if(ev.type==='Card'&&(ev.detail==='Red Card'||ev.detail==='Second Yellow card'))tipo='Roja'
+      else if(ev.type==='subst')tipo='Sustitución'
+      if(!tipo)continue
+
+      const jugId=matchJugador(ev.player?.name)
+      if(!jugId)continue
+
+      if(cur.some(e=>e.tipo===tipo&&e.minuto===min&&e.jugador_id===jugId))continue
+
+      const evData={partido_id:S.partidoActivo,jugador_id:jugId,tipo,minuto:min,subtipo,jugador_sale_id:null}
+      if(tipo==='Sustitución')evData.jugador_sale_id=matchJugador(ev.assist?.name)||null
+      await post('eventos',evData)
+      imported++
+
+      // Auto-import assist linked to goal
+      if(tipo==='Gol'&&ev.assist?.name){
+        const asId=matchJugador(ev.assist.name)
+        if(asId&&asId!==jugId&&!cur.some(e=>e.tipo==='Asistencia'&&e.minuto===min&&e.jugador_id===asId)){
+          await post('eventos',{partido_id:S.partidoActivo,jugador_id:asId,tipo:'Asistencia',minuto:min,subtipo:'Pase',jugador_sale_id:null})
+          imported++
+        }
+      }
+    }
+    if(!silent&&imported>0)toast(`${imported} evento(s) importado(s) ✓`)
+    else if(!silent&&imported===0)toast('Todo al día — sin eventos nuevos')
+  }
+
+  S.apiF.syncing=false
+  S.apiF.lastSync=new Date().toLocaleTimeString('es-CL')
+  await cargarDatos()
+  await selPartido(S.partidoActivo)
+}
+
+function toggleLive(){
+  S.apiF.live=!S.apiF.live
+  if(S.apiF.live){
+    liveTimer=setInterval(()=>{if(S.partidoActivo&&S.apiF.key&&S.apiF.teamId)sincPartido(true)},120000)
+    toast('📡 Modo en vivo ON — sincroniza cada 2 min')
+  }else{
+    clearInterval(liveTimer);liveTimer=null
+    toast('Modo en vivo desactivado')
+  }
+  render()
+}
+
+function guardarApiConfig(){
+  const k=document.getElementById('api-key-inp')?.value.trim()
+  const t=document.getElementById('api-team-inp')?.value.trim()
+  if(k){S.apiF.key=k;localStorage.setItem('dt-api-key',k)}
+  if(t){S.apiF.teamId=t;localStorage.setItem('dt-team-id',t)}
+  toast('Configuración API guardada ✓');render()
+}
+
+async function testApiConnection(){
+  if(!S.apiF.key){toast('Ingresa tu API Key primero',true);return}
+  toast('Probando conexión...')
+  const res=await apiF('/status')
+  if(res!==null){
+    const req=res[0]||{}
+    toast(`API OK — ${req.requests?.current||'?'}/${req.requests?.limit_day||'?'} requests usadas hoy`)
+  }
+}
+
 // ===== CONFIGURACIÓN =====
 function renderConfig(){
   const bg=S.bgImage
@@ -1267,6 +1444,33 @@ function renderConfig(){
         · <code style="color:var(--am)">titulares</code> (text)
       </p>
       <button class="bsm" style="margin-top:8px" onclick="testConnection()">Probar conexión</button>
+    </div>
+    <div class="config-section">
+      <div class="config-title">📡 API Football — Sincronización automática</div>
+      <p style="font-size:10px;color:var(--gris);margin-bottom:10px;line-height:1.7">
+        Importa resultados, goles, tarjetas y sustituciones automáticamente desde la API oficial.<br>
+        1. Regístrate gratis en <strong style="color:var(--vc)">rapidapi.com</strong> → busca "API-Football"<br>
+        2. Copia tu API Key y pégala aquí<br>
+        3. Haz clic en 🔍 Buscar para obtener el ID de Deportes Temuco<br>
+        Plan gratuito: 100 requests/día
+      </p>
+      <div class="fg">
+        <label>API Key (RapidAPI)</label>
+        <input type="password" id="api-key-inp" value="${S.apiF.key}" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          style="width:100%;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font)">
+      </div>
+      <div class="fg">
+        <label>Team ID de Deportes Temuco</label>
+        <div style="display:flex;gap:6px">
+          <input id="api-team-inp" value="${S.apiF.teamId}" placeholder="Ej: 2299"
+            style="flex:1;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font)">
+          <button class="bsm" onclick="buscarEquipo()">🔍 Buscar</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="guardarApiConfig()">💾 Guardar</button>
+        <button class="bsm" onclick="testApiConnection()">🔌 Probar conexión</button>
+      </div>
     </div>
     <div class="config-section">
       <div class="config-title">⚙️ Tipos de gol</div>

@@ -294,6 +294,7 @@ let S={
   staff:JSON.parse(localStorage.getItem('dt-staff')||'[]'),
   addStaff:{nombre:'',rol:'DT',foto_url:'',foto_link:'',nacionalidad:'Chilena',notas:''},
   addStaffShow:false,
+  slotEvPanel:null,
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   bgImage:localStorage.getItem('dt-bg')||'',
   apiF:{key:localStorage.getItem('dt-api-key')||'',teamId:localStorage.getItem('dt-team-id')||'2317',live:false,syncing:false,lastSync:''},
@@ -605,7 +606,8 @@ function renderPitch(){
       const subEv=j?S.evPartido.find(e=>e.tipo==='Sustitución'&&e.jugador_sale_id===jugId):null
       const subEntra=subEv?S.jugadores.find(x=>x.id===subEv.jugador_id):null
       const subAp=subEntra?(subEntra.nombre.trim().split(' ').slice(1).join(' ')||subEntra.nombre):''
-      return`<div class="slot ${j?'filled':''}" onclick="selSlot(${s.idx})" title="${j?j.nombre:'Slot '+(s.idx+1)}">
+      return`<div class="slot ${j?'filled':''}" onclick="selSlot(${s.idx})" title="${j?(S.partidoActivo?'📋 Clic para registrar evento':'Cambiar jugador'):'Asignar jugador'}">
+        ${j&&S.partidoActivo?`<div style="position:absolute;top:-3px;right:-3px;width:12px;height:12px;background:var(--am);border-radius:50%;border:1px solid rgba(0,0,0,.5);font-size:7px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:900;line-height:1">+</div>`:''}
         ${j&&j.foto_url?`<img class="slot-avatar" src="${j.foto_url}">`:`<span class="slot-num">${j?j.numero:(s.idx+1)}</span>`}
         ${j?`<span class="slot-name">${ap}</span>`:''}
         <span class="slot-pos-badge" style="background:${posColor}22;color:${posColor}">${s.pos}</span>
@@ -658,17 +660,119 @@ function renderPitch(){
 }
 
 function selSlot(idx){
-  S.slotSeleccionado=idx;render()
-  setTimeout(()=>{
-    const sel=document.getElementById('sel-slot-jug')
-    if(sel&&S.titulares[idx])sel.value=S.titulares[idx]
-  },50)
+  const jugId=S.titulares[idx]
+  if(jugId&&S.partidoActivo){
+    abrirEventoSlot(idx,jugId)
+  }else{
+    S.slotSeleccionado=idx;render()
+    setTimeout(()=>{
+      const sel=document.getElementById('sel-slot-jug')
+      if(sel&&S.titulares[idx])sel.value=S.titulares[idx]
+    },50)
+  }
 }
 
 function asignarSlot(){
   const sel=document.getElementById('sel-slot-jug');if(!sel)return
   S.titulares[S.slotSeleccionado]=+sel.value||null
   S.slotSeleccionado=null;render()
+}
+
+function abrirEventoSlot(idx,jugId){
+  S.slotEvPanel={jugId,slotIdx:idx,tipo:'Amarilla',minuto:1,subtipo:TIPOS_GOL[0],asistidor_id:'',asist_subtipo:'Pase',jugador_sale_id:''}
+  renderEventoSlotModal()
+}
+
+function renderEventoSlotModal(){
+  const p=S.slotEvPanel
+  if(!p){document.getElementById('modal-root').innerHTML='';return}
+  const j=S.jugadores.find(x=>x.id===p.jugId);if(!j)return
+  const ini=j.nombre.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase()
+  const ap=jugApellido(j.id)
+  const tipos=[
+    {t:'Gol',ico:'⚽',c:'var(--vc)'},
+    {t:'Amarilla',ico:'🟡',c:'var(--am)'},
+    {t:'Roja',ico:'🔴',c:'var(--ro)'},
+    {t:'Asistencia',ico:'🅰️',c:'var(--az)'},
+    {t:'Sustitución',ico:'🔄',c:'var(--gris)'},
+  ]
+  const tiposBtns=tipos.map(t=>{
+    const isOn=p.tipo===t.t
+    const sub=t.t==='Gol'?`'${TIPOS_GOL[0]}'`:t.t==='Asistencia'?`'${TIPOS_ASIST[0]}'`:`''`
+    return`<button onclick="S.slotEvPanel.tipo='${t.t}';S.slotEvPanel.subtipo=${sub};renderEventoSlotModal()"
+      style="padding:10px 4px;border-radius:8px;border:2px solid ${isOn?t.c:'var(--borde2)'};background:${isOn?t.c+'33':'rgba(0,0,0,.3)'};color:${isOn?t.c:'var(--gris)'};font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;flex-direction:column;align-items:center;gap:3px;transition:all .15s;width:100%">
+      <span style="font-size:20px">${t.ico}</span><span>${t.t}</span>
+    </button>`
+  }).join('')
+  const opts=[...S.jugadores].sort((a,b)=>a.numero-b.numero).map(jj=>{
+    const aap=jj.nombre.trim().split(' ').slice(1).join(' ')||jj.nombre
+    return`<option value="${jj.id}">${jj.numero} ${aap}</option>`
+  }).join('')
+  const inputStyle='width:100%;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font)'
+  let extra=''
+  if(p.tipo==='Gol'){
+    extra=`<div class="fg"><label>Tipo de gol</label><select onchange="S.slotEvPanel.subtipo=this.value" style="${inputStyle}">
+      ${TIPOS_GOL.map(st=>`<option ${p.subtipo===st?'selected':''}>${st}</option>`).join('')}</select></div>
+    <div class="fg"><label>Asistidor (opcional)</label><select onchange="S.slotEvPanel.asistidor_id=this.value;renderEventoSlotModal()" style="${inputStyle}">
+      <option value="">— Sin asistencia —</option>${opts}</select></div>
+    ${p.asistidor_id?`<div class="fg"><label>Tipo de asistencia</label><select onchange="S.slotEvPanel.asist_subtipo=this.value" style="${inputStyle}">
+      ${TIPOS_ASIST.map(t=>`<option ${p.asist_subtipo===t?'selected':''}>${t}</option>`).join('')}</select></div>`:''}`
+  }else if(p.tipo==='Asistencia'){
+    extra=`<div class="fg"><label>Tipo de asistencia</label><select onchange="S.slotEvPanel.subtipo=this.value" style="${inputStyle}">
+      ${TIPOS_ASIST.map(st=>`<option ${p.subtipo===st?'selected':''}>${st}</option>`).join('')}</select></div>`
+  }else if(p.tipo==='Sustitución'){
+    extra=`<div class="fg"><label>Entra en su lugar</label><select onchange="S.slotEvPanel.jugador_sale_id=this.value" style="${inputStyle}">
+      <option value="">— Seleccionar —</option>${opts}</select></div>`
+  }
+  document.getElementById('modal-root').innerHTML=`<div class="modal-bg" onclick="if(event.target===this){S.slotEvPanel=null;document.getElementById('modal-root').innerHTML=''}">
+    <div class="modal" style="width:400px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="jav" style="width:50px;height:50px;font-size:15px;flex-shrink:0">
+            ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:`${ini}`}
+          </div>
+          <div>
+            <div style="font-size:17px;font-weight:800">${j.numero} ${ap}</div>
+            <div style="font-size:10px;color:var(--gris)">${j.posicion_especifica||j.posicion}</div>
+          </div>
+        </div>
+        <button onclick="S.slotSeleccionado=${p.slotIdx};S.slotEvPanel=null;document.getElementById('modal-root').innerHTML='';render()"
+          class="bsm" style="font-size:9px;flex-shrink:0">↔ Cambiar jugador</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px">${tiposBtns}</div>
+      <div class="fg"><label>Minuto</label>
+        <input type="number" min="1" max="120" value="${p.minuto}" oninput="S.slotEvPanel.minuto=+this.value"
+          style="width:90px;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:16px;font-weight:800;font-family:var(--font)">
+      </div>
+      ${extra}
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn" style="flex:1;padding:10px" onclick="guardarEventoSlot()">✓ Guardar evento</button>
+        <button class="bsm" onclick="S.slotEvPanel=null;document.getElementById('modal-root').innerHTML=''">Cancelar</button>
+      </div>
+    </div>
+  </div>`
+}
+
+async function guardarEventoSlot(){
+  const p=S.slotEvPanel
+  if(!p||!S.partidoActivo)return
+  const r=await post('eventos',{
+    partido_id:S.partidoActivo,jugador_id:p.jugId,tipo:p.tipo,minuto:+p.minuto,
+    subtipo:['Gol','Asistencia'].includes(p.tipo)?p.subtipo:null,
+    jugador_sale_id:p.tipo==='Sustitución'?(+p.jugador_sale_id||null):null,
+  })
+  if(Array.isArray(r)&&r[0]){
+    let msg='Evento registrado ✓'
+    if(p.tipo==='Gol'&&p.asistidor_id){
+      await post('eventos',{partido_id:S.partidoActivo,jugador_id:+p.asistidor_id,tipo:'Asistencia',
+        subtipo:p.asist_subtipo||'Pase',minuto:+p.minuto,jugador_sale_id:null})
+      msg='Gol + Asistencia guardados ✓'
+    }
+    toast(msg)
+    S.slotEvPanel=null
+    document.getElementById('modal-root').innerHTML=''
+    await cargarDatos();await selPartido(S.partidoActivo)
+  }else toast('Error al guardar',true)
 }
 
 async function guardarFormacionPartido(){
@@ -692,10 +796,8 @@ async function guardarFormacionPartido(){
 // ===== REGISTRO =====
 function renderRegistro(){
   const pid=S.partidoActivo
-  const subtipos=S.ev.tipo==='Gol'?TIPOS_GOL:S.ev.tipo==='Asistencia'?TIPOS_ASIST:[]
-  const opts=jugOpts()
 
-  const npForm=S.npShow?`<div style="padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--borde)">
+  const npForm=S.npShow?`<div style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--borde)">
     <div class="fr2" style="margin-bottom:8px">
       <div class="fg" style="margin-bottom:0"><label>Rival</label><input placeholder="Ej: Cobreloa" oninput="S.np.rival=this.value"></div>
       <div class="fg" style="margin-bottom:0"><label>Competencia</label><select onchange="S.np.competencia=this.value"><option>Primera B</option><option>Copa Chile</option></select></div>
@@ -711,81 +813,38 @@ function renderRegistro(){
     <div style="display:flex;gap:6px"><button class="btn" onclick="guardarPartido()">Guardar</button><button class="bsm" onclick="S.npShow=false;render()">Cancelar</button></div>
   </div>`:''
 
+  // Compact horizontal partido cards
   const listaP=[...S.partidos].reverse().map(p=>{
     const res=p.goles_favor>p.goles_contra?'W':p.goles_favor===p.goles_contra?'D':'L'
     const rb=res==='W'?'bv':res==='D'?'ba':'br'
-    const rl=res==='W'?'Victoria':res==='D'?'Empate':'Derrota'
-    return`<div class="pcard ${pid===p.id?'sel':''}" onclick="selPartido(${p.id})">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:10px;color:var(--gris)">${p.fecha} — ${p.competencia}</span>
-        <div style="display:flex;gap:5px;align-items:center">
-          <span class="badge ${rb}">${rl}</span>
-          ${p.formacion?`<span class="badge bg">${p.formacion}</span>`:''}
-          <button class="bsm" style="padding:2px 6px;font-size:9px" onclick="event.stopPropagation();abrirEditarPartido(${p.id})">✏️</button>
-        </div>
+    const bc=res==='W'?'var(--vc)':res==='D'?'var(--am)':'var(--ro)'
+    return`<div onclick="selPartido(${p.id})" style="min-width:140px;flex-shrink:0;background:${pid===p.id?'rgba(46,168,79,0.08)':'rgba(255,255,255,0.03)'};border:1px solid ${pid===p.id?'var(--vc)':'var(--borde)'};border-left:3px solid ${bc};border-radius:8px;padding:8px 10px;cursor:pointer;transition:border-color .15s;position:relative">
+      <div style="font-size:9px;color:var(--gris);margin-bottom:2px">${p.fecha} · ${p.condicion[0]}</div>
+      <div style="font-size:12px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">vs ${p.rival}</div>
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <span style="font-size:15px;font-weight:800;color:${bc}">${p.goles_favor}–${p.goles_contra}</span>
+        <span class="badge ${rb}" style="font-size:8px">${res==='W'?'V':res==='D'?'E':'D'}</span>
+        ${p.formacion?`<span class="badge bg" style="font-size:7px">${p.formacion}</span>`:''}
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:13px;font-weight:700">vs ${p.rival}</span>
-        <span style="font-size:17px;font-weight:800;color:var(--vc)">${p.goles_favor}-${p.goles_contra}</span>
-      </div>
+      <button onclick="event.stopPropagation();abrirEditarPartido(${p.id})" style="position:absolute;top:6px;right:6px;background:transparent;border:none;color:var(--gris);font-size:11px;cursor:pointer;padding:2px">✏️</button>
     </div>`
   }).join('')
 
-  // Ordenamiento toggle
-  const sortBtn=`<div style="display:flex;gap:4px;align-items:center">
-    <span style="font-size:9px;color:var(--gris)">Ordenar:</span>
-    <button class="sort-toggle ${S.ordenJug==='apellido'?'on':''}" onclick="S.ordenJug='apellido';render()">Apellido</button>
-    <button class="sort-toggle ${S.ordenJug==='numero'?'on':''}" onclick="S.ordenJug='numero';render()"># Dorsal</button>
-  </div>`
-
-  const evForm=pid?`
-    <div style="margin-bottom:8px">${sortBtn}</div>
-    <div class="fr3" style="margin-bottom:8px">
-      <div class="fg" style="margin-bottom:0"><label>Minuto</label><input type="number" min="1" max="120" value="${S.ev.minuto}" oninput="S.ev.minuto=+this.value"></div>
-      <div class="fg" style="margin-bottom:0"><label>Tipo</label><select onchange="S.ev.tipo=this.value;S.ev.subtipo=this.value==='Gol'?TIPOS_GOL[0]:this.value==='Asistencia'?TIPOS_ASIST[0]:'';S.ev.asistidor_id='';render()">
-        ${Object.keys(ICONOS).map(t=>`<option ${S.ev.tipo===t?'selected':''}>${t}</option>`).join('')}
-      </select></div>
-      ${subtipos.length?`<div class="fg" style="margin-bottom:0"><label>Subtipo</label><select onchange="S.ev.subtipo=this.value">
-        ${subtipos.map(st=>`<option ${S.ev.subtipo===st?'selected':''}>${st}</option>`).join('')}
-      </select></div>`:'<div></div>'}
-    </div>
-    <div class="fr2" style="margin-bottom:10px">
-      <div class="fg" style="margin-bottom:0"><label>${S.ev.tipo==='Sustitución'?'Entra':'Jugador'}</label>
-        <select onchange="S.ev.jugador_id=+this.value">${opts}</select>
-      </div>
-      ${S.ev.tipo==='Sustitución'?`<div class="fg" style="margin-bottom:0"><label>Sale</label>
-        <select onchange="S.ev.jugador_sale_id=+this.value">${opts}</select>
-      </div>`:'<div></div>'}
-    </div>
-    ${S.ev.tipo==='Gol'?`<div class="fr2" style="margin-bottom:10px">
-      <div class="fg" style="margin-bottom:0"><label>Asistidor (opcional)</label>
-        <select onchange="S.ev.asistidor_id=this.value;render()">
-          <option value="">— Sin asistencia —</option>${opts}
-        </select>
-      </div>
-      ${S.ev.asistidor_id?`<div class="fg" style="margin-bottom:0"><label>Tipo asistencia</label>
-        <select onchange="S.ev.asist_subtipo=this.value">
-          ${TIPOS_ASIST.map(t=>`<option ${S.ev.asist_subtipo===t?'selected':''}>${t}</option>`).join('')}
-        </select>
-      </div>`:'<div></div>'}
-    </div>`:''}
-    <button class="btn" onclick="agregarEvento()">+ Agregar evento</button>
-  `:`<div class="empty">← Selecciona un partido para registrar eventos</div>`
-
-  const evLista=S.evPartido.map(e=>{
+  // Events list
+  const evLista=pid?(S.evPartido.map(e=>{
     const ap=jugApellido(e.jugador_id)
     const apSale=e.jugador_sale_id?jugApellido(e.jugador_sale_id):''
     return`<div class="ev">
       <div class="ev-min">${e.minuto}'</div>
       <div style="font-size:15px">${ICONOS[e.tipo]||'•'}</div>
-      <div style="flex:1">
-        <div style="font-size:12px;font-weight:700">${ap} ${e.subtipo?'<span style="font-size:10px;color:var(--gris)">('+e.subtipo+')</span>':''}</div>
-        <div style="font-size:10px;color:var(--gris)">${e.tipo}${e.tipo==='Sustitución'&&apSale?' → sale: <strong>'+apSale+'</strong>':''}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ap}${e.subtipo?' <span style="font-size:10px;color:var(--gris)">('+e.subtipo+')</span>':''}</div>
+        <div style="font-size:10px;color:var(--gris)">${e.tipo}${e.tipo==='Sustitución'&&apSale?' → '+apSale:''}</div>
       </div>
-      <button class="bsm" style="padding:2px 7px;font-size:9px;margin-right:3px" onclick="S.editEv=${JSON.stringify(e).replace(/"/g,'&quot;')};render()">✏️</button>
-      <button class="bdel" style="padding:2px 7px;font-size:9px" onclick="borrarEvento(${e.id})">✕</button>
+      <button class="bsm" style="padding:2px 6px;font-size:9px;flex-shrink:0;margin-right:3px" onclick="S.editEv=${JSON.stringify(e).replace(/"/g,'&quot;')};render()">✏️</button>
+      <button class="bdel" style="padding:2px 6px;font-size:9px;flex-shrink:0" onclick="borrarEvento(${e.id})">✕</button>
     </div>`
-  }).join('')||'<div class="empty">Sin eventos aún</div>'
+  }).join('')||'<div class="empty">Sin eventos aún</div>'):'<div class="empty" style="padding:20px">Selecciona un partido</div>'
 
   const editEvForm=S.editEv?`<div style="background:rgba(46,168,79,0.08);border:1px solid var(--borde2);border-radius:7px;padding:10px;margin-bottom:10px">
     <div style="font-size:10px;color:var(--vc);font-weight:700;margin-bottom:8px">✏️ Editar evento</div>
@@ -801,12 +860,12 @@ function renderRegistro(){
     <div class="fr2" style="margin-bottom:8px">
       <div class="fg" style="margin-bottom:0"><label>${S.editEv.tipo==='Sustitución'?'Entra':'Jugador'}</label>
         <select onchange="S.editEv.jugador_id=+this.value">
-          ${S.jugadores.map(j=>`<option value="${j.id}" ${S.editEv.jugador_id===j.id?'selected':''}>#${j.numero} ${jugApellido(j.id)}</option>`).join('')}
+          ${S.jugadores.map(j=>`<option value="${j.id}" ${S.editEv.jugador_id===j.id?'selected':''}>${j.numero} ${jugApellido(j.id)}</option>`).join('')}
         </select>
       </div>
       ${S.editEv.tipo==='Sustitución'?`<div class="fg" style="margin-bottom:0"><label>Sale</label>
         <select onchange="S.editEv.jugador_sale_id=+this.value">
-          ${S.jugadores.map(j=>`<option value="${j.id}" ${S.editEv.jugador_sale_id===j.id?'selected':''}>#${j.numero} ${jugApellido(j.id)}</option>`).join('')}
+          ${S.jugadores.map(j=>`<option value="${j.id}" ${S.editEv.jugador_sale_id===j.id?'selected':''}>${j.numero} ${jugApellido(j.id)}</option>`).join('')}
         </select>
       </div>`:'<div></div>'}
     </div>
@@ -816,41 +875,45 @@ function renderRegistro(){
     </div>
   </div>`:''
 
-  return`<div class="content"><div class="g2">
-    <div>
-      <div class="panel">
-        <div class="ph"><span class="pt">Seleccionar partido</span><button class="bsm" onclick="S.npShow=!S.npShow;render()">+ Nuevo</button></div>
-        <div class="pb">${npForm}<div style="max-height:280px;overflow-y:auto">${S.partidos.length?listaP:'<div class="empty">Sin partidos. Crea uno.</div>'}</div></div>
+  return`<div class="content">
+    <div class="panel" style="margin-bottom:12px">
+      <div class="ph">
+        <span class="pt">Seleccionar partido</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${pid?`<span style="font-size:10px;font-weight:700;color:var(--vc)">vs ${S.partidos.find(p=>p.id===pid)?.rival||''}</span>`:''}
+          <button class="bsm" onclick="S.npShow=!S.npShow;render()">+ Nuevo</button>
+        </div>
       </div>
-      ${pid?renderPitch():''}
+      <div style="padding:10px 14px">
+        ${npForm}
+        <div style="overflow-x:auto;display:flex;gap:8px;padding-bottom:4px">
+          ${S.partidos.length?listaP:'<div class="empty" style="padding:12px">Sin partidos. Crea uno con + Nuevo.</div>'}
+        </div>
+      </div>
     </div>
-    <div>
-      ${pid&&S.apiF.key&&S.apiF.teamId?`
-      <div style="background:rgba(55,138,221,0.07);border:1px solid rgba(55,138,221,0.25);border-radius:7px;padding:10px;margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+    ${pid?`
+      ${S.apiF.key&&S.apiF.teamId?`<div style="background:rgba(55,138,221,0.07);border:1px solid rgba(55,138,221,0.25);border-radius:7px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;flex-wrap:wrap;gap:8px">
         <span style="font-size:10px;font-weight:700;color:#88bbee">📡 API Football</span>
-        ${S.apiF.lastSync?`<span style="font-size:9px;color:var(--gris)">Última sync: ${S.apiF.lastSync}</span>`:'<span style="font-size:9px;color:var(--gris)">Sin sincronizar</span>'}
+        ${S.apiF.lastSync?`<span style="font-size:9px;color:var(--gris)">Sync: ${S.apiF.lastSync}</span>`:''}
         <div style="display:flex;gap:6px;margin-left:auto">
-          <button class="bsm" onclick="sincPartido()" ${S.apiF.syncing?'disabled':''} style="color:#88bbee;border-color:rgba(55,138,221,0.4)">
-            ${S.apiF.syncing?'⏳ Sincronizando...':'🔄 Sincronizar'}
-          </button>
-          <button class="bsm" onclick="toggleLive()" style="${S.apiF.live?'background:rgba(55,138,221,0.3);color:#88bbee;border-color:rgba(55,138,221,0.6)':'color:#88bbee;border-color:rgba(55,138,221,0.4)'}">
-            ${S.apiF.live?'📡 En vivo ●':'📡 En vivo'}
-          </button>
+          <button class="bsm" onclick="sincPartido()" ${S.apiF.syncing?'disabled':''} style="color:#88bbee;border-color:rgba(55,138,221,0.4)">${S.apiF.syncing?'⏳ Sincronizando...':'🔄 Sincronizar'}</button>
+          <button class="bsm" onclick="toggleLive()" style="${S.apiF.live?'background:rgba(55,138,221,0.3);color:#88bbee;border-color:rgba(55,138,221,0.6)':'color:#88bbee;border-color:rgba(55,138,221,0.4)'}">${S.apiF.live?'📡 En vivo ●':'📡 En vivo'}</button>
         </div>
       </div>`:''}
-      <div class="panel">
-        <div class="ph">
-          <span class="pt">Registrar evento</span>
-          ${pid?`<span style="font-size:10px;color:var(--gris)">vs ${S.partidos.find(p=>p.id===pid)?.rival||''}</span>`:''}
+      <div style="display:grid;grid-template-columns:3fr 2fr;gap:12px;align-items:start">
+        <div>
+          ${renderPitch()}
+          <div style="text-align:center;font-size:10px;color:var(--muted);margin-top:4px">Haz clic en un jugador del 11 para registrar un evento</div>
         </div>
-        <div class="pb">${evForm}</div>
+        <div>
+          <div class="panel">
+            <div class="ph"><span class="pt">Eventos del partido</span><span style="font-size:10px;color:var(--gris)">${S.evPartido.length} registrado(s)</span></div>
+            <div class="pb">${editEvForm}<div style="max-height:560px;overflow-y:auto">${evLista}</div></div>
+          </div>
+        </div>
       </div>
-      <div class="panel">
-        <div class="ph"><span class="pt">Eventos del partido</span></div>
-        <div class="pb">${editEvForm}<div style="max-height:320px;overflow-y:auto">${evLista}</div></div>
-      </div>
-    </div>
-  </div></div>`
+    `:`<div class="empty" style="padding:50px">← Selecciona un partido para comenzar</div>`}
+  </div>`
 }
 
 async function selPartido(id){

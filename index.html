@@ -203,11 +203,10 @@ function jugOpts(){
     const aa=a.nombre.split(' ').slice(1).join(' ')||a.nombre
     const bb=b.nombre.split(' ').slice(1).join(' ')||b.nombre
     return aa.localeCompare(bb)
-  })
+  }) else lista.sort((a,b)=>a.numero-b.numero)
   return lista.map(j=>{
     const ap=j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre
-    const label=S.ordenJug==='apellido'?`${ap}${j.posicion_especifica?' · '+j.posicion_especifica:''}`:`#${j.numero} ${ap}`
-    return`<option value="${j.id}">${label}</option>`
+    return`<option value="${j.id}">#${j.numero} ${ap}</option>`
   }).join('')
 }
 
@@ -683,7 +682,7 @@ function renderRegistro(){
         <div class="ph"><span class="pt">Seleccionar partido</span><button class="bsm" onclick="S.npShow=!S.npShow;render()">+ Nuevo</button></div>
         <div class="pb">${npForm}<div style="max-height:280px;overflow-y:auto">${S.partidos.length?listaP:'<div class="empty">Sin partidos. Crea uno.</div>'}</div></div>
       </div>
-      ${renderPitch()}
+      ${pid?renderPitch():''}
     </div>
     <div>
       <div class="panel">

@@ -609,6 +609,7 @@ function renderPitch(){
       const numGoles=j?S.evPartido.filter(e=>e.tipo==='Gol'&&e.jugador_id===jugId).length:0
       const numAm=j?S.evPartido.filter(e=>e.tipo==='Amarilla'&&e.jugador_id===jugId).length:0
       return`<div class="slot ${j?'filled':''}" onclick="selSlot(${s.idx})" title="${j?(S.partidoActivo?'📋 Clic para registrar evento':'Cambiar jugador'):'Asignar jugador'}">
+        ${j?`<div style="position:absolute;top:3px;left:3px;font-size:8px;font-weight:900;color:#666;background:rgba(0,0,0,0.08);border-radius:3px;padding:0 3px;line-height:14px">${j.numero}</div>`:''}
         ${numAm>0?`<div style="position:absolute;top:3px;right:3px;font-size:11px;line-height:1" title="${numAm} amarilla(s)">🟡${numAm>1?`<span style="font-size:7px;font-weight:800;color:#333">${numAm}</span>`:''}</div>`:''}
         ${numGoles>0?`<div style="position:absolute;bottom:3px;right:3px;font-size:11px;line-height:1" title="${numGoles} gol(es)">⚽${numGoles>1?`<span style="font-size:7px;font-weight:800;color:#333">${numGoles}</span>`:''}</div>`:''}
         ${subEv?`<div style="position:absolute;bottom:3px;left:3px;font-size:11px;line-height:1" title="Sustituido min ${subEv.minuto}">🔄</div>`:''}
@@ -822,10 +823,15 @@ function renderEventoSlotModal(){
 async function guardarEventoSlot(){
   const p=S.slotEvPanel
   if(!p||!S.partidoActivo)return
+  // Para sustituciones desde un slot del 11 inicial: el jugador clickeado SALE,
+  // el seleccionado en "Entra en su lugar" es quien ENTRA (jugador_id del evento).
+  const isSubStarter=p.tipo==='Sustitución'&&p.slotIdx>=0
+  const jugId=isSubStarter?(+p.jugador_sale_id||null):p.jugId
+  const jugSale=isSubStarter?p.jugId:(p.tipo==='Sustitución'?(+p.jugador_sale_id||null):null)
   const r=await post('eventos',{
-    partido_id:S.partidoActivo,jugador_id:p.jugId,tipo:p.tipo,minuto:+p.minuto,
+    partido_id:S.partidoActivo,jugador_id:jugId,tipo:p.tipo,minuto:+p.minuto,
     subtipo:['Gol','Asistencia'].includes(p.tipo)?p.subtipo:null,
-    jugador_sale_id:p.tipo==='Sustitución'?(+p.jugador_sale_id||null):null,
+    jugador_sale_id:jugSale,
   })
   if(Array.isArray(r)&&r[0]){
     let msg='Evento registrado ✓'
@@ -1429,6 +1435,24 @@ function renderEstadisticas(){
         <table><thead><tr><th>Jugador</th><th class="num">🟡</th><th class="num">🔴</th></tr></thead><tbody>
         ${disciplina.slice(0,6).map(j=>`<tr><td>${jugApellido(j.id)}</td><td class="num" style="color:var(--am)">${j.amarillas}</td><td class="num" style="color:#ff8888">${j.rojas}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Sin tarjetas</td></tr>`}
         </tbody></table>
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:12px">
+      <div class="ph"><span class="pt">⏱ Minutaje</span><span style="font-size:10px;color:var(--gris)">${statsJug.filter(j=>j.min>0).length} jugadores</span></div>
+      <div style="max-height:300px;overflow-y:auto;padding:6px 14px">
+        ${(()=>{
+          const minJugs=[...statsJug].filter(j=>j.min>0).sort((a,b)=>b.min-a.min)
+          const maxMin=Math.max(1,...minJugs.map(j=>j.min))
+          return minJugs.map((j,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(46,168,79,0.07)">
+            <div style="width:18px;text-align:right;font-size:9px;color:var(--muted)">${i+1}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${jugApellido(j.id)}</div>
+              <div style="height:3px;background:rgba(255,255,255,0.08);border-radius:2px;margin-top:3px"><div style="height:100%;background:var(--vc);border-radius:2px;width:${Math.round(j.min/maxMin*100)}%"></div></div>
+            </div>
+            <span class="pos-${j.posicion}" style="font-size:7px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span>
+            <div style="font-size:12px;font-weight:800;color:var(--vc);min-width:32px;text-align:right">${j.min}'</div>
+          </div>`).join('')||'<div style="color:var(--muted);padding:20px;text-align:center;font-size:11px">Sin datos de minutaje</div>'
+        })()}
       </div>
     </div>
     <div class="panel" style="margin-bottom:12px">

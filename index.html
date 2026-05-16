@@ -294,7 +294,7 @@ let S={
   staff:JSON.parse(localStorage.getItem('dt-staff')||'[]'),
   addStaff:{nombre:'',rol:'DT',foto_url:'',foto_link:'',nacionalidad:'Chilena',notas:''},
   addStaffShow:false,
-  notas:JSON.parse(localStorage.getItem('dt-notas')||'[]'),
+  notas:[],
   notaForm:{fecha:hoy(),partido_id:'',texto:'',firma:localStorage.getItem('dt-firma')||''},
   notaFormShow:false,
   notaVer:null,
@@ -306,16 +306,18 @@ let S={
 }
 
 async function cargarDatos(){
-  const[jugs,parts,evs,less]=await Promise.all([
+  const[jugs,parts,evs,less,nts]=await Promise.all([
     get('jugadores','?activo=eq.true&order=numero'),
     get('partidos','?order=fecha'),
     get('eventos','?order=minuto'),
     get('lesiones','?alta=eq.false'),
+    get('notas','?order=created_at.desc'),
   ])
   S.jugadores=Array.isArray(jugs)?jugs:[]
   S.partidos=Array.isArray(parts)?parts:[]
   S.eventos=Array.isArray(evs)?evs:[]
   S.lesiones=Array.isArray(less)?less:[]
+  S.notas=Array.isArray(nts)?nts:[]
   if(S.jugadores.length){
     S.ev.jugador_id=S.jugadores[0].id
     S.ev.jugador_sale_id=S.jugadores[0].id
@@ -2041,26 +2043,25 @@ function renderHistoria(){
 }
 
 // ===== RENDER =====
-function guardarNota(){
+async function guardarNota(){
   const f=S.notaForm
   if(!f.texto.trim()){toast('Escribe algo antes de guardar',true);return}
   if(!f.firma.trim()){toast('Falta tu firma',true);return}
   localStorage.setItem('dt-firma',f.firma)
-  const nota={id:Date.now(),fecha:f.fecha,partido_id:f.partido_id?+f.partido_id:null,texto:f.texto.trim(),firma:f.firma.trim(),created_at:new Date().toISOString()}
-  S.notas.unshift(nota)
-  localStorage.setItem('dt-notas',JSON.stringify(S.notas))
-  S.notaFormShow=false
-  S.notaForm={fecha:hoy(),partido_id:'',texto:'',firma:f.firma}
-  toast('Nota guardada ✓')
-  render()
+  const r=await post('notas',{fecha:f.fecha,partido_id:f.partido_id?+f.partido_id:null,texto:f.texto.trim(),firma:f.firma.trim()})
+  if(Array.isArray(r)&&r[0]){
+    S.notaFormShow=false
+    S.notaForm={fecha:hoy(),partido_id:'',texto:'',firma:f.firma}
+    toast('Nota guardada ✓')
+    await cargarDatos()
+  }else toast('Error al guardar',true)
 }
 
-function borrarNota(id){
-  S.notas=S.notas.filter(n=>n.id!==id)
-  localStorage.setItem('dt-notas',JSON.stringify(S.notas))
+async function borrarNota(id){
+  await del('notas',`?id=eq.${id}`)
   S.notaVer=null
   toast('Nota eliminada')
-  render()
+  await cargarDatos()
 }
 
 function renderNotas(){

@@ -654,12 +654,8 @@ function renderPitch(){
     <div class="ph">
       <span class="pt">Formación y 11 inicial</span>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <select onchange="S.formacion=this.value;S.titulares=[];render()"
-          style="background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:5px;padding:4px 8px;color:white;font-size:11px;font-family:var(--font)">
-          ${Object.keys(FORMACIONES).map(f=>`<option ${S.formacion===f?'selected':''}>${f}</option>`).join('')}
-        </select>
-        <input id="form-custom-inp" placeholder="Ej: 4-3-1-2" value=""
-          style="width:90px;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:5px;padding:4px 8px;color:white;font-size:11px;font-family:var(--font)"
+        <input id="form-custom-inp" placeholder="Ej: 4-3-1-2" value="${S.formacion}"
+          style="width:100px;background:rgba(0,0,0,.5);border:1px solid var(--borde2);border-radius:5px;padding:4px 8px;color:white;font-size:11px;font-family:var(--font)"
           onkeydown="if(event.key==='Enter')aplicarFormacionCustom()">
         <button class="bsm" onclick="aplicarFormacionCustom()" style="padding:3px 8px;font-size:10px">✓</button>
         <span style="font-size:10px;color:var(--gris)">${titCount}/11</span>

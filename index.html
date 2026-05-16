@@ -1684,12 +1684,36 @@ async function testConnection(){
 }
 
 // ===== RENDER =====
+async function testMinutaje(){
+  const raw=await get('minutaje','?limit=5')
+  const el=document.getElementById('debug-raw')
+  if(el)el.textContent=JSON.stringify(raw,null,2)
+}
+
 function renderDebug(){
   const partidos=[...S.partidos].sort((a,b)=>b.fecha.localeCompare(a.fecha))
   return`<div class="content">
     <div style="margin-bottom:14px">
       <div style="font-size:15px;font-weight:800;color:var(--blanco)">🛠 Debug — Minutaje por partido</div>
-      <div style="font-size:10px;color:var(--gris);margin-top:2px">${S.minutaje.length} registros en tabla minutaje · ${S.partidos.length} partidos · ${S.jugadores.length} jugadores</div>
+      <div style="font-size:10px;color:var(--gris);margin-top:2px">${S.minutaje.length} registros cargados en S.minutaje · ${S.partidos.length} partidos · ${S.jugadores.length} jugadores</div>
+    </div>
+    <div class="panel" style="margin-bottom:12px">
+      <div class="ph"><span class="pt">Diagnóstico</span><button class="bsm" onclick="testMinutaje()">🔍 Fetch directo</button></div>
+      <div class="pb" style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:11px">
+          <span style="color:var(--gris)">S.minutaje contiene:</span>
+          <span style="color:${S.minutaje.length>0?'var(--vc)':'var(--ro)'}"> ${S.minutaje.length} filas</span>
+          ${S.minutaje.length>0?`· primera: partido_id=${S.minutaje[0].partido_id}, jugador_id=${S.minutaje[0].jugador_id}, minutos=${S.minutaje[0].minutos}`:''}
+        </div>
+        <div style="font-size:10px;color:var(--gris)">Respuesta cruda del fetch directo (primeras 5 filas):</div>
+        <pre id="debug-raw" style="font-size:10px;color:var(--am);background:rgba(0,0,0,.4);border-radius:6px;padding:8px;overflow-x:auto;white-space:pre-wrap">— presiona Fetch directo —</pre>
+        <div style="font-size:10px;color:var(--muted);line-height:1.6">
+          ⚠ Si ves <code style="color:var(--ro)">[]</code> → la tabla está vacía o la política RLS bloquea la lectura.<br>
+          ⚠ Si ves un objeto con <code style="color:var(--ro)">"code"</code> → error de Supabase (ver message).<br>
+          ✅ Si ves un array con objetos → los datos existen pero algo falla al cargar.<br>
+          ℹ El minutaje se genera al hacer clic en <strong>Guardar formación</strong> en Registro.
+        </div>
+      </div>
     </div>
     ${partidos.length===0?`<div style="text-align:center;padding:40px;color:var(--gris)">Sin partidos</div>`:
     partidos.map(p=>{

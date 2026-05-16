@@ -691,11 +691,7 @@ function selSlot(idx){
   if(jugId&&S.partidoActivo){
     abrirEventoSlot(idx,jugId)
   }else{
-    S.slotSeleccionado=idx;render()
-    setTimeout(()=>{
-      const sel=document.getElementById('sel-slot-jug')
-      if(sel&&S.titulares[idx])sel.value=S.titulares[idx]
-    },50)
+    abrirAsignarSlot(idx)
   }
 }
 
@@ -703,6 +699,46 @@ function asignarSlot(){
   const sel=document.getElementById('sel-slot-jug');if(!sel)return
   S.titulares[S.slotSeleccionado]=+sel.value||null
   S.slotSeleccionado=null;render()
+}
+
+function abrirAsignarSlot(idx){
+  const titIds=new Set(S.titulares.filter(x=>x))
+  const lista=[...S.jugadores].sort((a,b)=>a.numero-b.numero).map(j=>{
+    const ini=j.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
+    const ap=jugApellido(j.id)
+    const enForm=titIds.has(j.id)
+    return`<div onclick="asignarSlotDirecto(${idx},${j.id})"
+      style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer;border-bottom:1px solid var(--borde);${enForm?'opacity:0.55':''}"
+      onmouseover="this.style.background='rgba(46,168,79,0.12)'" onmouseout="this.style.background='transparent'">
+      <div class="jav" style="width:36px;height:36px;font-size:11px;flex-shrink:0">
+        ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700">${j.numero} ${ap}</div>
+        <div style="font-size:10px;color:var(--gris)">${j.posicion_especifica||j.posicion}${enForm?' · ya en formación':''}</div>
+      </div>
+      ${enForm?`<span style="font-size:10px;color:var(--vc)">✓</span>`:''}
+    </div>`
+  }).join('')
+  document.getElementById('modal-root').innerHTML=`<div class="modal-bg" onclick="if(event.target===this){document.getElementById('modal-root').innerHTML=''}">
+    <div class="modal" style="width:340px;padding:18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="modal-titulo" style="margin-bottom:0">Slot ${idx+1} — Elegir jugador</div>
+        <button class="bdel" style="padding:3px 8px;font-size:9px" onclick="asignarSlotDirecto(${idx},null)">🗑 Vaciar</button>
+      </div>
+      <div style="max-height:420px;overflow-y:auto;margin:0 -4px;padding:0 4px">
+        ${lista}
+      </div>
+      <button class="bsm" style="margin-top:10px;width:100%" onclick="document.getElementById('modal-root').innerHTML=''">Cancelar</button>
+    </div>
+  </div>`
+}
+
+function asignarSlotDirecto(idx,jugId){
+  if(idx>=0)S.titulares[idx]=jugId||null
+  S.slotSeleccionado=null
+  document.getElementById('modal-root').innerHTML=''
+  render()
 }
 
 function abrirEventoSlot(idx,jugId){
@@ -763,7 +799,7 @@ function renderEventoSlotModal(){
             <div style="font-size:10px;color:var(--gris)">${j.posicion_especifica||j.posicion}</div>
           </div>
         </div>
-        ${p.slotIdx>=0?`<button onclick="S.slotSeleccionado=${p.slotIdx};S.slotEvPanel=null;document.getElementById('modal-root').innerHTML='';render()"
+        ${p.slotIdx>=0?`<button onclick="S.slotEvPanel=null;abrirAsignarSlot(${p.slotIdx})"
           class="bsm" style="font-size:9px;flex-shrink:0">↔ Cambiar jugador</button>`:''}
       </div>
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px">${tiposBtns}</div>

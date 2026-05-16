@@ -2091,7 +2091,7 @@ async function renderDebug(){
   </div>`
 }
 
-function guardarNota(){
+async function guardarNota(){
   const f=S.notaForm
   if(!f.texto.trim()){toast('Escribe algo antes de guardar',true);return}
   if(!f.firma.trim()){toast('Falta tu firma',true);return}

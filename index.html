@@ -294,6 +294,10 @@ let S={
   staff:JSON.parse(localStorage.getItem('dt-staff')||'[]'),
   addStaff:{nombre:'',rol:'DT',foto_url:'',foto_link:'',nacionalidad:'Chilena',notas:''},
   addStaffShow:false,
+  notas:JSON.parse(localStorage.getItem('dt-notas')||'[]'),
+  notaForm:{fecha:hoy(),partido_id:'',texto:'',firma:localStorage.getItem('dt-firma')||''},
+  notaFormShow:false,
+  notaVer:null,
   slotEvPanel:null,
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   bgImage:localStorage.getItem('dt-bg')||'',
@@ -392,7 +396,7 @@ function renderNav(){
   return`<nav>${[
     {id:'registro',l:'Registro'},{id:'plantilla',l:'Plantilla'},
     {id:'partidos',l:'Partidos'},{id:'estadisticas',l:'Estadísticas'},
-    {id:'historia',l:'📊 Historia'},{id:'medico',l:'Médico'},{id:'config',l:'⚙ Config'}
+    {id:'notas',l:'📝 Notas'},{id:'historia',l:'📊 Historia'},{id:'medico',l:'Médico'},{id:'config',l:'⚙ Config'}
   ].map(t=>`<button class="nb ${S.pag===t.id?'on':''}" onclick="navTo('${t.id}')">${t.l}</button>`).join('')}</nav>`
 }
 
@@ -2037,6 +2041,129 @@ function renderHistoria(){
 }
 
 // ===== RENDER =====
+function guardarNota(){
+  const f=S.notaForm
+  if(!f.texto.trim()){toast('Escribe algo antes de guardar',true);return}
+  if(!f.firma.trim()){toast('Falta tu firma',true);return}
+  localStorage.setItem('dt-firma',f.firma)
+  const nota={id:Date.now(),fecha:f.fecha,partido_id:f.partido_id?+f.partido_id:null,texto:f.texto.trim(),firma:f.firma.trim(),created_at:new Date().toISOString()}
+  S.notas.unshift(nota)
+  localStorage.setItem('dt-notas',JSON.stringify(S.notas))
+  S.notaFormShow=false
+  S.notaForm={fecha:hoy(),partido_id:'',texto:'',firma:f.firma}
+  toast('Nota guardada ✓')
+  render()
+}
+
+function borrarNota(id){
+  S.notas=S.notas.filter(n=>n.id!==id)
+  localStorage.setItem('dt-notas',JSON.stringify(S.notas))
+  S.notaVer=null
+  toast('Nota eliminada')
+  render()
+}
+
+function renderNotas(){
+  const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+  function fmtFecha(f){
+    if(!f)return''
+    const[y,m,d]=f.split('-')
+    return`${+d} de ${meses[+m-1]} de ${y}`
+  }
+  function partidoLabel(pid){
+    if(!pid)return null
+    const p=S.partidos.find(x=>x.id===pid)
+    if(!p)return null
+    return`${p.condicion==='Local'?'vs':'en'} ${p.rival} · ${p.fecha}`
+  }
+
+  if(S.notaVer){
+    const n=S.notas.find(x=>x.id===S.notaVer)
+    if(!n){S.notaVer=null}else{
+      const pLabel=partidoLabel(n.partido_id)
+      return`<div class="content" style="max-width:680px;margin:0 auto">
+        <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px">
+          <button class="bsm" onclick="S.notaVer=null;render()">← Volver</button>
+          <button class="bsm" style="color:var(--ro);border-color:rgba(204,68,68,0.4);margin-left:auto" onclick="if(confirm('¿Eliminar esta nota?'))borrarNota(${n.id})">🗑 Eliminar</button>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--borde);border-radius:12px;padding:28px 32px">
+          <div style="font-size:11px;color:var(--vc);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px">${fmtFecha(n.fecha)}</div>
+          ${pLabel?`<div style="display:inline-block;background:rgba(46,168,79,0.12);border:1px solid var(--borde2);border-radius:20px;padding:3px 12px;font-size:10px;color:var(--gris);margin-bottom:18px">⚽ ${pLabel}</div>`:''}
+          <div style="font-size:14px;line-height:1.75;color:var(--blanco);white-space:pre-wrap;font-family:Georgia,serif;margin-bottom:28px">${n.texto.replace(/</g,'&lt;')}</div>
+          <div style="border-top:1px solid var(--borde);padding-top:16px;text-align:right">
+            <div style="font-size:12px;color:var(--gris);font-style:italic;margin-bottom:2px">Firmado por</div>
+            <div style="font-size:16px;font-weight:800;color:var(--vc);font-family:Georgia,serif">${n.firma}</div>
+          </div>
+        </div>
+      </div>`
+    }
+  }
+
+  if(S.notaFormShow){
+    const f=S.notaForm
+    const inp='background:rgba(0,0,0,.4);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font);width:100%'
+    return`<div class="content" style="max-width:680px;margin:0 auto">
+      <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
+        <button class="bsm" onclick="S.notaFormShow=false;render()">← Cancelar</button>
+        <span style="font-size:13px;font-weight:700;color:var(--vc)">Nueva nota</span>
+      </div>
+      <div style="background:var(--panel);border:1px solid var(--borde);border-radius:12px;padding:22px 24px;display:flex;flex-direction:column;gap:14px">
+        <div class="fr2">
+          <div class="fg" style="margin-bottom:0">
+            <label>Fecha</label>
+            <input type="date" value="${f.fecha}" oninput="S.notaForm.fecha=this.value" style="${inp}">
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label>Partido (opcional)</label>
+            <select onchange="S.notaForm.partido_id=this.value" style="${inp}">
+              <option value="">— Sin partido —</option>
+              ${[...S.partidos].reverse().map(p=>`<option value="${p.id}" ${f.partido_id==p.id?'selected':''}>${p.fecha} · ${p.rival}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Mis notas</label>
+          <textarea rows="10" oninput="S.notaForm.texto=this.value" placeholder="Escribe tu análisis, reflexiones, lo que viste en el partido..." style="${inp};resize:vertical;line-height:1.6;font-family:Georgia,serif;font-size:13px">${f.texto}</textarea>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Firma</label>
+          <input placeholder="Tu nombre" value="${f.firma}" oninput="S.notaForm.firma=this.value" style="${inp}">
+        </div>
+        <button class="btn" onclick="guardarNota()" style="align-self:flex-end;padding:9px 24px">💾 Guardar nota</button>
+      </div>
+    </div>`
+  }
+
+  // Lista
+  return`<div class="content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:var(--blanco)">Mis notas</div>
+        <div style="font-size:10px;color:var(--gris)">${S.notas.length} entrada${S.notas.length!==1?'s':''}</div>
+      </div>
+      <button class="btn" onclick="S.notaFormShow=true;render()">+ Nueva nota</button>
+    </div>
+    ${S.notas.length?`<div style="display:flex;flex-direction:column;gap:12px">
+      ${S.notas.map(n=>{
+        const pLabel=partidoLabel(n.partido_id)
+        const preview=n.texto.length>160?n.texto.slice(0,160)+'…':n.texto
+        return`<div onclick="S.notaVer=${n.id};render()" style="background:var(--panel);border:1px solid var(--borde);border-radius:10px;padding:18px 20px;cursor:pointer;transition:border-color .2s" onmouseover="this.style.borderColor='var(--borde2)'" onmouseout="this.style.borderColor='var(--borde)'">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--vc);text-transform:uppercase;letter-spacing:.6px">${fmtFecha(n.fecha)}</div>
+            ${pLabel?`<div style="font-size:9px;color:var(--gris);background:rgba(255,255,255,0.05);border-radius:12px;padding:2px 8px;white-space:nowrap">⚽ ${pLabel}</div>`:''}
+          </div>
+          <div style="font-size:12px;color:rgba(238,244,238,0.8);line-height:1.6;font-family:Georgia,serif;margin-bottom:12px">${preview.replace(/</g,'&lt;')}</div>
+          <div style="font-size:10px;color:var(--muted);text-align:right;font-style:italic">— ${n.firma}</div>
+        </div>`
+      }).join('')}
+    </div>`:`<div style="text-align:center;padding:60px 20px;color:var(--gris)">
+      <div style="font-size:32px;margin-bottom:12px">📝</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">Aún no hay notas</div>
+      <div style="font-size:11px;color:var(--muted)">Escribe tu primer análisis post-partido</div>
+    </div>`}
+  </div>`
+}
+
 function render(){
   const root=document.getElementById('root')
   if(S.pag==='login'){root.innerHTML=renderLogin();return}
@@ -2045,6 +2172,7 @@ function render(){
     S.pag==='plantilla'?renderPlantilla():
     S.pag==='partidos'?renderPartidos():
     S.pag==='estadisticas'?renderEstadisticas():
+    S.pag==='notas'?renderNotas():
     S.pag==='config'?renderConfig():
     S.pag==='historia'?renderHistoria():
     renderMedico()

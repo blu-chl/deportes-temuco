@@ -100,18 +100,18 @@ tr:hover td{background:rgba(46,168,79,0.05)}
 .modal-bg{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center}
 .modal{background:#0d1f10;border:1px solid var(--borde2);border-radius:12px;padding:24px;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto}
 .modal-titulo{font-size:13px;font-weight:700;color:var(--vc);text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px}
-.cancha{background:linear-gradient(180deg,#1a5c2a 0%,#1e6b30 50%,#1a5c2a 100%);border:2px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px 8px;position:relative;min-height:320px;display:flex;flex-direction:column;justify-content:space-between}
+.cancha{background:linear-gradient(180deg,#1a5c2a 0%,#1e6b30 50%,#1a5c2a 100%);border:2px solid rgba(255,255,255,0.15);border-radius:8px;padding:14px 10px;position:relative;min-height:420px;display:flex;flex-direction:column;justify-content:space-between}
 .cancha::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.12);transform:translateX(-50%)}
 .cancha::after{content:'';position:absolute;left:50%;top:50%;width:60px;height:60px;border:1px solid rgba(255,255,255,0.15);border-radius:50%;transform:translate(-50%,-50%)}
-.linea-pos{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:4px 0}
-.slot{width:58px;height:58px;border-radius:50%;border:2px dashed rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;flex-direction:column;position:relative;flex-shrink:0}
-.slot:hover{border-color:var(--vc);background:rgba(46,168,79,0.15)}
-.slot.filled{border-style:solid;border-color:var(--vc);background:rgba(46,168,79,0.2)}
-.slot-num{font-size:14px;font-weight:800;color:rgba(255,255,255,0.4)}
+.linea-pos{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;padding:6px 0}
+.slot{width:76px;min-height:92px;border-radius:12px;border:2px dashed rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;flex-direction:column;position:relative;flex-shrink:0;padding:6px 4px 5px;gap:2px}
+.slot:hover{border-color:var(--vc);background:rgba(46,168,79,0.1)}
+.slot.filled{border-style:solid;border-color:var(--vc);background:rgba(46,168,79,0.15)}
+.slot-num{font-size:18px;font-weight:800;color:rgba(255,255,255,0.35)}
 .slot.filled .slot-num{color:var(--vc)}
-.slot-name{font-size:7px;color:rgba(255,255,255,0.85);text-align:center;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
-.slot-avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--vc)}
-.slot-pos-badge{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:800;padding:1px 4px;border-radius:3px;white-space:nowrap}
+.slot-name{font-size:8px;color:rgba(255,255,255,0.92);text-align:center;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.slot-avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--vc)}
+.slot-pos-badge{font-size:7px;font-weight:800;padding:1px 5px;border-radius:3px;white-space:nowrap}
 .form-dot{display:inline-flex;width:18px;height:18px;border-radius:50%;align-items:center;justify-content:center;font-size:9px;font-weight:800;margin-right:2px}
 .form-dot.W{background:rgba(46,168,79,.3);color:var(--vc)}
 .form-dot.D{background:rgba(232,184,75,.3);color:var(--am)}
@@ -611,11 +611,37 @@ function renderPitch(){
         ${j&&j.foto_url?`<img class="slot-avatar" src="${j.foto_url}">`:`<span class="slot-num">${j?j.numero:(s.idx+1)}</span>`}
         ${j?`<span class="slot-name">${ap}</span>`:''}
         <span class="slot-pos-badge" style="background:${posColor}22;color:${posColor}">${s.pos}</span>
-        ${subEv?`<div style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:7px;color:#aaa;background:rgba(0,0,0,.7);padding:1px 4px;border-radius:3px">🔄${subEv.minuto}' ${subAp||'#'+subEntra?.numero}</div>`:''}
+        ${subEv?`<div style="font-size:7px;color:var(--am);font-weight:700;text-align:center;white-space:nowrap;background:rgba(0,0,0,.4);border-radius:4px;padding:1px 4px;margin-top:1px">🔄 ${subEv.minuto}' #${subEntra?.numero||'?'}</div>`:''}
       </div>`
     }).join('')}</div>`).join('')
 
   const titCount=S.titulares.filter(x=>x).length
+
+  const subsEvts=S.evPartido.filter(e=>e.tipo==='Sustitución')
+  const subsSection=`<div style="margin-top:16px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <div style="flex:1;height:2px;background:rgba(255,255,255,0.18);border-radius:1px"></div>
+      <span style="font-size:9px;color:var(--am);text-transform:uppercase;letter-spacing:.8px;font-weight:700;white-space:nowrap">⬆ Sustituciones${subsEvts.length?' ('+subsEvts.length+')':''}</span>
+      <div style="flex:1;height:2px;background:rgba(255,255,255,0.18);border-radius:1px"></div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;min-height:36px;align-items:center">
+      ${subsEvts.length?subsEvts.map(e=>{
+        const jE=S.jugadores.find(x=>x.id===e.jugador_id)
+        const jS=e.jugador_sale_id?S.jugadores.find(x=>x.id===e.jugador_sale_id):null
+        if(!jE)return''
+        const ini=jE.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
+        const apE=jugApellido(jE.id)
+        return`<div onclick="abrirEventoSlot(-1,${jE.id})" style="display:flex;flex-direction:column;align-items:center;gap:3px;width:76px;cursor:pointer" title="Registrar evento: ${apE}">
+          <div style="width:54px;height:54px;border-radius:50%;border:2px solid rgba(255,255,255,0.75);background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:white;overflow:hidden;position:relative">
+            ${jE.foto_url?`<img src="${jE.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
+            ${S.partidoActivo?`<div style="position:absolute;top:-2px;right:-2px;width:13px;height:13px;background:var(--am);border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:900">+</div>`:''}
+          </div>
+          <div style="font-size:8px;color:white;font-weight:700;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:74px">${jE.numero} ${apE}</div>
+          <div style="font-size:7px;color:var(--am);font-weight:700;text-align:center">${e.minuto}'↑${jS?' #'+jS.numero:''}</div>
+        </div>`
+      }).join(''):'<span style="font-size:10px;color:var(--muted)">Sin cambios registrados</span>'}
+    </div>
+  </div>`
 
   return`<div class="panel">
     <div class="ph">
@@ -634,6 +660,7 @@ function renderPitch(){
     </div>
     <div class="pb">
       <div class="cancha">${lineasHtml}</div>
+      ${subsSection}
       <div style="margin-top:10px">
         <div class="fg" style="margin-bottom:8px">
           <label>Duración del partido (min)</label>
@@ -736,8 +763,8 @@ function renderEventoSlotModal(){
             <div style="font-size:10px;color:var(--gris)">${j.posicion_especifica||j.posicion}</div>
           </div>
         </div>
-        <button onclick="S.slotSeleccionado=${p.slotIdx};S.slotEvPanel=null;document.getElementById('modal-root').innerHTML='';render()"
-          class="bsm" style="font-size:9px;flex-shrink:0">↔ Cambiar jugador</button>
+        ${p.slotIdx>=0?`<button onclick="S.slotSeleccionado=${p.slotIdx};S.slotEvPanel=null;document.getElementById('modal-root').innerHTML='';render()"
+          class="bsm" style="font-size:9px;flex-shrink:0">↔ Cambiar jugador</button>`:''}
       </div>
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px">${tiposBtns}</div>
       <div class="fg"><label>Minuto</label>

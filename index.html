@@ -638,10 +638,18 @@ function renderPitch(){
         if(!jE)return''
         const ini=jE.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
         const apE=jugApellido(jE.id)
+        const numGoles=S.evPartido.filter(ev=>ev.tipo==='Gol'&&ev.jugador_id===jE.id).length
+        const numAm=S.evPartido.filter(ev=>ev.tipo==='Amarilla'&&ev.jugador_id===jE.id).length
+        const subSalida=S.evPartido.find(ev=>ev.tipo==='Sustitución'&&ev.jugador_sale_id===jE.id)
         return`<div onclick="abrirEventoSlot(-1,${jE.id})" style="display:flex;flex-direction:column;align-items:center;gap:3px;width:76px;cursor:pointer" title="Registrar evento: ${apE}">
-          <div style="width:54px;height:54px;border-radius:50%;border:2px solid rgba(255,255,255,0.75);background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:white;overflow:hidden;position:relative">
-            ${jE.foto_url?`<img src="${jE.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
-            ${S.partidoActivo?`<div style="position:absolute;top:-2px;right:-2px;width:13px;height:13px;background:var(--am);border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:900">+</div>`:''}
+          <div style="position:relative;width:54px;height:54px">
+            <div style="width:54px;height:54px;border-radius:50%;border:2px solid rgba(255,255,255,0.75);background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:white;overflow:hidden">
+              ${jE.foto_url?`<img src="${jE.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
+            </div>
+            ${numAm>0?`<div style="position:absolute;top:-2px;right:-2px;font-size:12px;line-height:1">🟡${numAm>1?`<span style="font-size:7px;font-weight:800;color:#333">${numAm}</span>`:''}</div>`:''}
+            ${numGoles>0?`<div style="position:absolute;bottom:-2px;right:-2px;font-size:12px;line-height:1">⚽${numGoles>1?`<span style="font-size:7px;font-weight:800;color:#333">${numGoles}</span>`:''}</div>`:''}
+            ${subSalida?`<div style="position:absolute;bottom:-2px;left:-2px;font-size:12px;line-height:1" title="Sustituido min ${subSalida.minuto}">🔄</div>`:''}
+            ${S.partidoActivo&&!numAm?`<div style="position:absolute;top:-2px;right:-2px;width:13px;height:13px;background:var(--am);border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:900">+</div>`:''}
           </div>
           <div style="font-size:8px;color:white;font-weight:700;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:74px">${jE.numero} ${apE}</div>
           <div style="font-size:7px;color:var(--am);font-weight:700;text-align:center">${e.minuto}'↑${jS?' #'+jS.numero:''}</div>

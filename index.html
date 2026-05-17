@@ -614,11 +614,15 @@ function renderPitch(){
       const subAp=subEntra?(subEntra.nombre.trim().split(' ').slice(1).join(' ')||subEntra.nombre):''
       const numGoles=j?S.evPartido.filter(e=>e.tipo==='Gol'&&e.jugador_id===jugId).length:0
       const numAm=j?S.evPartido.filter(e=>e.tipo==='Amarilla'&&e.jugador_id===jugId).length:0
+      const numAsist=j?S.evPartido.filter(e=>e.tipo==='Asistencia'&&e.jugador_id===jugId).length:0
       return`<div class="slot ${j?'filled':''}" onclick="selSlot(${s.idx})" title="${j?(S.partidoActivo?'📋 Clic para registrar evento':'Cambiar jugador'):'Asignar jugador'}">
         ${j?`<div style="position:absolute;top:3px;left:3px;font-size:8px;font-weight:900;color:#666;background:rgba(0,0,0,0.08);border-radius:3px;padding:0 3px;line-height:14px">${j.numero}</div>`:''}
         ${numAm>0?`<div style="position:absolute;top:3px;right:3px;font-size:11px;line-height:1" title="${numAm} amarilla(s)">🟡${numAm>1?`<span style="font-size:7px;font-weight:800;color:#333">${numAm}</span>`:''}</div>`:''}
-        ${numGoles>0?`<div style="position:absolute;bottom:3px;right:3px;font-size:11px;line-height:1" title="${numGoles} gol(es)">⚽${numGoles>1?`<span style="font-size:7px;font-weight:800;color:#333">${numGoles}</span>`:''}</div>`:''}
-        ${subEv?`<div style="position:absolute;bottom:3px;left:3px;font-size:11px;line-height:1" title="Sustituido min ${subEv.minuto}">🔄</div>`:''}
+        ${(numGoles>0||numAsist>0)?`<div style="position:absolute;bottom:2px;right:2px;display:flex;flex-direction:column;align-items:flex-end;gap:0;line-height:1.1">
+          ${numGoles>0?`<span style="font-size:10px">⚽${numGoles>1?`<span style="font-size:6px;font-weight:800;color:#333">${numGoles}</span>`:''}</span>`:''}
+          ${numAsist>0?`<span style="font-size:10px">🅰️${numAsist>1?`<span style="font-size:6px;font-weight:800;color:#333">${numAsist}</span>`:''}</span>`:''}
+        </div>`:''}
+        ${subEv?`<div style="position:absolute;bottom:2px;left:2px;font-size:11px;line-height:1" title="Sustituido min ${subEv.minuto}">🔄</div>`:''}
         ${j&&j.foto_url?`<img class="slot-avatar" src="${j.foto_url}">`:`<span class="slot-num">${j?j.numero:(s.idx+1)}</span>`}
         ${j?`<span class="slot-name">${ap}</span>`:''}
         <span class="slot-pos-badge" style="background:${posColor}22;color:${posColor}">${s.pos}</span>
@@ -643,6 +647,7 @@ function renderPitch(){
         const apE=jugApellido(jE.id)
         const numGoles=S.evPartido.filter(ev=>ev.tipo==='Gol'&&ev.jugador_id===jE.id).length
         const numAm=S.evPartido.filter(ev=>ev.tipo==='Amarilla'&&ev.jugador_id===jE.id).length
+        const numAsist=S.evPartido.filter(ev=>ev.tipo==='Asistencia'&&ev.jugador_id===jE.id).length
         const subSalida=S.evPartido.find(ev=>ev.tipo==='Sustitución'&&ev.jugador_sale_id===jE.id)
         return`<div onclick="abrirEventoSlot(-1,${jE.id})" style="display:flex;flex-direction:column;align-items:center;gap:3px;width:76px;cursor:pointer" title="Registrar evento: ${apE}">
           <div style="position:relative;width:54px;height:54px">
@@ -650,7 +655,10 @@ function renderPitch(){
               ${jE.foto_url?`<img src="${jE.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
             </div>
             ${numAm>0?`<div style="position:absolute;top:-2px;right:-2px;font-size:12px;line-height:1">🟡${numAm>1?`<span style="font-size:7px;font-weight:800;color:#333">${numAm}</span>`:''}</div>`:''}
-            ${numGoles>0?`<div style="position:absolute;bottom:-2px;right:-2px;font-size:12px;line-height:1">⚽${numGoles>1?`<span style="font-size:7px;font-weight:800;color:#333">${numGoles}</span>`:''}</div>`:''}
+            ${(numGoles>0||numAsist>0)?`<div style="position:absolute;bottom:-2px;right:-2px;display:flex;flex-direction:column;align-items:flex-end;gap:0;line-height:1.1">
+              ${numGoles>0?`<span style="font-size:12px;line-height:1">⚽${numGoles>1?`<span style="font-size:7px;font-weight:800;color:#333">${numGoles}</span>`:''}</span>`:''}
+              ${numAsist>0?`<span style="font-size:12px;line-height:1">🅰️${numAsist>1?`<span style="font-size:7px;font-weight:800;color:#333">${numAsist}</span>`:''}</span>`:''}
+            </div>`:''}
             ${subSalida?`<div style="position:absolute;bottom:-2px;left:-2px;font-size:12px;line-height:1" title="Sustituido min ${subSalida.minuto}">🔄</div>`:''}
 
           </div>
@@ -1332,28 +1340,19 @@ function renderPartidos(){
   const cards=[...lista].reverse().map(p=>{
     const res=p.goles_favor>p.goles_contra?'W':p.goles_favor===p.goles_contra?'D':'L'
     const rb=res==='W'?'bv':res==='D'?'ba':'br'
-    const rl=res==='W'?'Victoria':res==='D'?'Empate':'Derrota'
-    const goles=S.eventos.filter(e=>e.partido_id===p.id&&e.tipo==='Gol').map(e=>`<span class="badge bv">⚽ ${jugApellido(e.jugador_id)} ${e.minuto}'</span>`).join(' ')
+    const rl=res==='W'?'V':res==='D'?'E':'D'
     const borderColor=res==='W'?'var(--vc)':res==='D'?'var(--am)':'var(--ro)'
-    return`<div class="pcard" style="cursor:default;border-left:3px solid ${borderColor}">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:4px">
-        <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <span class="badge ${rb}">${rl}</span>
-          <span class="badge ${p.condicion==='Local'?'baz':'bg'}">${p.condicion}</span>
-          <span class="badge bg">${p.competencia}</span>
-          ${p.formacion?`<span class="badge bg">${p.formacion}</span>`:''}
-        </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:10px;color:var(--gris)">${p.fecha}</span>
-          <button class="bsm" style="padding:2px 8px;font-size:10px" onclick="abrirEditarPartido(${p.id})">✏️ Editar</button>
-        </div>
+    const pts=res==='W'?3:res==='D'?1:0
+    return`<div class="pcard" style="cursor:default;border-left:3px solid ${borderColor};padding:7px 12px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="badge ${rb}" style="font-size:11px;font-weight:900;min-width:20px;text-align:center;flex-shrink:0">${rl}</span>
+        <div style="font-size:12px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.rival}</div>
+        <div style="font-size:15px;font-weight:900;color:${borderColor};white-space:nowrap;flex-shrink:0">${p.goles_favor}—${p.goles_contra}</div>
+        <span class="badge ${p.condicion==='Local'?'baz':'bg'}" style="font-size:8px;flex-shrink:0">${p.condicion==='Local'?'L':'V'}</span>
+        <span class="badge bg" style="font-size:8px;flex-shrink:0">${p.competencia==='Primera B'?'1B':'CC'}</span>
+        <span style="font-size:9px;color:var(--gris);white-space:nowrap;flex-shrink:0">${p.fecha}</span>
+        <button class="bsm" style="padding:2px 6px;font-size:9px;flex-shrink:0" onclick="abrirEditarPartido(${p.id})">✏️</button>
       </div>
-      <div class="rbox">
-        <div class="req" style="text-align:right">Deportes Temuco</div>
-        <div class="rscore">${p.goles_favor}</div><div class="rsep">—</div><div class="rscore" style="color:var(--gris)">${p.goles_contra}</div>
-        <div class="req">${p.rival}</div>
-      </div>
-      ${goles?`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${goles}</div>`:''}
     </div>`
   }).join('')
 
@@ -1451,6 +1450,51 @@ function renderEstadisticas(){
       <div class="mc az"><div class="mc-l">Pts Local (${locales.length} partidos)</div><div class="mc-v">${locPts}</div><div class="mc-s">${locales.filter(p=>p.goles_favor>p.goles_contra).length}G ${locales.filter(p=>p.goles_favor===p.goles_contra).length}E ${locales.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
       <div class="mc"><div class="mc-l">Pts Visita (${visitas.length} partidos)</div><div class="mc-v">${visPts}</div><div class="mc-s">${visitas.filter(p=>p.goles_favor>p.goles_contra).length}G ${visitas.filter(p=>p.goles_favor===p.goles_contra).length}E ${visitas.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
     </div>
+    ${(()=>{
+      const ult5=[...partsFilt].slice(-5).reverse()
+      if(!ult5.length)return''
+      const u5pts=ult5.reduce((a,p)=>a+(p.goles_favor>p.goles_contra?3:p.goles_favor===p.goles_contra?1:0),0)
+      const u5gf=ult5.reduce((a,p)=>a+p.goles_favor,0)
+      const u5g=ult5.filter(p=>p.goles_favor>p.goles_contra).length
+      const u5e=ult5.filter(p=>p.goles_favor===p.goles_contra).length
+      const u5d=ult5.filter(p=>p.goles_favor<p.goles_contra).length
+      const u5pz=ult5.filter(p=>p.goles_contra===0).length
+      return`<div class="panel" style="margin-bottom:12px">
+        <div class="ph"><span class="pt">Últimos 5 encuentros</span><span style="font-size:10px;color:var(--gris)">${u5pts} pts</span></div>
+        <div class="pb">
+          <div style="display:flex;gap:5px;margin-bottom:10px">
+            ${ult5.map(p=>{
+              const r=p.goles_favor>p.goles_contra?'W':p.goles_favor===p.goles_contra?'D':'L'
+              const col=r==='W'?'var(--vc)':r==='D'?'var(--am)':'var(--ro)'
+              return`<div style="flex:1;background:rgba(0,0,0,.2);border-radius:6px;padding:7px 4px;text-align:center;border-top:3px solid ${col}">
+                <div style="font-size:10px;font-weight:800;color:${col}">${r==='W'?'V':r==='D'?'E':'D'}</div>
+                <div style="font-size:9px;font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.rival.split(' ')[0]}</div>
+                <div style="font-size:11px;font-weight:800;color:${col};margin-top:2px">${p.goles_favor}—${p.goles_contra}</div>
+                ${p.goles_contra===0?`<div style="font-size:8px;margin-top:2px">🧤</div>`:'<div style="font-size:8px;margin-top:2px;opacity:0"> </div>'}
+              </div>`
+            }).join('')}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+            <div style="text-align:center;padding:6px;background:rgba(0,0,0,.15);border-radius:5px">
+              <div style="font-size:18px;font-weight:800;color:var(--am)">${u5pts}</div>
+              <div style="font-size:8px;color:var(--gris)">Puntos</div>
+            </div>
+            <div style="text-align:center;padding:6px;background:rgba(0,0,0,.15);border-radius:5px">
+              <div style="font-size:18px;font-weight:800;color:var(--vc)">${u5gf}</div>
+              <div style="font-size:8px;color:var(--gris)">Goles F.</div>
+            </div>
+            <div style="text-align:center;padding:6px;background:rgba(0,0,0,.15);border-radius:5px">
+              <div style="font-size:14px;font-weight:800;color:var(--blanco)">${u5g}G ${u5e}E ${u5d}D</div>
+              <div style="font-size:8px;color:var(--gris)">G / E / D</div>
+            </div>
+            <div style="text-align:center;padding:6px;background:rgba(0,0,0,.15);border-radius:5px">
+              <div style="font-size:18px;font-weight:800;color:var(--az)">${u5pz}</div>
+              <div style="font-size:8px;color:var(--gris)">Arco 0</div>
+            </div>
+          </div>
+        </div>
+      </div>`
+    })()}
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">Goles por período</span></div>
       <div class="pb" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
@@ -1458,7 +1502,12 @@ function renderEstadisticas(){
           const pct=Math.round(n/Math.max(1,golesT1+golesT2+golesT3)*100)
           const gMap={}
           evsPer.forEach(e=>{gMap[e.jugador_id]=(gMap[e.jugador_id]||0)+1})
-          const gList=Object.entries(gMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([id,cnt])=>`<div style="font-size:9px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${jugApellido(+id)}${cnt>1?` (${cnt})`:''}</div>`).join('')
+          const gList=Object.entries(gMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([id,cnt])=>{
+            const jj=S.jugadores.find(x=>x.id===+id)
+            const pos=jj?.posicion
+            const posL=pos==='Delantero'?'DL':pos==='Mediocampista'?'MC':pos==='Defensa'?'DF':pos==='Portero'?'PT':''
+            return`<div style="font-size:9px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${jugApellido(+id)}${posL?` <span style="color:var(--gris);font-size:8px">${posL}</span>`:''}${cnt>1?` (${cnt})`:''}</div>`
+          }).join('')
           return`<div style="text-align:center;padding:8px;background:rgba(0,0,0,.2);border-radius:6px">
             <div style="font-size:22px;font-weight:800;color:${color}">${n}</div>
             <div style="font-size:9px;color:var(--gris)">${label}</div>
@@ -1484,7 +1533,18 @@ function renderEstadisticas(){
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">🔄 Cambios más recurrentes</span><span style="font-size:10px;color:var(--gris)">${topCambios.length} combinaciones</span></div>
       <div class="pb">
-        ${topCambios.length?topCambios.slice(0,8).map((c,i)=>{
+        ${topCambios.length?(()=>{
+          const grpMap={}
+          topCambios.forEach(c=>{
+            const jS2=S.jugadores.find(x=>x.id===c.sid)
+            const jE2=S.jugadores.find(x=>x.id===c.eid)
+            const pS=jS2?.posicion||'?'
+            const pE=jE2?.posicion||'?'
+            const k=`${pS} por ${pE}`
+            grpMap[k]=(grpMap[k]||0)+c.n
+          })
+          const grpHtml=Object.entries(grpMap).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<span style="font-size:9px;background:rgba(255,255,255,0.07);border-radius:4px;padding:2px 7px;white-space:nowrap">${k}: <strong style="color:var(--am)">${n}x</strong></span>`).join('')
+          const listHtml=topCambios.slice(0,8).map((c,i)=>{
           const jS=S.jugadores.find(x=>x.id===c.sid)
           const jE=S.jugadores.find(x=>x.id===c.eid)
           const apS=jugApellido(c.sid)
@@ -1504,7 +1564,7 @@ function renderEstadisticas(){
                   <div style="font-size:8px;color:var(--ro)">sale</div>
                 </div>
               </div>
-              <div style="font-size:13px;color:var(--muted)">→</div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);padding:0 4px">por</div>
               <div style="display:flex;align-items:center;gap:4px">
                 <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--borde2);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--vc)">
                   ${jE?.foto_url?`<img src="${jE.foto_url}" style="width:100%;height:100%;object-fit:cover">`:(jE?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)}
@@ -1522,13 +1582,26 @@ function renderEstadisticas(){
               <div style="font-size:8px;color:var(--gris)">${c.n===1?'vez':'veces'}</div>
             </div>
           </div>`
-        }).join(''):`<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">Sin sustituciones registradas</div>`}
+          }).join('')
+          return`<div style="display:flex;flex-wrap:wrap;gap:5px;padding:4px 0 10px;border-bottom:1px solid rgba(46,168,79,0.12);margin-bottom:4px">${grpHtml}</div>${listHtml}`
+        })():`<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">Sin sustituciones registradas</div>`}
       </div>
     </div>
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">🤝 Sinergia — Parejas con más goles en conjunto</span><span style="font-size:10px;color:var(--gris)">${topSinergia.length} parejas</span></div>
       <div class="pb">
-        ${topSinergia.length?topSinergia.slice(0,8).map((p,i)=>{
+        ${topSinergia.length?(()=>{
+          const sGrpMap={}
+          topSinergia.forEach(p2=>{
+            const aJ2=S.jugadores.find(x=>x.id===p2.aid)
+            const gJ2=S.jugadores.find(x=>x.id===p2.gid)
+            const pA=aJ2?.posicion||'?'
+            const pG=gJ2?.posicion||'?'
+            const k=`${pA} → ${pG}`
+            sGrpMap[k]=(sGrpMap[k]||0)+p2.n
+          })
+          const sGrpHtml=Object.entries(sGrpMap).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<span style="font-size:9px;background:rgba(255,255,255,0.07);border-radius:4px;padding:2px 7px;white-space:nowrap">${k}: <strong style="color:var(--vc)">${n}x</strong></span>`).join('')
+          const sinListHtml=topSinergia.slice(0,8).map((p,i)=>{
           const maxN=topSinergia[0].n
           const pct=Math.round(p.n/maxN*100)
           const aAp=jugApellido(p.aid)
@@ -1548,7 +1621,7 @@ function renderEstadisticas(){
                   <div style="font-size:8px;color:var(--az)">🅰️ asistidor</div>
                 </div>
               </div>
-              <div style="font-size:14px;color:var(--muted)">→</div>
+              <div style="font-size:9px;font-weight:700;color:var(--az);padding:0 4px;text-align:center;white-space:nowrap">asiste<br>a</div>
               <div style="display:flex;align-items:center;gap:4px">
                 <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--borde2);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--vc)">
                   ${gJ?.foto_url?`<img src="${gJ.foto_url}" style="width:100%;height:100%;object-fit:cover">`:(gJ?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)}
@@ -1565,7 +1638,9 @@ function renderEstadisticas(){
               <div style="font-size:8px;color:var(--gris)">${p.n===1?'jugada':'jugadas'}</div>
             </div>
           </div>`
-        }).join(''):`<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">Sin jugadas asistencia→gol registradas</div>`}
+          }).join('')
+          return`<div style="display:flex;flex-wrap:wrap;gap:5px;padding:4px 0 10px;border-bottom:1px solid rgba(46,168,79,0.12);margin-bottom:4px">${sGrpHtml}</div>${sinListHtml}`
+        })():`<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">Sin jugadas asistencia→gol registradas</div>`}
       </div>
     </div>
     <div class="panel" style="margin-bottom:12px"><div class="ph"><span class="pt">Disciplina</span></div>

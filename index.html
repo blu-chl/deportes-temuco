@@ -227,14 +227,17 @@ try{
 
 function calcMinutajeAuto(titularIds,evs,duracion=90){
   const mins={}
-  titularIds.forEach(id=>{if(id)mins[id]=duracion})
+  const entradas={}  // minuto en que entró cada jugador
+  titularIds.forEach(id=>{if(id){mins[id]=duracion;entradas[id]=0}})
   evs.filter(e=>e.tipo==='Sustitución').sort((a,b)=>a.minuto-b.minuto).forEach(sub=>{
     const min=sub.minuto||0
+    // El que sale: minutos reales = minuto_salida - minuto_entrada
     if(sub.jugador_sale_id!=null&&mins[sub.jugador_sale_id]!==undefined)
-      mins[sub.jugador_sale_id]=min
+      mins[sub.jugador_sale_id]=min-(entradas[sub.jugador_sale_id]??0)
+    // El que entra: registrar su minuto de entrada y calcular minutos disponibles
     if(sub.jugador_id!=null){
-      if(mins[sub.jugador_id]===undefined)mins[sub.jugador_id]=0
-      mins[sub.jugador_id]+=duracion-min
+      entradas[sub.jugador_id]=min
+      mins[sub.jugador_id]=duracion-min
     }
   })
   return mins

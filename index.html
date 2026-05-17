@@ -652,7 +652,7 @@ function renderPitch(){
             ${numAm>0?`<div style="position:absolute;top:-2px;right:-2px;font-size:12px;line-height:1">🟡${numAm>1?`<span style="font-size:7px;font-weight:800;color:#333">${numAm}</span>`:''}</div>`:''}
             ${numGoles>0?`<div style="position:absolute;bottom:-2px;right:-2px;font-size:12px;line-height:1">⚽${numGoles>1?`<span style="font-size:7px;font-weight:800;color:#333">${numGoles}</span>`:''}</div>`:''}
             ${subSalida?`<div style="position:absolute;bottom:-2px;left:-2px;font-size:12px;line-height:1" title="Sustituido min ${subSalida.minuto}">🔄</div>`:''}
-            ${S.partidoActivo&&!numAm?`<div style="position:absolute;top:-2px;right:-2px;width:13px;height:13px;background:var(--am);border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:900">+</div>`:''}
+
           </div>
           <div style="font-size:8px;color:white;font-weight:700;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:74px">${jE.numero} ${apE}</div>
           <div style="font-size:7px;color:var(--am);font-weight:700;text-align:center">${e.minuto}'↑${jS?' #'+jS.numero:''}</div>
@@ -1396,6 +1396,16 @@ function renderEstadisticas(){
   const topG90=[...statsJug].filter(j=>j.min>=90&&j.goles>0).sort((a,b)=>b.g90-a.g90)
   const disciplina=[...statsJug].filter(j=>j.amarillas>0||j.rojas>0).sort((a,b)=>(b.amarillas+b.rojas*3)-(a.amarillas+a.rojas*3))
 
+  // Cambios más recurrentes: pares (sale → entra)
+  const cambiosMap={}
+  evsFilt.filter(e=>e.tipo==='Sustitución'&&e.jugador_sale_id).forEach(e=>{
+    const key=`${e.jugador_sale_id}_${e.jugador_id}`
+    cambiosMap[key]=(cambiosMap[key]||0)+1
+  })
+  const topCambios=Object.entries(cambiosMap)
+    .map(([k,n])=>{const[sid,eid]=k.split('_').map(Number);return{sid,eid,n}})
+    .sort((a,b)=>b.n-a.n)
+
   // Sinergia: pares (asistidor → goleador) con más jugadas en conjunto
   const sinergia={}
   evsFilt.filter(e=>e.tipo==='Gol').forEach(gol=>{
@@ -1464,6 +1474,48 @@ function renderEstadisticas(){
         <table><thead><tr><th>Jugador</th><th>Pos</th><th class="num">A</th><th class="num">A/90</th></tr></thead><tbody>
         ${asistidores.slice(0,8).map((j,i)=>`<tr><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${jugApellido(j.id)}</td><td><span class="pos-${j.posicion}" style="font-size:8px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td><td class="num">${j.asist}</td><td class="num" style="color:var(--az);font-weight:800">${j.a90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias</td></tr>`}
         </tbody></table>
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:12px">
+      <div class="ph"><span class="pt">🔄 Cambios más recurrentes</span><span style="font-size:10px;color:var(--gris)">${topCambios.length} combinaciones</span></div>
+      <div class="pb">
+        ${topCambios.length?topCambios.slice(0,8).map((c,i)=>{
+          const jS=S.jugadores.find(x=>x.id===c.sid)
+          const jE=S.jugadores.find(x=>x.id===c.eid)
+          const apS=jugApellido(c.sid)
+          const apE=jugApellido(c.eid)
+          const maxN=topCambios[0].n
+          const pct=Math.round(c.n/maxN*100)
+          return`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(46,168,79,0.07)">
+            <div style="width:18px;text-align:right;font-size:9px;color:var(--muted)">${i+1}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:4px">
+                <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--borde2);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--ro)">
+                  ${jS?.foto_url?`<img src="${jS.foto_url}" style="width:100%;height:100%;object-fit:cover">`:(jS?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)}
+                </div>
+                <div style="min-width:0">
+                  <div style="font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:75px">${apS}</div>
+                  <div style="font-size:8px;color:var(--ro)">sale</div>
+                </div>
+              </div>
+              <div style="font-size:13px;color:var(--muted)">→</div>
+              <div style="display:flex;align-items:center;gap:4px">
+                <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--borde2);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--vc)">
+                  ${jE?.foto_url?`<img src="${jE.foto_url}" style="width:100%;height:100%;object-fit:cover">`:(jE?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)}
+                </div>
+                <div style="min-width:0">
+                  <div style="font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:75px">${apE}</div>
+                  <div style="font-size:8px;color:var(--vc)">entra</div>
+                </div>
+              </div>
+              <div style="flex:1;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;margin-left:4px"><div style="height:100%;width:${pct}%;background:var(--am);border-radius:2px"></div></div>
+            </div>
+            <div style="text-align:right;min-width:36px">
+              <div style="font-size:16px;font-weight:800;color:var(--am);line-height:1">${c.n}</div>
+              <div style="font-size:8px;color:var(--gris)">${c.n===1?'vez':'veces'}</div>
+            </div>
+          </div>`
+        }).join(''):`<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">Sin sustituciones registradas</div>`}
       </div>
     </div>
     <div class="panel" style="margin-bottom:12px">

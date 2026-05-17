@@ -1366,6 +1366,18 @@ function renderEstadisticas(){
   const topG90=[...statsJug].filter(j=>j.min>=90&&j.goles>0).sort((a,b)=>b.g90-a.g90)
   const disciplina=[...statsJug].filter(j=>j.amarillas>0||j.rojas>0).sort((a,b)=>(b.amarillas+b.rojas*3)-(a.amarillas+a.rojas*3))
 
+  // Sinergia: pares (asistidor → goleador) con más jugadas en conjunto
+  const sinergia={}
+  evsFilt.filter(e=>e.tipo==='Gol').forEach(gol=>{
+    const asist=evsFilt.find(e=>e.tipo==='Asistencia'&&e.partido_id===gol.partido_id&&e.minuto===gol.minuto)
+    if(!asist||asist.jugador_id===gol.jugador_id)return
+    const key=`${asist.jugador_id}_${gol.jugador_id}`
+    sinergia[key]=(sinergia[key]||0)+1
+  })
+  const topSinergia=Object.entries(sinergia)
+    .map(([k,n])=>{const[aid,gid]=k.split('_').map(Number);return{aid,gid,n}})
+    .sort((a,b)=>b.n-a.n)
+
   const cGol={};TIPOS_GOL.forEach(t=>cGol[t]=0)
   evsFilt.filter(e=>e.tipo==='Gol').forEach(e=>{if(e.subtipo)cGol[e.subtipo]=(cGol[e.subtipo]||0)+1})
   const totG=Math.max(1,Object.values(cGol).reduce((a,b)=>a+b,0))
@@ -1422,6 +1434,47 @@ function renderEstadisticas(){
         <table><thead><tr><th>Jugador</th><th>Pos</th><th class="num">A</th><th class="num">A/90</th></tr></thead><tbody>
         ${asistidores.slice(0,8).map((j,i)=>`<tr><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${jugApellido(j.id)}</td><td><span class="pos-${j.posicion}" style="font-size:8px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td><td class="num">${j.asist}</td><td class="num" style="color:var(--az);font-weight:800">${j.a90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias</td></tr>`}
         </tbody></table>
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:12px">
+      <div class="ph"><span class="pt">🤝 Sinergia — Parejas con más goles en conjunto</span><span style="font-size:10px;color:var(--gris)">${topSinergia.length} parejas</span></div>
+      <div class="pb">
+        ${topSinergia.length?topSinergia.slice(0,8).map((p,i)=>{
+          const maxN=topSinergia[0].n
+          const pct=Math.round(p.n/maxN*100)
+          const aAp=jugApellido(p.aid)
+          const gAp=jugApellido(p.gid)
+          const aJ=S.jugadores.find(x=>x.id===p.aid)
+          const gJ=S.jugadores.find(x=>x.id===p.gid)
+          return`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(46,168,79,0.07)">
+            <div style="width:18px;text-align:right;font-size:9px;color:var(--muted)">${i+1}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:4px">
+                <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--borde2);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--az)">
+                  ${aJ?.foto_url?`<img src="${aJ.foto_url}" style="width:100%;height:100%;object-fit:cover">`:(aJ?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)}
+                </div>
+                <div style="min-width:0">
+                  <div style="font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px">${aAp}</div>
+                  <div style="font-size:8px;color:var(--az)">🅰️ asistidor</div>
+                </div>
+              </div>
+              <div style="font-size:14px;color:var(--muted)">→</div>
+              <div style="display:flex;align-items:center;gap:4px">
+                <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--borde2);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--vc)">
+                  ${gJ?.foto_url?`<img src="${gJ.foto_url}" style="width:100%;height:100%;object-fit:cover">`:(gJ?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)}
+                </div>
+                <div style="min-width:0">
+                  <div style="font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px">${gAp}</div>
+                  <div style="font-size:8px;color:var(--vc)">⚽ goleador</div>
+                </div>
+              </div>
+            </div>
+            <div style="text-align:right;min-width:48px">
+              <div style="font-size:16px;font-weight:800;color:var(--vc);line-height:1">${p.n}</div>
+              <div style="font-size:8px;color:var(--gris)">${p.n===1?'jugada':'jugadas'}</div>
+            </div>
+          </div>`
+        }).join(''):`<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">Sin jugadas asistencia→gol registradas</div>`}
       </div>
     </div>
     <div class="g2">

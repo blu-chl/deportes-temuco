@@ -1,0 +1,186 @@
+DEPORTES TEMUCO 2026 — App de Gestión Deportiva
+Changelog: Alpha → v1.0
+================================================
+
+Aplicación web de gestión deportiva para Deportes Temuco, construida como
+archivo HTML único con JavaScript vanilla y base de datos Supabase.
+Diseñada para registro manual de partidos, estadísticas y seguimiento del plantel.
+
+
+════════════════════════════════════════════════
+  PLANTILLA
+════════════════════════════════════════════════
+
+- Tabla completa de jugadores con foto en primera columna
+- Datos extendidos por jugador: posición específica, edad, pie hábil, altura,
+  club de origen, contrato hasta, valor de mercado, nacionalidad, notas
+- Formato de valores con separadores de miles (ej: 5.000 en vez de 5000)
+- Selector de moneda para valores (€, $, £, CLP, R$, UF)
+- Panel de estadísticas generales del plantel:
+    · Edad promedio
+    · Valor total del plantel
+    · Conteo por posición (Porteros, Defensas, Mediocampistas, Delanteros)
+    · Promedio de altura
+    · Distribución por pie (diestros / zurdos)
+- Ordenamiento por 10 campos distintos con dirección ↑↓ (ascendente/descendente)
+- Filtros por estado (activos / lesionados / todos)
+- Sección de Cuerpo Técnico (DT y staff) con foto, rol y notas
+
+
+════════════════════════════════════════════════
+  REGISTRO DE PARTIDOS
+════════════════════════════════════════════════
+
+- Navegación entre partidos con flechas ← → (partido activo centrado,
+  anterior y siguiente atenuados a los lados)
+- Formación dinámica completamente personalizable:
+    · Input manual de formación (ej: 4-3-3, 5-3-2, 3-4-1-2)
+    · Más de 20 formaciones compatibles con 3, 4 y 5 defensas
+    · La cancha se dibuja automáticamente según la formación ingresada
+- Slots de jugadores en la cancha (tarjetas rectangulares):
+    · Fondo blanco con texto negro cuando está ocupado
+    · Número de dorsal visible en esquina superior izquierda
+    · Badge 🟡 (arriba-derecha) si el jugador recibió amarilla
+    · Badge ⚽ (abajo-derecha) si el jugador anotó un gol
+    · Badge 🔄 (abajo-izquierda) si el jugador fue sustituido
+    · Foto del jugador si está configurada en la plantilla
+- Registro de eventos haciendo clic directamente en el jugador de la cancha:
+    · Modal con 5 tipos de evento: Gol, Amarilla, Roja, Asistencia, Sustitución
+    · Selección de minuto, tipo de gol, asistidor y tipo de asistencia
+    · Bug corregido: el dropdown de asistidor ya no se vacía al seleccionarlo
+- Franja de sustituciones debajo de la cancha:
+    · Los suplentes aparecen dinámicamente cuando se registra una sustitución
+    · También muestran badges de 🟡 gol y 🔄 si aplica
+    · Clic en un suplente abre modal para registrar eventos
+- Lista de eventos del partido visible siempre (sin scroll interno),
+  con botón de edición y eliminación por evento
+- Guardado de formación con cálculo automático de minutaje
+- Cálculo correcto de minutaje para suplentes que también son sustituidos:
+    minutos reales = minuto de salida − minuto de entrada
+
+
+════════════════════════════════════════════════
+  ESTADÍSTICAS
+════════════════════════════════════════════════
+
+- Filtro por competencia (Todas / Primera B / Copa Chile)
+- Resumen general: goles/partido, porterías en 0, amarillas, rojas
+- Puntos como local y visita con desglose G/E/D
+- Goles por período (0-30, 31-60, 61'+):
+    · Conteo y porcentaje de goles por tramo
+    · Lista de goleadores de cada período con apellido y conteo
+- Goleadores con foto circular, posición, goles totales y ratio G/90
+- Asistidores con foto circular, posición, asistencias totales y ratio A/90
+- Panel 🔄 Cambios más recurrentes:
+    · Parejas (jugador que sale → jugador que entra) con más repeticiones
+    · Foto/iniciales, nombre y posición de ambos jugadores
+    · Barra proporcional y conteo de veces
+- Panel 🤝 Sinergia:
+    · Parejas asistidor → goleador con más jugadas en conjunto
+    · Foto/iniciales, nombre y posición de cada uno
+    · Conteo de jugadas compartidas
+- Minutaje por jugador:
+    · Solo muestra jugadores con minutos registrados
+    · Badge S21 en amarillo para jugadores Sub-21 (nacidos desde 2005)
+    · Total de minutos Sub-21 acumulados en el encabezado (con tope de
+      90 min por partido según reglamento Primera B)
+    · Meta: 1.890 minutos Sub-21 por temporada regular
+- Goles/Asistencias en últimos 10 minutos:
+    · Agrupado por jugador con foto, nombre, minutos en que anotó
+- Desglose de goles por tipo (pie derecho, cabeza, penal, etc.)
+- Rendimiento por formación:
+    · Partidos jugados, ganados, empatados, perdidos
+    · Eficiencia = (G×3 + E) / (PJ×3) en porcentaje (incluye empates)
+- Disciplina: tabla de jugadores con amarillas y rojas
+
+
+════════════════════════════════════════════════
+  NOTAS (BLOG POST-PARTIDO)
+════════════════════════════════════════════════
+
+- Pestaña 📝 Notas para escribir análisis y reflexiones post-partido
+- Cada nota incluye: fecha, partido de referencia (opcional), texto libre y firma
+- La firma del autor se recuerda automáticamente para futuras notas
+- Vista de lista: tarjetas con preview del texto, fecha y partido referenciado
+- Vista individual estilo blog: fecha destacada, texto en tipografía Georgia,
+  firma con estilo al pie de página
+- Las notas se guardan en Supabase (disponibles desde cualquier dispositivo)
+
+
+════════════════════════════════════════════════
+  MINUTAJE (tabla Supabase)
+════════════════════════════════════════════════
+
+- Tabla `minutaje` en Supabase con cálculo automático al guardar formación
+- Algoritmo corregido para suplentes que también son cambiados:
+    · El jugador que entra registra su minuto de entrada
+    · Al salir: sus minutos = minuto salida − minuto entrada
+    · Antes calculaba incorrectamente (ej: entraba 60', salía 74' → contaba 74')
+- Pestaña 🛠 Debug: vista de diagnóstico mostrando el minutaje exacto
+  por partido y por jugador, para verificar que los datos son correctos
+
+
+════════════════════════════════════════════════
+  MÓDULO MÉDICO
+════════════════════════════════════════════════
+
+- Registro de lesiones por jugador con tipo, fecha de inicio y semanas de recuperación
+- Vista de jugadores actualmente lesionados
+- Alta médica con un clic
+
+
+════════════════════════════════════════════════
+  CONFIGURACIÓN
+════════════════════════════════════════════════
+
+- Imagen de fondo personalizable (URL o archivo local)
+- Selector de moneda para valores del plantel
+- Tipos de gol editables (agregar / eliminar tipos personalizados)
+- Resumen del sistema (jugadores, partidos, eventos, lesiones)
+- Prueba de conexión a Supabase
+
+
+════════════════════════════════════════════════
+  INFRAESTRUCTURA TÉCNICA
+════════════════════════════════════════════════
+
+- Aplicación single-file HTML + JavaScript vanilla (sin frameworks)
+- Base de datos: Supabase (PostgreSQL) con autenticación por usuario
+- Tablas: jugadores, partidos, eventos, minutaje, lesiones, notas
+- Almacenamiento de fotos en Supabase Storage (bucket `jugadores`)
+- Desplegado en GitHub Pages
+- Diseño responsive adaptado para uso en escritorio y tablet
+- Modo oscuro por defecto con paleta de colores del club
+
+
+════════════════════════════════════════════════
+  BUGS CORREGIDOS EN ESTA VERSIÓN
+════════════════════════════════════════════════
+
+- Dropdown de asistidor se vaciaba al seleccionarlo en el modal de gol
+- Sustituciones desde el 11 inicial guardaban jugador_id y jugador_sale_id
+  invertidos (el que entraba quedaba como saliente y viceversa)
+- El minutaje de suplentes que luego eran cambiados contaba el minuto absoluto
+  de salida en vez de los minutos reales jugados
+- Al editar un evento, los cambios no se reflejaban en estadísticas porque
+  cargarDatos() no era llamado después de guardar
+- La página quedaba en blanco si guardarNota() no era async (await sin async)
+- [object Promise] aparecía en la pestaña Debug (renderDebug era async)
+- El selector de formación predeterminada sobreescribía la formación manual
+  al comenzar a escribir en el input
+
+
+════════════════════════════════════════════════
+  NOTAS PARA EL DESARROLLADOR
+════════════════════════════════════════════════
+
+- La tabla `minutaje` debe crearse manualmente en Supabase (ver SQL en README)
+- La tabla `notas` también requiere creación manual con RLS habilitado
+- El minutaje se recalcula automáticamente al hacer "Guardar formación"
+  en el apartado Registro; si un partido no tiene minutaje, ese botón
+  debe presionarse nuevamente
+- Los minutos Sub-21 se capean a 90 por partido incluso si hay múltiples
+  jugadores Sub-21 en cancha simultáneamente (según reglamento Primera B)
+
+
+v1.0 — Mayo 2026

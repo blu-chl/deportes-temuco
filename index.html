@@ -1412,10 +1412,13 @@ function renderEstadisticas(){
     const asist=evsFilt.find(e=>e.tipo==='Asistencia'&&e.partido_id===gol.partido_id&&e.minuto===gol.minuto)
     if(!asist||asist.jugador_id===gol.jugador_id)return
     const key=`${asist.jugador_id}_${gol.jugador_id}`
-    sinergia[key]=(sinergia[key]||0)+1
+    if(!sinergia[key])sinergia[key]={n:0,tipos:{}}
+    sinergia[key].n++
+    const t=asist.subtipo||'Sin tipo'
+    sinergia[key].tipos[t]=(sinergia[key].tipos[t]||0)+1
   })
   const topSinergia=Object.entries(sinergia)
-    .map(([k,n])=>{const[aid,gid]=k.split('_').map(Number);return{aid,gid,n}})
+    .map(([k,v])=>{const[aid,gid]=k.split('_').map(Number);return{aid,gid,n:v.n,tipos:v.tipos}})
     .sort((a,b)=>b.n-a.n)
 
   const cGol={};TIPOS_GOL.forEach(t=>cGol[t]=0)
@@ -1644,7 +1647,10 @@ function renderEstadisticas(){
                   <div style="font-size:8px;color:var(--az)">🅰️ asistidor</div>
                 </div>
               </div>
-              <div style="font-size:9px;font-weight:700;color:var(--az);padding:0 4px;text-align:center;white-space:nowrap">asiste<br>a</div>
+              <div style="padding:0 4px;text-align:center;flex-shrink:0">
+                <div style="font-size:9px;font-weight:700;color:var(--az);white-space:nowrap">asiste a</div>
+                ${Object.entries(p.tipos||{}).sort((a,b)=>b[1]-a[1]).map(([t,c])=>`<div style="font-size:7px;color:var(--gris);white-space:nowrap;margin-top:1px">${t}${c>1?` ×${c}`:''}</div>`).join('')}
+              </div>
               <div style="display:flex;align-items:center;gap:4px">
                 <div style="width:28px;height:28px;border-radius:50%;border:1px solid var(--borde2);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--vc)">
                   ${gJ?.foto_url?`<img src="${gJ.foto_url}" style="width:100%;height:100%;object-fit:cover">`:(gJ?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)}

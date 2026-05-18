@@ -1506,7 +1506,7 @@ function renderEstadisticas(){
             const jj=S.jugadores.find(x=>x.id===+id)
             const pos=jj?.posicion
             const posL=pos==='Delantero'?'DL':pos==='Mediocampista'?'MC':pos==='Defensa'?'DF':pos==='Portero'?'PT':''
-            return`<div style="font-size:9px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${jugApellido(+id)}${posL?` <span style="color:var(--gris);font-size:8px">${posL}</span>`:''}${cnt>1?` (${cnt})`:''}</div>`
+            return`<div style="font-size:9px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="color:var(--gris);font-size:8px">${posL}</span>`:''}${cnt>1?` (${cnt})`:''}</div>`
           }).join('')
           return`<div style="text-align:center;padding:8px;background:rgba(0,0,0,.2);border-radius:6px">
             <div style="font-size:22px;font-weight:800;color:${color}">${n}</div>
@@ -1543,7 +1543,16 @@ function renderEstadisticas(){
             const k=`${pS} por ${pE}`
             grpMap[k]=(grpMap[k]||0)+c.n
           })
-          const grpHtml=Object.entries(grpMap).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<span style="font-size:9px;background:rgba(255,255,255,0.07);border-radius:4px;padding:2px 7px;white-space:nowrap">${k}: <strong style="color:var(--am)">${n}x</strong></span>`).join('')
+          const grpEntries=Object.entries(grpMap).sort((a,b)=>b[1]-a[1])
+          const grpHtml=`<div style="margin-bottom:12px">
+            <div style="font-size:9px;color:var(--am);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-bottom:6px">¿Qué se cambia más?</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px">
+              ${grpEntries.map(([k,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.05);border-radius:5px;padding:4px 8px">
+                <span style="font-size:9px;color:var(--blanco)">${k}</span>
+                <strong style="font-size:11px;color:var(--am);margin-left:6px">${n}x</strong>
+              </div>`).join('')}
+            </div>
+          </div>`
           const listHtml=topCambios.map((c,i)=>{
           const jS=S.jugadores.find(x=>x.id===c.sid)
           const jE=S.jugadores.find(x=>x.id===c.eid)
@@ -1583,7 +1592,7 @@ function renderEstadisticas(){
             </div>
           </div>`
           }).join('')
-          return`<div style="display:flex;flex-wrap:wrap;gap:5px;padding:4px 0 10px;border-bottom:1px solid rgba(46,168,79,0.12);margin-bottom:4px">${grpHtml}</div>${listHtml}`
+          return`${grpHtml}${listHtml}`
         })():`<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">Sin sustituciones registradas</div>`}
       </div>
     </div>
@@ -1600,7 +1609,16 @@ function renderEstadisticas(){
             const k=`${pA} → ${pG}`
             sGrpMap[k]=(sGrpMap[k]||0)+p2.n
           })
-          const sGrpHtml=Object.entries(sGrpMap).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<span style="font-size:9px;background:rgba(255,255,255,0.07);border-radius:4px;padding:2px 7px;white-space:nowrap">${k}: <strong style="color:var(--vc)">${n}x</strong></span>`).join('')
+          const sGrpEntries=Object.entries(sGrpMap).sort((a,b)=>b[1]-a[1])
+          const sGrpHtml=`<div style="margin-bottom:12px">
+            <div style="font-size:9px;color:var(--vc);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-bottom:6px">¿Qué posición asiste más a quién?</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:4px">
+              ${sGrpEntries.map(([k,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.05);border-radius:5px;padding:4px 8px">
+                <span style="font-size:9px;color:var(--blanco)">${k}</span>
+                <strong style="font-size:11px;color:var(--vc);margin-left:6px">${n}x</strong>
+              </div>`).join('')}
+            </div>
+          </div>`
           const sinListHtml=topSinergia.map((p,i)=>{
           const maxN=topSinergia[0].n
           const pct=Math.round(p.n/maxN*100)
@@ -1639,7 +1657,7 @@ function renderEstadisticas(){
             </div>
           </div>`
           }).join('')
-          return`<div style="display:flex;flex-wrap:wrap;gap:5px;padding:4px 0 10px;border-bottom:1px solid rgba(46,168,79,0.12);margin-bottom:4px">${sGrpHtml}</div>${sinListHtml}`
+          return`${sGrpHtml}${sinListHtml}`
         })():`<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">Sin jugadas asistencia→gol registradas</div>`}
       </div>
     </div>
@@ -1702,7 +1720,25 @@ function renderEstadisticas(){
     <div class="panel">
       <div class="ph"><span class="pt">Desglose de goles</span></div>
       <div class="pb"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
-        ${TIPOS_GOL.map(t=>{const pct=Math.round((cGol[t]||0)/totG*100);return`<div class="mc"><div class="mc-l">${t}</div><div class="mc-v" style="font-size:20px">${cGol[t]||0}</div><div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div><div class="mc-s">${pct}%</div></div>`}).join('')}
+        ${TIPOS_GOL.map(t=>{
+          const n=cGol[t]||0
+          const pct=Math.round(n/totG*100)
+          const tipoEvs=evsFilt.filter(e=>e.tipo==='Gol'&&e.subtipo===t)
+          const tMap={};tipoEvs.forEach(e=>{tMap[e.jugador_id]=(tMap[e.jugador_id]||0)+1})
+          const sList=Object.entries(tMap).sort((a,b)=>b[1]-a[1]).map(([id,cnt])=>{
+            const jj=S.jugadores.find(x=>x.id===+id)
+            const pos=jj?.posicion
+            const posL=pos==='Delantero'?'DL':pos==='Mediocampista'?'MC':pos==='Defensa'?'DF':pos==='Portero'?'PT':''
+            return`<div style="font-size:8px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="color:var(--gris)">${posL}</span>`:''}${cnt>1?` (${cnt})`:''}</div>`
+          }).join('')
+          return`<div class="mc" style="align-items:flex-start">
+            <div class="mc-l">${t}</div>
+            <div class="mc-v" style="font-size:20px">${n}</div>
+            <div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div>
+            <div class="mc-s">${pct}%</div>
+            ${sList?`<div style="margin-top:5px;text-align:left;width:100%;border-top:1px solid rgba(255,255,255,0.07);padding-top:4px">${sList}</div>`:''}
+          </div>`
+        }).join('')}
       </div></div>
     </div>
     ${(()=>{

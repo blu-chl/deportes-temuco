@@ -1544,7 +1544,7 @@ function renderEstadisticas(){
             grpMap[k]=(grpMap[k]||0)+c.n
           })
           const grpHtml=Object.entries(grpMap).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<span style="font-size:9px;background:rgba(255,255,255,0.07);border-radius:4px;padding:2px 7px;white-space:nowrap">${k}: <strong style="color:var(--am)">${n}x</strong></span>`).join('')
-          const listHtml=topCambios.slice(0,8).map((c,i)=>{
+          const listHtml=topCambios.map((c,i)=>{
           const jS=S.jugadores.find(x=>x.id===c.sid)
           const jE=S.jugadores.find(x=>x.id===c.eid)
           const apS=jugApellido(c.sid)
@@ -1601,7 +1601,7 @@ function renderEstadisticas(){
             sGrpMap[k]=(sGrpMap[k]||0)+p2.n
           })
           const sGrpHtml=Object.entries(sGrpMap).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<span style="font-size:9px;background:rgba(255,255,255,0.07);border-radius:4px;padding:2px 7px;white-space:nowrap">${k}: <strong style="color:var(--vc)">${n}x</strong></span>`).join('')
-          const sinListHtml=topSinergia.slice(0,8).map((p,i)=>{
+          const sinListHtml=topSinergia.map((p,i)=>{
           const maxN=topSinergia[0].n
           const pct=Math.round(p.n/maxN*100)
           const aAp=jugApellido(p.aid)

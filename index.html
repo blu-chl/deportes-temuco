@@ -1683,15 +1683,21 @@ function renderEstadisticas(){
         ${(()=>{
           const minJugs=[...statsJug].filter(j=>j.min>0).sort((a,b)=>b.min-a.min)
           const maxMin=Math.max(1,...minJugs.map(j=>j.min))
-          return minJugs.map((j,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(46,168,79,0.07)">
+          return minJugs.map((j,i)=>{
+            const pj=S.minutaje.filter(m=>pidsFilt.has(m.partido_id)&&m.jugador_id===j.id).length
+            return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(46,168,79,0.07)">
             <div style="width:18px;text-align:right;font-size:9px;color:var(--muted)">${i+1}</div>
             <div style="flex:1;min-width:0">
               <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${jugApellido(j.id)}${j.edad<=21?`<span style="font-size:7px;background:rgba(232,184,75,0.25);color:var(--am);border-radius:3px;padding:0 3px;font-weight:700;margin-left:3px">S21</span>`:''}</div>
               <div style="height:3px;background:rgba(255,255,255,0.08);border-radius:2px;margin-top:3px"><div style="height:100%;background:var(--vc);border-radius:2px;width:${Math.round(j.min/maxMin*100)}%"></div></div>
             </div>
             <span class="pos-${j.posicion}" style="font-size:7px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span>
-            <div style="font-size:12px;font-weight:800;color:var(--vc);min-width:36px;text-align:right">${j.min}'</div>
-          </div>`).join('')
+            <div style="text-align:right;min-width:52px">
+              <div style="font-size:12px;font-weight:800;color:var(--vc)">${j.min}'</div>
+              <div style="font-size:8px;color:var(--gris)">${pj} ${pj===1?'partido':'partidos'}</div>
+            </div>
+          </div>`
+          }).join('')
         })()}
       </div>
     </div>

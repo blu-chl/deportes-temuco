@@ -300,6 +300,7 @@ let S={
   notaVer:null,
   slotEvPanel:null,
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
+  visitante:false,
   bgImage:localStorage.getItem('dt-bg')||'',
 }
 
@@ -376,7 +377,16 @@ async function doLogin(){
 }
 
 function doLogout(){AUTH_TOKEN=SB_KEY;S.pag='login';render()}
-function navTo(p){S.pag=p;render()}
+function navTo(p){
+  const adminTabs=['registro','notas','medico','debug','config']
+  if(S.visitante&&adminTabs.includes(p))p='estadisticas'
+  S.pag=p;render()
+}
+function toggleVisitante(){
+  S.visitante=!S.visitante
+  if(S.visitante){const adminTabs=['registro','notas','medico','debug','config'];if(adminTabs.includes(S.pag))S.pag='estadisticas'}
+  render()
+}
 
 function renderHdr(){
   const s=calcHdr()
@@ -384,22 +394,27 @@ function renderHdr(){
     <div class="logo"><div class="esc">DT</div><div class="lt"><h1>Deportes Temuco</h1><p>Temporada 2026</p></div></div>
     <div class="hstats">
       <div class="hs"><div class="hs-v">${s.pts}</div><div class="hs-l">Pts</div></div>
-      <div class="hs"><div class="hs-v">${s.pg}</div><div class="hs-l">G</div></div>
+      <div class="hs"><div class="hs-v">${s.pg}</div><div class="hs-l">⚽</div></div>
       <div class="hs"><div class="hs-v">${s.pe}</div><div class="hs-l">E</div></div>
       <div class="hs"><div class="hs-v">${s.pp}</div><div class="hs-l">D</div></div>
       <div class="hs"><div class="hs-v">${s.gf}</div><div class="hs-l">GF</div></div>
       <div class="hs"><div class="hs-v">${s.gc}</div><div class="hs-l">GC</div></div>
     </div>
-    <button class="bsm" onclick="doLogout()">Salir</button>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="bsm" style="${S.visitante?'background:rgba(46,168,79,0.25);border-color:var(--vc);color:var(--vc)':''}" onclick="toggleVisitante()" title="${S.visitante?'Salir del modo visitante':'Ver como visitante (solo lectura)'}">${S.visitante?'👁 Visitante':'👁 Vista'}</button>
+      ${!S.visitante?`<button class="bsm" onclick="doLogout()">Salir</button>`:''}
+    </div>
   </div>`
 }
 
 function renderNav(){
-  return`<nav>${[
+  const allTabs=[
     {id:'registro',l:'Registro'},{id:'plantilla',l:'Plantilla'},
     {id:'partidos',l:'Partidos'},{id:'estadisticas',l:'Estadísticas'},
     {id:'notas',l:'📝 Notas'},{id:'medico',l:'Médico'},{id:'debug',l:'🛠 Debug'},{id:'config',l:'⚙ Config'}
-  ].map(t=>`<button class="nb ${S.pag===t.id?'on':''}" onclick="navTo('${t.id}')">${t.l}</button>`).join('')}</nav>`
+  ]
+  const tabs=S.visitante?allTabs.filter(t=>['estadisticas','partidos','plantilla'].includes(t.id)):allTabs
+  return`<nav>${tabs.map(t=>`<button class="nb ${S.pag===t.id?'on':''}" onclick="navTo('${t.id}')">${t.l}</button>`).join('')}</nav>`
 }
 
 // ===== MODALES =====
@@ -1221,7 +1236,7 @@ function renderPlantilla(){
       <td class="center">${fmtValor(j.valor)}</td>
       <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--gris);font-size:10px">${j.notas||''}</td>
       <td class="center"><span class="badge ${les?'br':'bv'}">${les?'Lesionado':'OK'}</span></td>
-      <td class="center"><button class="bsm" style="padding:2px 7px;font-size:9px" onclick="abrirEditarJugador(${j.id})">✏️</button></td>
+      ${!S.visitante?`<td class="center"><button class="bsm" style="padding:2px 7px;font-size:9px" onclick="abrirEditarJugador(${j.id})">✏️</button></td>`:'<td></td>'}
     </tr>`
   }).join('')
 
@@ -1289,7 +1304,7 @@ function renderPlantilla(){
     ${statsPanel}
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div>${sortControls}${filterControls}</div>
-      <button class="bsm" onclick="S.addJugShow=!S.addJugShow;render()">+ Jugador</button>
+      ${!S.visitante?`<button class="bsm" onclick="S.addJugShow=!S.addJugShow;render()">+ Jugador</button>`:''}
     </div>
     ${addForm}
     ${lista.length?`<div style="overflow-x:auto"><table>
@@ -1351,7 +1366,7 @@ function renderPartidos(){
         <span class="badge ${p.condicion==='Local'?'baz':'bg'}" style="font-size:8px;flex-shrink:0">${p.condicion==='Local'?'L':'V'}</span>
         <span class="badge bg" style="font-size:8px;flex-shrink:0">${p.competencia==='Primera B'?'1B':'CC'}</span>
         <span style="font-size:9px;color:var(--gris);white-space:nowrap;flex-shrink:0">${p.fecha}</span>
-        <button class="bsm" style="padding:2px 6px;font-size:9px;flex-shrink:0" onclick="abrirEditarPartido(${p.id})">✏️</button>
+        ${!S.visitante?`<button class="bsm" style="padding:2px 6px;font-size:9px;flex-shrink:0" onclick="abrirEditarPartido(${p.id})">✏️</button>`:''}
       </div>
     </div>`
   }).join('')
@@ -1450,8 +1465,8 @@ function renderEstadisticas(){
       <div class="mc ro"><div class="mc-l">Rojas</div><div class="mc-v">${tr}</div></div>
     </div>
     <div class="g2">
-      <div class="mc az"><div class="mc-l">Pts Local (${locales.length} partidos)</div><div class="mc-v">${locPts}</div><div class="mc-s">${locales.filter(p=>p.goles_favor>p.goles_contra).length}G ${locales.filter(p=>p.goles_favor===p.goles_contra).length}E ${locales.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
-      <div class="mc"><div class="mc-l">Pts Visita (${visitas.length} partidos)</div><div class="mc-v">${visPts}</div><div class="mc-s">${visitas.filter(p=>p.goles_favor>p.goles_contra).length}G ${visitas.filter(p=>p.goles_favor===p.goles_contra).length}E ${visitas.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
+      <div class="mc az"><div class="mc-l">Pts Local (${locales.length} partidos)</div><div class="mc-v">${locPts}</div><div class="mc-s">${locales.filter(p=>p.goles_favor>p.goles_contra).length}⚽ ${locales.filter(p=>p.goles_favor===p.goles_contra).length}E ${locales.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
+      <div class="mc"><div class="mc-l">Pts Visita (${visitas.length} partidos)</div><div class="mc-v">${visPts}</div><div class="mc-s">${visitas.filter(p=>p.goles_favor>p.goles_contra).length}⚽ ${visitas.filter(p=>p.goles_favor===p.goles_contra).length}E ${visitas.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
     </div>
     ${(()=>{
       const ult5=[...partsFilt].slice(-5).reverse()
@@ -1492,7 +1507,7 @@ function renderEstadisticas(){
               <div style="font-size:8px;color:var(--gris)">Goles C.</div>
             </div>
             <div style="text-align:center;padding:6px;background:rgba(0,0,0,.15);border-radius:5px">
-              <div style="font-size:13px;font-weight:800;color:var(--blanco)">${u5g}G ${u5e}E ${u5d}D</div>
+              <div style="font-size:13px;font-weight:800;color:var(--blanco)">${u5g}⚽ ${u5e}E ${u5d}D</div>
               <div style="font-size:8px;color:var(--gris)">G / E / D</div>
             </div>
             <div style="text-align:center;padding:6px;background:rgba(0,0,0,.15);border-radius:5px">
@@ -1528,7 +1543,7 @@ function renderEstadisticas(){
     </div>
     <div class="g2">
       <div class="panel"><div class="ph"><span class="pt">Goleadores</span></div>
-        <table><thead><tr><th></th><th>Jugador</th><th>Pos</th><th class="num">G</th><th class="num">G/90</th></tr></thead><tbody>
+        <table><thead><tr><th></th><th>Jugador</th><th>Pos</th><th class="num">⚽</th><th class="num">⚽/90</th></tr></thead><tbody>
         ${goleadores.slice(0,8).map((j,i)=>`<tr><td><div style="width:24px;height:24px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800">${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:j.nombre.split(' ').map(w=>w[0]).join('').slice(0,2)}</div></td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${jugApellido(j.id)}</td><td><span class="pos-${j.posicion}" style="font-size:8px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td><td class="num">${j.goles}</td><td class="num" style="color:var(--vc);font-weight:800">${j.g90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="5" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
         </tbody></table>
       </div>
@@ -1772,7 +1787,7 @@ function renderEstadisticas(){
       if(!fst.length)return''
       return`<div class="panel">
         <div class="ph"><span class="pt">Rendimiento por formación</span></div>
-        <table><thead><tr><th>Formación</th><th class="center">PJ</th><th class="center">G</th><th class="center">E</th><th class="center">D</th><th class="num">Efic.</th></tr></thead><tbody>
+        <table><thead><tr><th>Formación</th><th class="center">PJ</th><th class="center">⚽</th><th class="center">E</th><th class="center">D</th><th class="num">Efic.</th></tr></thead><tbody>
         ${fst.map(f=>{const pv=Math.round((f.g*3+f.e)/(f.pj*3)*100);return`<tr>
           <td><span class="badge bg">${f.f}</span></td>
           <td class="center">${f.pj}</td>

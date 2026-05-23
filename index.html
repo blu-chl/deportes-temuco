@@ -1453,6 +1453,9 @@ function renderEstadisticas(){
   const cGol={};TIPOS_GOL.forEach(t=>cGol[t]=0)
   evsFilt.filter(e=>e.tipo==='Gol').forEach(e=>{if(e.subtipo)cGol[e.subtipo]=(cGol[e.subtipo]||0)+1})
   const totG=Math.max(1,Object.values(cGol).reduce((a,b)=>a+b,0))
+  const cAsist={};TIPOS_ASIST.forEach(t=>cAsist[t]=0)
+  evsFilt.filter(e=>e.tipo==='Asistencia').forEach(e=>{if(e.subtipo)cAsist[e.subtipo]=(cAsist[e.subtipo]||0)+1})
+  const totA=Math.max(1,Object.values(cAsist).reduce((a,b)=>a+b,0))
   const gf=partsFilt.reduce((a,p)=>a+p.goles_favor,0)
   const ta=evsFilt.filter(e=>e.tipo==='Amarilla').length
   const tr=evsFilt.filter(e=>e.tipo==='Roja').length
@@ -1785,12 +1788,48 @@ function renderEstadisticas(){
             const jj=S.jugadores.find(x=>x.id===+id)
             const pos=jj?.posicion
             const posL=pos==='Delantero'?'DL':pos==='Mediocampista'?'MC':pos==='Defensa'?'DF':pos==='Portero'?'PT':''
-            return`<div style="font-size:8px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="color:var(--gris)">${posL}</span>`:''}${cnt>1?` (${cnt})`:''}</div>`
+            const ini=(jj?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)
+            return`<div style="display:flex;align-items:center;gap:4px;padding:2px 0;border-top:1px solid rgba(255,255,255,0.06)">
+              <div style="width:18px;height:18px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:800;flex-shrink:0">
+                ${jj?.foto_url?`<img src="${jj.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
+              </div>
+              <div style="font-size:8px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="color:var(--gris)">${posL}</span>`:''}${cnt>1?` <strong style="color:var(--vc)">(${cnt})</strong>`:''}</div>
+            </div>`
           }).join('')
           return`<div class="mc" style="align-items:flex-start">
             <div class="mc-l">${t}</div>
             <div class="mc-v" style="font-size:20px">${n}</div>
             <div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div>
+            <div class="mc-s">${pct}%</div>
+            ${sList?`<div style="margin-top:5px;text-align:left;width:100%;border-top:1px solid rgba(255,255,255,0.07);padding-top:4px">${sList}</div>`:''}
+          </div>`
+        }).join('')}
+      </div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">Desglose de asistencias</span></div>
+      <div class="pb"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
+        ${TIPOS_ASIST.map(t=>{
+          const n=cAsist[t]||0
+          const pct=Math.round(n/totA*100)
+          const tipoEvs=evsFilt.filter(e=>e.tipo==='Asistencia'&&e.subtipo===t)
+          const tMap={};tipoEvs.forEach(e=>{tMap[e.jugador_id]=(tMap[e.jugador_id]||0)+1})
+          const sList=Object.entries(tMap).sort((a,b)=>b[1]-a[1]).map(([id,cnt])=>{
+            const jj=S.jugadores.find(x=>x.id===+id)
+            const pos=jj?.posicion
+            const posL=pos==='Delantero'?'DL':pos==='Mediocampista'?'MC':pos==='Defensa'?'DF':pos==='Portero'?'PT':''
+            const ini=(jj?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)
+            return`<div style="display:flex;align-items:center;gap:4px;padding:2px 0;border-top:1px solid rgba(255,255,255,0.06)">
+              <div style="width:18px;height:18px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:800;flex-shrink:0">
+                ${jj?.foto_url?`<img src="${jj.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
+              </div>
+              <div style="font-size:8px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="color:var(--gris)">${posL}</span>`:''}${cnt>1?` <strong style="color:var(--az)">(${cnt})</strong>`:''}</div>
+            </div>`
+          }).join('')
+          return`<div class="mc" style="align-items:flex-start">
+            <div class="mc-l">${t}</div>
+            <div class="mc-v" style="font-size:20px">${n}</div>
+            <div class="bar-w"><div class="bar-f" style="width:${pct}%;background:var(--az)"></div></div>
             <div class="mc-s">${pct}%</div>
             ${sList?`<div style="margin-top:5px;text-align:left;width:100%;border-top:1px solid rgba(255,255,255,0.07);padding-top:4px">${sList}</div>`:''}
           </div>`

@@ -370,6 +370,8 @@ function renderLogin(){
 async function entrarVisitante(){
   S.visitante=true;S.pag='estadisticas'
   await cargarDatos()
+  if(S.jugadores.length&&!S.minutaje.length)
+    toast('Los ratios ⚽/90 y 🅰️/90 requieren habilitar lectura anónima en la tabla minutaje de Supabase')
   render()
 }
 
@@ -1541,7 +1543,17 @@ function renderEstadisticas(){
             const jj=S.jugadores.find(x=>x.id===+id)
             const pos=jj?.posicion
             const posL=pos==='Delantero'?'DL':pos==='Mediocampista'?'MC':pos==='Defensa'?'DF':pos==='Portero'?'PT':''
-            return`<div style="font-size:9px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="color:var(--gris);font-size:8px">${posL}</span>`:''}${cnt>1?` (${cnt})`:''}</div>`
+            const ini=(jj?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)
+            const mins=evsPer.filter(e=>e.jugador_id===+id).map(e=>e.minuto+"'").join(' ')
+            return`<div style="display:flex;align-items:center;gap:4px;padding:3px 0;border-top:1px solid rgba(255,255,255,0.06)">
+              <div style="width:20px;height:20px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;flex-shrink:0">
+                ${jj?.foto_url?`<img src="${jj.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:8px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="color:var(--gris)">${posL}</span>`:''}</div>
+                <div style="font-size:7px;color:${color};margin-top:1px;white-space:nowrap">${mins}</div>
+              </div>
+            </div>`
           }).join('')
           return`<div style="text-align:center;padding:8px;background:rgba(0,0,0,.2);border-radius:6px">
             <div style="font-size:22px;font-weight:800;color:${color}">${n}</div>
@@ -1556,12 +1568,12 @@ function renderEstadisticas(){
     <div class="g2">
       <div class="panel"><div class="ph"><span class="pt">Goleadores</span></div>
         <table><thead><tr><th></th><th>Jugador</th><th>Pos</th><th class="num">⚽</th><th class="num">⚽/90</th></tr></thead><tbody>
-        ${goleadores.slice(0,8).map((j,i)=>`<tr><td><div style="width:24px;height:24px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800">${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:j.nombre.split(' ').map(w=>w[0]).join('').slice(0,2)}</div></td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${jugApellido(j.id)}</td><td><span class="pos-${j.posicion}" style="font-size:8px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td><td class="num">${j.goles}</td><td class="num" style="color:var(--vc);font-weight:800">${j.g90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="5" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
+        ${goleadores.slice(0,8).map((j,i)=>`<tr><td><div style="width:24px;height:24px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800">${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:j.nombre.split(' ').map(w=>w[0]).join('').slice(0,2)}</div></td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${jugApellido(j.id)}</td><td><span class="pos-${j.posicion}" style="font-size:8px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td><td class="num">${j.goles}</td><td class="num" style="color:var(--vc);font-weight:800">${j.min>0?j.g90.toFixed(2):'—'}</td></tr>`).join('')||`<tr><td colspan="5" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
         </tbody></table>
       </div>
       <div class="panel"><div class="ph"><span class="pt">Asistidores</span></div>
         <table><thead><tr><th></th><th>Jugador</th><th>Pos</th><th class="num">🅰️</th><th class="num">🅰️/90</th></tr></thead><tbody>
-        ${asistidores.slice(0,8).map((j,i)=>`<tr><td><div style="width:24px;height:24px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800">${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:j.nombre.split(' ').map(w=>w[0]).join('').slice(0,2)}</div></td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${jugApellido(j.id)}</td><td><span class="pos-${j.posicion}" style="font-size:8px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td><td class="num">${j.asist}</td><td class="num" style="color:var(--az);font-weight:800">${j.a90.toFixed(2)}</td></tr>`).join('')||`<tr><td colspan="5" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias</td></tr>`}
+        ${asistidores.slice(0,8).map((j,i)=>`<tr><td><div style="width:24px;height:24px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800">${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:j.nombre.split(' ').map(w=>w[0]).join('').slice(0,2)}</div></td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${jugApellido(j.id)}</td><td><span class="pos-${j.posicion}" style="font-size:8px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td><td class="num">${j.asist}</td><td class="num" style="color:var(--az);font-weight:800">${j.min>0?j.a90.toFixed(2):'—'}</td></tr>`).join('')||`<tr><td colspan="5" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias</td></tr>`}
         </tbody></table>
       </div>
     </div>

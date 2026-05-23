@@ -211,7 +211,6 @@ function aplicarFormacionCustom(){
   if(!parsed){toast('Debe sumar 10 (ej: 4-3-3, 3-4-1-2)',true);return}
   FORMACIONES[str]=parsed
   S.formacion=str
-  S.titulares=[]
   // Guardar formaciones custom en localStorage
   const customs=JSON.parse(localStorage.getItem('dt-formaciones')||'{}')
   customs[str]=parsed

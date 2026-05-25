@@ -937,7 +937,7 @@ function renderRegistro(){
     const res=p.goles_favor>p.goles_contra?'W':p.goles_favor===p.goles_contra?'D':'L'
     const rb=res==='W'?'bv':res==='D'?'ba':'br'
     const bc=res==='W'?'var(--vc)':res==='D'?'var(--am)':'var(--ro)'
-    return`<div onclick="selPartido(${p.id})" style="min-width:140px;flex-shrink:0;background:${pid===p.id?'rgba(46,168,79,0.08)':'rgba(255,255,255,0.03)'};border:1px solid ${pid===p.id?'var(--vc)':'var(--borde)'};border-left:3px solid ${bc};border-radius:8px;padding:8px 10px;cursor:pointer;transition:border-color .15s;position:relative">
+    return`<div onclick="selPartido(${p.id})" ${pid===p.id?'id="partido-activo"':''} style="min-width:140px;flex-shrink:0;background:${pid===p.id?'rgba(46,168,79,0.08)':'rgba(255,255,255,0.03)'};border:1px solid ${pid===p.id?'var(--vc)':'var(--borde)'};border-left:3px solid ${bc};border-radius:8px;padding:8px 10px;cursor:pointer;transition:border-color .15s;position:relative">
       <div style="font-size:9px;color:var(--gris);margin-bottom:2px">${p.fecha} · ${p.condicion[0]}</div>
       <div style="font-size:12px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">vs ${p.rival}</div>
       <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
@@ -1005,35 +1005,9 @@ function renderRegistro(){
       </div>
       <div style="padding:10px 14px">
         ${npForm}
-        ${S.partidos.length?(()=>{
-          const ordenados=[...S.partidos].reverse()
-          const idx=pid?ordenados.findIndex(p=>p.id===pid):0
-          const cur=ordenados[idx]
-          const prev=ordenados[idx+1]
-          const next=ordenados[idx-1]
-          const card=(p,small=false)=>{
-            if(!p)return`<div style="width:${small?'80px':'180px'};flex-shrink:0"></div>`
-            const res=p.goles_favor>p.goles_contra?'W':p.goles_favor===p.goles_contra?'D':'L'
-            const bc=res==='W'?'var(--vc)':res==='D'?'var(--am)':'var(--ro)'
-            const active=p.id===pid
-            return`<div onclick="selPartido(${p.id})" style="flex-shrink:0;width:${small?'80px':'180px'};background:${active?'rgba(46,168,79,0.1)':'rgba(255,255,255,0.03)'};border:1px solid ${active?'var(--vc)':'var(--borde)'};border-left:3px solid ${bc};border-radius:8px;padding:${small?'6px 8px':'9px 12px'};cursor:pointer;opacity:${small?'0.55':'1'};transition:all .15s;position:relative">
-              <div style="font-size:9px;color:var(--gris);margin-bottom:2px">${p.fecha} · ${p.condicion[0]}</div>
-              <div style="font-size:${small?'10px':'12px'};font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">vs ${p.rival}</div>
-              ${!small?`<div style="display:flex;align-items:center;gap:4px;margin-top:3px">
-                <span style="font-size:14px;font-weight:800;color:${bc}">${p.goles_favor}–${p.goles_contra}</span>
-                ${p.formacion?`<span class="badge bg" style="font-size:7px">${p.formacion}</span>`:''}
-              </div>`:`<div style="font-size:11px;font-weight:800;color:${bc};margin-top:2px">${p.goles_favor}–${p.goles_contra}</div>`}
-              ${!small?`<button onclick="event.stopPropagation();abrirEditarPartido(${p.id})" style="position:absolute;top:6px;right:6px;background:transparent;border:none;color:var(--gris);font-size:11px;cursor:pointer;padding:2px">✏️</button>`:''}
-            </div>`
-          }
-          return`<div style="display:flex;align-items:center;gap:8px;justify-content:center">
-            <button onclick="${prev?`selPartido(${prev.id})`:'void(0)'}" style="background:transparent;border:1px solid var(--borde);border-radius:50%;width:32px;height:32px;color:${prev?'var(--blanco)':'var(--muted)'};font-size:16px;cursor:${prev?'pointer':'default'};flex-shrink:0;display:flex;align-items:center;justify-content:center">‹</button>
-            ${card(prev,true)}
-            ${card(cur,false)}
-            ${card(next,true)}
-            <button onclick="${next?`selPartido(${next.id})`:'void(0)'}" style="background:transparent;border:1px solid var(--borde);border-radius:50%;width:32px;height:32px;color:${next?'var(--blanco)':'var(--muted)'};font-size:16px;cursor:${next?'pointer':'default'};flex-shrink:0;display:flex;align-items:center;justify-content:center">›</button>
-          </div>`
-        })():'<div class="empty" style="padding:12px">Sin partidos. Crea uno con + Nuevo.</div>'}
+        ${S.partidos.length
+          ?`<div id="reg-scroll" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scroll-behavior:smooth">${listaP}</div>`
+          :'<div class="empty" style="padding:12px">Sin partidos. Crea uno con + Nuevo.</div>'}
       </div>
     </div>
     ${pid?`
@@ -2254,6 +2228,11 @@ function render(){
     S.pag==='config'?renderConfig():
     renderMedico()
   }</div>`
+  // Scroll automático al partido activo en Registro
+  if(S.pag==='registro'){
+    const el=document.getElementById('partido-activo')
+    if(el)el.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'})
+  }
 }
 
 applyBg();render()

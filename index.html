@@ -308,7 +308,7 @@ async function cargarDatos(){
     get('jugadores','?activo=eq.true&order=numero'),
     get('partidos','?order=fecha'),
     get('eventos','?order=minuto'),
-    get('lesiones','?alta=eq.false'),
+    get('lesiones','?or=(alta.is.false,alta.is.null)'),
     get('notas','?order=created_at.desc'),
     get('minutaje','?order=partido_id'),
   ])
@@ -486,6 +486,57 @@ function abrirEditarJugador(id){
         <button class="bsm" onclick="cerrarModal()">Cancelar</button>
         <button class="bdel" style="margin-left:auto" onclick="confirmarBorrarJugador(${j.id},'${j.nombre.replace(/'/g,"\\'")}')">🗑 Eliminar</button>
       </div>
+    </div>
+  </div>`
+}
+
+function abrirPerfilJugador(id){
+  const j=S.jugadores.find(x=>x.id===id);if(!j)return
+  const evJ=S.eventos.filter(e=>e.jugador_id===id)
+  const goles=evJ.filter(e=>e.tipo==='Gol').length
+  const asist=evJ.filter(e=>e.tipo==='Asistencia').length
+  const amarillas=evJ.filter(e=>e.tipo==='Amarilla').length
+  const rojas=evJ.filter(e=>e.tipo==='Roja').length
+  const minTotal=S.minutaje.filter(m=>m.jugador_id===id).reduce((a,m)=>a+m.minutos,0)
+  const pj=S.minutaje.filter(m=>m.jugador_id===id).length
+  const g90=minTotal>0?((goles/minTotal)*90).toFixed(2):'—'
+  const a90=minTotal>0?((asist/minTotal)*90).toFixed(2):'—'
+  const lesHist=S.lesiones.filter(l=>l.jugador_id===id)
+  const ini=j.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
+  const stats=[
+    {l:'Partidos',v:pj,c:'var(--blanco)'},{l:'Minutos',v:minTotal+"'",c:'var(--vc)'},
+    {l:'Goles',v:goles,c:'var(--vc)'},{l:'⚽/90',v:g90,c:'var(--vc)'},
+    {l:'Asistencias',v:asist,c:'var(--az)'},{l:'🅰️/90',v:a90,c:'var(--az)'},
+    {l:'Amarillas',v:amarillas,c:'var(--am)'},{l:'Rojas',v:rojas,c:'var(--ro)'},
+  ]
+  const mr=document.getElementById('modal-root')
+  mr.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)cerrarModal()">
+    <div class="modal" style="max-width:400px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+        <div class="jav" style="width:60px;height:60px;font-size:16px;flex-shrink:0">
+          ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
+        </div>
+        <div>
+          <div style="font-size:18px;font-weight:800">${j.nombre}</div>
+          <div style="font-size:12px;color:var(--gris);margin-top:2px">#${j.numero} · <span class="pos-${j.posicion}">${j.posicion_especifica||j.posicion}</span></div>
+          ${j.club_origen?`<div style="font-size:11px;color:var(--muted);margin-top:2px">Origen: ${j.club_origen}</div>`:''}
+        </div>
+        <button onclick="cerrarModal()" style="margin-left:auto;background:transparent;border:none;color:var(--gris);font-size:18px;cursor:pointer;align-self:flex-start">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+        ${stats.map(s=>`<div style="background:rgba(255,255,255,0.04);border-radius:7px;padding:10px 12px">
+          <div style="font-size:10px;color:var(--gris);text-transform:uppercase;margin-bottom:3px">${s.l}</div>
+          <div style="font-size:22px;font-weight:800;color:${s.c}">${s.v}</div>
+        </div>`).join('')}
+      </div>
+      ${lesHist.length?`<div style="margin-top:4px">
+        <div style="font-size:10px;color:var(--gris);text-transform:uppercase;margin-bottom:6px">Lesiones</div>
+        ${lesHist.map(l=>`<div style="font-size:11px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between">
+          <span>${l.tipo}</span>
+          <span style="color:var(--gris)">${l.fecha_inicio} · ${l.semanas_recuperacion} sem. ${l.alta?'<span style="color:var(--vc)">✓ Alta</span>':''}</span>
+        </div>`).join('')}
+      </div>`:''}
+      ${j.notas?`<div style="margin-top:12px;font-size:11px;color:var(--gris);font-style:italic">${j.notas}</div>`:''}
     </div>
   </div>`
 }
@@ -749,6 +800,7 @@ function asignarSlot(){
   const sel=document.getElementById('sel-slot-jug');if(!sel)return
   S.titulares[S.slotSeleccionado]=+sel.value||null
   S.slotSeleccionado=null;render()
+  guardarTitularesAuto()
 }
 
 function abrirAsignarSlot(idx){
@@ -789,6 +841,7 @@ function asignarSlotDirecto(idx,jugId){
   S.slotSeleccionado=null
   document.getElementById('modal-root').innerHTML=''
   render()
+  guardarTitularesAuto()
 }
 
 function abrirEventoSlot(idx,jugId){
@@ -910,6 +963,11 @@ async function guardarFormacionPartido(){
     ))
   }
   toast('Formación y minutaje guardados ✓');await cargarDatos()
+}
+
+async function guardarTitularesAuto(){
+  if(!S.partidoActivo)return
+  await patch('partidos',{titulares:JSON.stringify(S.titulares)},`?id=eq.${S.partidoActivo}`)
 }
 
 // ===== REGISTRO =====
@@ -1212,7 +1270,7 @@ function renderPlantilla(){
     return`<tr>
       <td><div class="jav" style="width:32px;height:32px;font-size:10px">${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:`${ini}`}</div></td>
       <td style="font-weight:800;color:var(--vc)">${j.numero}</td>
-      <td style="font-weight:700">${j.nombre}</td>
+      <td style="font-weight:700;cursor:pointer;color:var(--blanco)" onclick="abrirPerfilJugador(${j.id})">${j.nombre}</td>
       <td><span class="pos-${j.posicion}" style="font-size:9px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td>
       <td class="center">${j.edad||'-'}</td>
       <td class="center">${j.altura?j.altura+'cm':'-'}</td>
@@ -1345,6 +1403,20 @@ function renderPartidos(){
     const rl=res==='W'?'V':res==='D'?'E':'D'
     const borderColor=res==='W'?'var(--vc)':res==='D'?'var(--am)':'var(--ro)'
     const pts=res==='W'?3:res==='D'?1:0
+    const goles=S.eventos.filter(e=>e.partido_id===p.id&&e.tipo==='Gol')
+    const golesHtml=goles.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.07)">
+      ${goles.map(e=>{
+        const jj=S.jugadores.find(x=>x.id===e.jugador_id)
+        const ini=(jj?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)
+        return`<div style="display:flex;align-items:center;gap:3px;background:rgba(255,255,255,0.04);border-radius:5px;padding:2px 6px">
+          <div style="width:16px;height:16px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:800;flex-shrink:0">
+            ${jj?.foto_url?`<img src="${jj.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
+          </div>
+          <span style="font-size:10px;color:var(--blanco)">⚽ ${jugApellido(e.jugador_id)}</span>
+          <span style="font-size:9px;color:var(--gris)">${e.minuto}'</span>
+        </div>`
+      }).join('')}
+    </div>`:''
     return`<div class="pcard" style="cursor:default;border-left:3px solid ${borderColor};padding:7px 12px">
       <div style="display:flex;align-items:center;gap:8px">
         <span class="badge ${rb}" style="font-size:11px;font-weight:900;min-width:20px;text-align:center;flex-shrink:0">${rl}</span>
@@ -1355,6 +1427,7 @@ function renderPartidos(){
         <span style="font-size:9px;color:var(--gris);white-space:nowrap;flex-shrink:0">${p.fecha}</span>
         ${!S.visitante?`<button class="bsm" style="padding:2px 6px;font-size:9px;flex-shrink:0" onclick="abrirEditarPartido(${p.id})">✏️</button>`:''}
       </div>
+      ${golesHtml}
     </div>`
   }).join('')
 
@@ -1857,9 +1930,12 @@ function renderMedico(){
   const jugOptsLes=S.jugadores.map(j=>`<option value="${j.id}">#${j.numero} ${jugApellido(j.id)}</option>`).join('')
   const addForm=S.lesShow?`<div style="padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--borde)">
     <div class="fg"><label>Jugador</label><select onchange="S.addLes.jugador_id=+this.value">${jugOptsLes}</select></div>
-    <div class="fg"><label>Tipo de lesión</label><select onchange="S.addLes.tipo=this.value">
-      ${['Desgarro muscular','Esguince','Fractura','Contusión','Rotura de ligamentos','Sobrecarga','Otro'].map(t=>`<option>${t}</option>`).join('')}
-    </select></div>
+    <div class="fg"><label>Tipo de lesión</label>
+      <input list="tipos-les" value="${S.addLes.tipo}" oninput="S.addLes.tipo=this.value" placeholder="Ej: Desgarro muscular" style="width:100%;background:rgba(0,0,0,0.5);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:white;font-size:12px;font-family:var(--font)">
+      <datalist id="tipos-les">
+        ${['Desgarro muscular','Esguince de tobillo','Esguince de rodilla','Fractura','Contusión','Rotura de ligamentos','Rotura de menisco','Sobrecarga muscular','Tendinitis','Luxación','Otro'].map(t=>`<option value="${t}">`).join('')}
+      </datalist>
+    </div>
     <div class="fr2">
       <div class="fg" style="margin-bottom:0"><label>Fecha inicio</label><input type="date" value="${S.addLes.fecha_inicio}" oninput="S.addLes.fecha_inicio=this.value"></div>
       <div class="fg" style="margin-bottom:0"><label>Semanas</label><input type="number" min="1" max="52" value="${S.addLes.semanas_recuperacion}" oninput="S.addLes.semanas_recuperacion=+this.value"></div>

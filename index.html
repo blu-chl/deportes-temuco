@@ -506,11 +506,20 @@ function abrirPerfilJugador(id){
   const a90=minTotal>0?((asist/minTotal)*90).toFixed(2):'—'
   const lesHist=S.lesiones.filter(l=>l.jugador_id===id)
   const ini=j.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
+  // Goles recibidos/90 solo para porteros
+  const esPOR=j.posicion==='POR'
+  const gcTotal=esPOR?S.partidos.filter(p=>{try{return(JSON.parse(p.titulares||'[]')).includes(id)}catch(e){return false}}).reduce((a,p)=>a+p.goles_contra,0):0
+  const gc90=esPOR&&minTotal>0?((gcTotal/minTotal)*90).toFixed(2):'—'
   const stats=[
     {l:'Partidos',v:pj,c:'var(--blanco)'},{l:'Minutos',v:minTotal+"'",c:'var(--vc)'},
-    {l:'Goles',v:goles,c:'var(--vc)'},{l:'⚽/90',v:g90,c:'var(--vc)'},
-    {l:'Asistencias',v:asist,c:'var(--az)'},{l:'🅰️/90',v:a90,c:'var(--az)'},
-    {l:'Amarillas',v:amarillas,c:'var(--am)'},{l:'Rojas',v:rojas,c:'var(--ro)'},
+    ...(esPOR?[
+      {l:'GC totales',v:gcTotal,c:'var(--ro)'},{l:'GC/90',v:gc90,c:'var(--ro)'},
+      {l:'Amarillas',v:amarillas,c:'var(--am)'},{l:'Rojas',v:rojas,c:'var(--ro)'},
+    ]:[
+      {l:'Goles',v:goles,c:'var(--vc)'},{l:'⚽/90',v:g90,c:'var(--vc)'},
+      {l:'Asistencias',v:asist,c:'var(--az)'},{l:'🅰️/90',v:a90,c:'var(--az)'},
+      {l:'Amarillas',v:amarillas,c:'var(--am)'},{l:'Rojas',v:rojas,c:'var(--ro)'},
+    ]),
   ]
   const mr=document.getElementById('modal-root')
   mr.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)cerrarModal()">
@@ -1473,6 +1482,13 @@ function renderEstadisticas(){
   const asistidores=[...statsJug].filter(j=>j.asist>0).sort((a,b)=>b.asist-a.asist)
   const topG90=[...statsJug].filter(j=>j.min>=90&&j.goles>0).sort((a,b)=>b.g90-a.g90)
   const disciplina=[...statsJug].filter(j=>j.amarillas>0||j.rojas>0).sort((a,b)=>(b.amarillas+b.rojas*3)-(a.amarillas+a.rojas*3))
+  // Arqueros: goles concedidos por partido donde jugaron
+  const arqueros=statsJug.filter(j=>j.posicion==='POR').map(j=>{
+    const pjPOR=partsFilt.filter(p=>{try{return(JSON.parse(p.titulares||'[]')).includes(j.id)}catch(e){return false}})
+    const gc=pjPOR.reduce((a,p)=>a+p.goles_contra,0)
+    const gc90=j.min>0?(gc/j.min*90):null
+    return{...j,gc,gc90,pjPOR:pjPOR.length}
+  }).sort((a,b)=>a.gc90-b.gc90)
 
   // Cambios más recurrentes: pares (sale → entra)
   const cambiosMap={}
@@ -1586,7 +1602,7 @@ function renderEstadisticas(){
     })()}
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">Goles por período</span></div>
-      <div class="pb" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <div class="pb" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
         ${[['0-30 min',golesT1,'var(--vc)',evsFilt.filter(e=>e.tipo==='Gol'&&e.minuto<=30)],['31-60 min',golesT2,'var(--am)',evsFilt.filter(e=>e.tipo==='Gol'&&e.minuto>30&&e.minuto<=60)],['61+ min',golesT3,'var(--ro)',evsFilt.filter(e=>e.tipo==='Gol'&&e.minuto>60)]].map(([label,n,color,evsPer])=>{
           const pct=Math.round(n/Math.max(1,golesT1+golesT2+golesT3)*100)
           const gMap={}
@@ -1597,13 +1613,13 @@ function renderEstadisticas(){
             const posL=pos==='Delantero'?'DL':pos==='Mediocampista'?'MC':pos==='Defensa'?'DF':pos==='Portero'?'PT':''
             const ini=(jj?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)
             const mins=evsPer.filter(e=>e.jugador_id===+id).map(e=>e.minuto+"'").join(' ')
-            return`<div style="display:flex;align-items:center;gap:4px;padding:3px 0;border-top:1px solid rgba(255,255,255,0.06)">
-              <div style="width:20px;height:20px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;flex-shrink:0">
+            return`<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid rgba(255,255,255,0.06)">
+              <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;border:1px solid rgba(255,255,255,0.12)">
                 ${jj?.foto_url?`<img src="${jj.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
               </div>
               <div style="flex:1;min-width:0">
-                <div style="font-size:8px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="color:var(--gris)">${posL}</span>`:''}</div>
-                <div style="font-size:7px;color:${color};margin-top:1px;white-space:nowrap">${mins}</div>
+                <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="font-size:9px;color:var(--gris)">${posL}</span>`:''}</div>
+                <div style="font-size:10px;color:${color};font-weight:600;margin-top:2px;white-space:nowrap">⚽ ${mins}</div>
               </div>
             </div>`
           }).join('')
@@ -1629,6 +1645,22 @@ function renderEstadisticas(){
         </tbody></table>
       </div>
     </div>
+    ${arqueros.length?`<div class="panel" style="margin-bottom:12px">
+      <div class="ph"><span class="pt">🧤 Rendimiento arqueros</span><span style="font-size:10px;color:var(--gris)">${arqueros.length} portero${arqueros.length>1?'s':''}</span></div>
+      <table><thead><tr><th></th><th>Portero</th><th class="num">PJ</th><th class="num">GC</th><th class="num">Min</th><th class="num" style="color:var(--ro)">GC/90</th></tr></thead><tbody>
+      ${arqueros.map(j=>{
+        const ini=j.nombre.split(' ').map(w=>w[0]).join('').slice(0,2)
+        return`<tr>
+          <td><div style="width:24px;height:24px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800">${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}</div></td>
+          <td>${jugApellido(j.id)}</td>
+          <td class="num">${j.pjPOR}</td>
+          <td class="num" style="color:var(--ro);font-weight:700">${j.gc}</td>
+          <td class="num" style="color:var(--gris)">${j.min}'</td>
+          <td class="num" style="color:var(--ro);font-weight:800">${j.gc90!==null?j.gc90.toFixed(2):'—'}</td>
+        </tr>`
+      }).join('')}
+      </tbody></table>
+    </div>`:''}
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">🔄 Cambios más recurrentes</span><span style="font-size:10px;color:var(--gris)">${topCambios.length} combinaciones</span></div>
       <div class="pb">

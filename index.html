@@ -395,9 +395,9 @@ function navTo(p){
   if(S.visitante&&adminTabs.includes(p))p='estadisticas'
   S.pag=p;render()
 }
-function toggleVisitante(){
-  S.visitante=!S.visitante
-  if(S.visitante){const adminTabs=['registro','notas','medico','debug','config'];if(adminTabs.includes(S.pag))S.pag='estadisticas'}
+function salirVisitante(){
+  S.visitante=false
+  S.pag='login'
   render()
 }
 
@@ -414,8 +414,11 @@ function renderHdr(){
       <div class="hs"><div class="hs-v">${s.gc}</div><div class="hs-l">GC</div></div>
     </div>
     <div style="display:flex;gap:6px;align-items:center">
-      <button class="bsm" style="${S.visitante?'background:rgba(46,168,79,0.25);border-color:var(--vc);color:var(--vc)':''}" onclick="toggleVisitante()" title="${S.visitante?'Salir del modo visitante':'Ver como visitante (solo lectura)'}">${S.visitante?'👁 Visitante':'👁 Vista'}</button>
-      ${!S.visitante?`<button class="bsm" onclick="doLogout()">Salir</button>`:''}
+      ${S.visitante
+        ?`<span style="font-size:10px;color:var(--vc);border:1px solid var(--vc);border-radius:4px;padding:2px 7px;opacity:.8">👁 Visitante</span>
+           <button class="bsm" onclick="salirVisitante()">Salir</button>`
+        :`<button class="bsm" onclick="doLogout()">Salir</button>`
+      }
     </div>
   </div>`
 }

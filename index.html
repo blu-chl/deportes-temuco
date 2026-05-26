@@ -1729,7 +1729,7 @@ function renderEstadisticas(){
     </div>
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">🤝 Sinergia — Parejas con más goles en conjunto</span><span style="font-size:10px;color:var(--gris)">${topSinergia.length} parejas</span></div>
-      <div class="pb">
+      <div class="pb" style="max-height:420px;overflow-y:auto">
         ${topSinergia.length?(()=>{
           const sGrpMap={}
           topSinergia.forEach(p2=>{
@@ -1870,11 +1870,14 @@ function renderEstadisticas(){
             const pos=jj?.posicion
             const posL=pos==='Delantero'?'DL':pos==='Mediocampista'?'MC':pos==='Defensa'?'DF':pos==='Portero'?'PT':''
             const ini=(jj?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)
-            return`<div style="display:flex;align-items:center;gap:4px;padding:2px 0;border-top:1px solid rgba(255,255,255,0.06)">
-              <div style="width:18px;height:18px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:800;flex-shrink:0">
+            return`<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid rgba(255,255,255,0.06)">
+              <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;border:1px solid rgba(255,255,255,0.12)">
                 ${jj?.foto_url?`<img src="${jj.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
               </div>
-              <div style="font-size:8px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="color:var(--gris)">${posL}</span>`:''}${cnt>1?` <strong style="color:var(--vc)">(${cnt})</strong>`:''}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="font-size:9px;color:var(--gris)">${posL}</span>`:''}</div>
+                ${cnt>1?`<div style="font-size:10px;color:var(--vc);font-weight:700">${cnt} goles</div>`:''}
+              </div>
             </div>`
           }).join('')
           return`<div class="mc" style="align-items:flex-start">
@@ -1882,7 +1885,7 @@ function renderEstadisticas(){
             <div class="mc-v" style="font-size:20px">${n}</div>
             <div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div>
             <div class="mc-s">${pct}%</div>
-            ${sList?`<div style="margin-top:5px;text-align:left;width:100%;border-top:1px solid rgba(255,255,255,0.07);padding-top:4px">${sList}</div>`:''}
+            ${sList?`<div style="margin-top:6px;text-align:left;width:100%;border-top:1px solid rgba(255,255,255,0.07);padding-top:4px">${sList}</div>`:''}
           </div>`
         }).join('')}
       </div></div>
@@ -1900,11 +1903,14 @@ function renderEstadisticas(){
             const pos=jj?.posicion
             const posL=pos==='Delantero'?'DL':pos==='Mediocampista'?'MC':pos==='Defensa'?'DF':pos==='Portero'?'PT':''
             const ini=(jj?.nombre||'?').split(' ').map(w=>w[0]).join('').slice(0,2)
-            return`<div style="display:flex;align-items:center;gap:4px;padding:2px 0;border-top:1px solid rgba(255,255,255,0.06)">
-              <div style="width:18px;height:18px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:800;flex-shrink:0">
+            return`<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid rgba(255,255,255,0.06)">
+              <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;border:1px solid rgba(255,255,255,0.12)">
                 ${jj?.foto_url?`<img src="${jj.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
               </div>
-              <div style="font-size:8px;color:var(--blanco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="color:var(--gris)">${posL}</span>`:''}${cnt>1?` <strong style="color:var(--az)">(${cnt})</strong>`:''}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${jj?.numero??'?'} ${jugApellido(+id)}${posL?` <span style="font-size:9px;color:var(--gris)">${posL}</span>`:''}</div>
+                ${cnt>1?`<div style="font-size:10px;color:var(--az);font-weight:700">${cnt} asist.</div>`:''}
+              </div>
             </div>`
           }).join('')
           return`<div class="mc" style="align-items:flex-start">
@@ -1912,7 +1918,7 @@ function renderEstadisticas(){
             <div class="mc-v" style="font-size:20px">${n}</div>
             <div class="bar-w"><div class="bar-f" style="width:${pct}%;background:var(--az)"></div></div>
             <div class="mc-s">${pct}%</div>
-            ${sList?`<div style="margin-top:5px;text-align:left;width:100%;border-top:1px solid rgba(255,255,255,0.07);padding-top:4px">${sList}</div>`:''}
+            ${sList?`<div style="margin-top:6px;text-align:left;width:100%;border-top:1px solid rgba(255,255,255,0.07);padding-top:4px">${sList}</div>`:''}
           </div>`
         }).join('')}
       </div></div>

@@ -506,6 +506,21 @@ function abrirPerfilJugador(id){
   const a90=minTotal>0?((asist/minTotal)*90).toFixed(2):'—'
   const lesHist=S.lesiones.filter(l=>l.jugador_id===id)
   const ini=j.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
+
+  // Detalle goles: rival, fecha, minuto, subtipo
+  const golesDetalle=evJ.filter(e=>e.tipo==='Gol').map(e=>{
+    const p=S.partidos.find(x=>x.id===e.partido_id)
+    return{rival:p?.rival||'?',fecha:p?.fecha||'',minuto:e.minuto,subtipo:e.subtipo||'',cond:p?.condicion||''}
+  }).sort((a,b)=>a.fecha.localeCompare(b.fecha))
+
+  // Detalle asistencias: rival, fecha, minuto, subtipo, a quién asistió
+  const asistDetalle=evJ.filter(e=>e.tipo==='Asistencia').map(e=>{
+    const p=S.partidos.find(x=>x.id===e.partido_id)
+    const golEvent=S.eventos.find(x=>x.partido_id===e.partido_id&&x.minuto===e.minuto&&x.tipo==='Gol'&&x.jugador_id!==id)
+    const receptor=golEvent?S.jugadores.find(x=>x.id===golEvent.jugador_id):null
+    return{rival:p?.rival||'?',fecha:p?.fecha||'',minuto:e.minuto,subtipo:e.subtipo||'',receptor:receptor?.nombre||null,cond:p?.condicion||''}
+  }).sort((a,b)=>a.fecha.localeCompare(b.fecha))
+
   // Goles recibidos/90 solo para porteros
   const esPOR=j.posicion==='POR'
   const gcTotal=esPOR?S.partidos.filter(p=>{try{return(JSON.parse(p.titulares||'[]')).includes(id)}catch(e){return false}}).reduce((a,p)=>a+p.goles_contra,0):0
@@ -541,8 +556,40 @@ function abrirPerfilJugador(id){
           <div style="font-size:22px;font-weight:800;color:${s.c}">${s.v}</div>
         </div>`).join('')}
       </div>
-      ${lesHist.length?`<div style="margin-top:4px">
-        <div style="font-size:10px;color:var(--gris);text-transform:uppercase;margin-bottom:6px">Lesiones</div>
+      ${golesDetalle.length?`<div style="margin-top:12px">
+        <div style="font-size:10px;color:var(--vc);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:6px">⚽ Goles (${golesDetalle.length})</div>
+        <div style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+          ${golesDetalle.map(g=>`<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(46,168,79,0.07);border:1px solid rgba(46,168,79,0.15);border-radius:6px;padding:6px 10px">
+            <div>
+              <div style="font-size:12px;font-weight:700">vs ${g.rival} <span style="font-size:10px;font-weight:400;color:var(--gris)">(${g.cond})</span></div>
+              ${g.subtipo?`<div style="font-size:10px;color:var(--gris);margin-top:1px">${g.subtipo}</div>`:''}
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:10px">
+              <div style="font-size:12px;color:var(--vc);font-weight:800">${g.minuto}'</div>
+              <div style="font-size:10px;color:var(--muted)">${g.fecha}</div>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>`:''}
+
+      ${asistDetalle.length?`<div style="margin-top:12px">
+        <div style="font-size:10px;color:var(--az);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:6px">🅰️ Asistencias (${asistDetalle.length})</div>
+        <div style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+          ${asistDetalle.map(a=>`<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(56,132,221,0.07);border:1px solid rgba(56,132,221,0.15);border-radius:6px;padding:6px 10px">
+            <div>
+              <div style="font-size:12px;font-weight:700">vs ${a.rival} <span style="font-size:10px;font-weight:400;color:var(--gris)">(${a.cond})</span></div>
+              <div style="font-size:10px;color:var(--gris);margin-top:1px">${a.receptor?`→ gol de ${a.receptor.split(' ').pop()}`:''}${a.subtipo?` · ${a.subtipo}`:''}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:10px">
+              <div style="font-size:12px;color:var(--az);font-weight:800">${a.minuto}'</div>
+              <div style="font-size:10px;color:var(--muted)">${a.fecha}</div>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>`:''}
+
+      ${lesHist.length?`<div style="margin-top:12px">
+        <div style="font-size:10px;color:var(--gris);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:6px">Lesiones</div>
         ${lesHist.map(l=>`<div style="font-size:11px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between">
           <span>${l.tipo}</span>
           <span style="color:var(--gris)">${l.fecha_inicio} · ${l.semanas_recuperacion} sem. ${l.alta?'<span style="color:var(--vc)">✓ Alta</span>':''}</span>

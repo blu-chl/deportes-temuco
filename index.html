@@ -2078,7 +2078,7 @@ async function guardarLesion(){
 }
 
 async function darAlta(id){
-  const r=await patch('lesiones',{alta:true,fecha_alta:hoy()},`?id=eq.${id}`)
+  const r=await patch('lesiones',{alta:true},`?id=eq.${id}`)
   // Supabase devuelve el registro actualizado o un objeto de error
   if(r&&r.code){toast('Error Supabase: '+r.message,true);console.error('darAlta error:',r);return}
   if(!Array.isArray(r)||!r.length){

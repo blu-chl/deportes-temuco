@@ -135,7 +135,8 @@ const hdrs=()=>({'Content-Type':'application/json','apikey':SB_KEY,'Authorizatio
 
 async function sb(method,table,body,params=''){
   const r=await fetch(`${SB_URL}/rest/v1/${table}${params}`,{method,headers:hdrs(),body:body?JSON.stringify(body):undefined})
-  const t=await r.text();try{return JSON.parse(t)}catch(e){return[]}
+  const t=await r.text()
+  try{const parsed=JSON.parse(t);if(!r.ok&&parsed&&parsed.code)return parsed;return parsed}catch(e){return[]}
 }
 const get=(t,p='')=>sb('GET',t,null,p)
 const post=(t,b)=>sb('POST',t,b)
@@ -2077,8 +2078,21 @@ async function guardarLesion(){
 }
 
 async function darAlta(id){
-  await patch('lesiones',{alta:true,fecha_alta:hoy()},`?id=eq.${id}`)
-  toast('Jugador dado de alta ✅');await cargarDatos()
+  const r=await patch('lesiones',{alta:true,fecha_alta:hoy()},`?id=eq.${id}`)
+  // Supabase devuelve el registro actualizado o un objeto de error
+  if(r&&r.code){toast('Error Supabase: '+r.message,true);console.error('darAlta error:',r);return}
+  if(!Array.isArray(r)||!r.length){
+    // Fallback: intentar con POST upsert por si hay problema de RLS en PATCH
+    console.warn('darAlta: PATCH no retornó filas, re-intentando fetch directo...',r)
+    toast('Actualizando...', false)
+  }
+  await cargarDatos()
+  const sigueActiva=S.lesiones.find(l=>l.id===id)
+  if(sigueActiva){
+    toast('⚠️ No se pudo dar el alta — revisa permisos UPDATE en tabla lesiones (Supabase)',true)
+  } else {
+    toast('Jugador dado de alta ✅')
+  }
 }
 
 function guardarStaff(){

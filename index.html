@@ -1065,6 +1065,14 @@ async function recalcPartidoAuto(){
   }
 }
 
+async function recalcManual(){
+  if(!S.partidoActivo){toast('Selecciona un partido primero',true);return}
+  toast('Recalculando...')
+  await recalcPartidoAuto()
+  await cargarDatos()
+  toast('Minutaje y marcador recalculados ✓')
+}
+
 async function guardarTitularesAuto(){
   if(!S.partidoActivo)return
   await patch('partidos',{formacion:S.formacion,titulares:JSON.stringify(S.titulares)},`?id=eq.${S.partidoActivo}`)
@@ -1174,7 +1182,7 @@ function renderRegistro(){
         <div style="text-align:center;font-size:10px;color:var(--muted);margin-top:4px;margin-bottom:12px">Haz clic en un jugador del 11 para registrar un evento</div>
       </div>
       <div class="panel" style="margin-top:4px">
-        <div class="ph"><span class="pt">Eventos del partido</span><span style="font-size:10px;color:var(--gris)">${S.evPartido.length} registrado(s)</span></div>
+        <div class="ph"><span class="pt">Eventos del partido</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:var(--gris)">${S.evPartido.length} registrado(s)</span><button class="bsm" style="font-size:9px;padding:2px 8px" onclick="recalcManual()" title="Recalcular minutaje y marcador en base a los eventos actuales">🔄 Recalcular</button></div></div>
         <div class="pb">${editEvForm}${evLista}</div>
       </div>
     `:`<div class="empty" style="padding:50px">← Selecciona un partido para comenzar</div>`}

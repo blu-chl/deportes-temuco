@@ -217,6 +217,7 @@ function aplicarFormacionCustom(){
   customs[str]=parsed
   localStorage.setItem('dt-formaciones',JSON.stringify(customs))
   render();toast(`Formación ${str} guardada ✓`)
+  guardarTitularesAuto()
 }
 
 // Cargar formaciones custom guardadas
@@ -299,6 +300,7 @@ let S={
   notaFormShow:false,
   notaVer:null,
   slotEvPanel:null,
+  consulta:{tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   visitante:false,
   bgImage:localStorage.getItem('dt-bg')||'',
@@ -392,7 +394,7 @@ async function doLogin(){
 
 function doLogout(){AUTH_TOKEN=SB_KEY;S.pag='login';render()}
 function navTo(p){
-  const adminTabs=['registro','notas','medico','debug','config']
+  const adminTabs=['registro','consultas','medico','debug','config']
   if(S.visitante&&adminTabs.includes(p))p='estadisticas'
   S.pag=p;render()
 }
@@ -428,7 +430,7 @@ function renderNav(){
   const allTabs=[
     {id:'registro',l:'Registro'},{id:'plantilla',l:'Plantilla'},
     {id:'partidos',l:'Partidos'},{id:'estadisticas',l:'Estadísticas'},
-    {id:'notas',l:'📝 Notas'},{id:'medico',l:'Médico'},{id:'debug',l:'🛠 Debug'},{id:'config',l:'⚙ Config'}
+    {id:'consultas',l:'🔍 Consultas'},{id:'medico',l:'Médico'},{id:'debug',l:'🛠 Debug'},{id:'config',l:'⚙ Config'}
   ]
   const tabs=S.visitante?allTabs.filter(t=>['estadisticas','partidos','plantilla'].includes(t.id)):allTabs
   return`<nav>${tabs.map(t=>`<button class="nb ${S.pag===t.id?'on':''}" onclick="navTo('${t.id}')">${t.l}</button>`).join('')}</nav>`
@@ -840,7 +842,6 @@ function renderPitch(){
         </div>`:''}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="bsm" onclick="S.titulares=[];render()">Limpiar</button>
-          ${S.partidoActivo?`<button class="bsm" onclick="guardarFormacionPartido()">💾 Guardar formación</button>`:''}
         </div>
       </div>
     </div>
@@ -896,12 +897,26 @@ function abrirAsignarSlot(idx){
   </div>`
 }
 
-function asignarSlotDirecto(idx,jugId){
+async function asignarSlotDirecto(idx,jugId){
   if(idx>=0)S.titulares[idx]=jugId||null
   S.slotSeleccionado=null
   document.getElementById('modal-root').innerHTML=''
   render()
-  guardarTitularesAuto()
+  await guardarTitularesAuto()
+  // Auto-recalcular minutaje silenciosamente
+  if(S.partidoActivo){
+    const titIds=S.titulares.filter(x=>x)
+    if(titIds.length>0){
+      const mins=calcMinutajeAuto(titIds,S.evPartido,S.duracion)
+      await Promise.all(Object.entries(mins).filter(([,v])=>v>0).map(([jid,minutos])=>
+        fetch(`${SB_URL}/rest/v1/minutaje`,{
+          method:'POST',
+          headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
+          body:JSON.stringify({partido_id:S.partidoActivo,jugador_id:+jid,minutos})
+        })
+      ))
+    }
+  }
 }
 
 function abrirEventoSlot(idx,jugId){
@@ -1027,7 +1042,7 @@ async function guardarFormacionPartido(){
 
 async function guardarTitularesAuto(){
   if(!S.partidoActivo)return
-  await patch('partidos',{titulares:JSON.stringify(S.titulares)},`?id=eq.${S.partidoActivo}`)
+  await patch('partidos',{formacion:S.formacion,titulares:JSON.stringify(S.titulares)},`?id=eq.${S.partidoActivo}`)
 }
 
 // ===== REGISTRO =====
@@ -2393,6 +2408,202 @@ function renderNotas(){
   </div>`
 }
 
+// ===== CONSULTAS =====
+function renderConsultas(){
+  const c=S.consulta
+  const selStyle='background:rgba(0,0,0,0.5);border:1px solid var(--borde2);border-radius:6px;padding:6px 10px;color:white;font-size:11px;font-family:var(--font);cursor:pointer'
+
+  // Opciones dinámicas
+  const posEspUnicas=[...new Set(S.jugadores.map(j=>j.posicion_especifica).filter(Boolean))].sort()
+  const compUnicas=[...new Set(S.partidos.map(p=>p.competencia).filter(Boolean))].sort()
+
+  // Filtros: todos los eventos con su contexto de partido
+  let evsFiltrados=S.eventos.map(ev=>{
+    const partido=S.partidos.find(p=>p.id===ev.partido_id)
+    const jugador=S.jugadores.find(j=>j.id===ev.jugador_id)
+    return{...ev,partido,jugador}
+  }).filter(ev=>ev.partido&&ev.jugador)
+
+  // Aplicar filtros AND
+  if(c.tipoEv!=='todos')evsFiltrados=evsFiltrados.filter(ev=>ev.tipo===c.tipoEv)
+  if(c.posicion!=='todos')evsFiltrados=evsFiltrados.filter(ev=>ev.jugador.posicion===c.posicion)
+  if(c.posEsp!=='todos')evsFiltrados=evsFiltrados.filter(ev=>ev.jugador.posicion_especifica===c.posEsp)
+  if(c.condicion!=='todos')evsFiltrados=evsFiltrados.filter(ev=>ev.partido.condicion===c.condicion)
+  if(c.competencia!=='todos')evsFiltrados=evsFiltrados.filter(ev=>ev.partido.competencia===c.competencia)
+  if(c.resultado!=='todos'){
+    evsFiltrados=evsFiltrados.filter(ev=>{
+      const p=ev.partido
+      const res=p.goles_favor>p.goles_contra?'V':p.goles_favor===p.goles_contra?'E':'D'
+      return res===c.resultado
+    })
+  }
+  if(c.periodo!=='todos'){
+    evsFiltrados=evsFiltrados.filter(ev=>{
+      const min=ev.minuto||0
+      if(c.periodo==='0-30')return min<=30
+      if(c.periodo==='31-60')return min>30&&min<=60
+      if(c.periodo==='61+')return min>60
+      return true
+    })
+  }
+
+  // Filtro especial para preset "Goles de cabeza" — si tipoEv=Gol y no hay otro filtro especial, chequeamos subtipo si el preset lo indica
+  // (El preset de cabeza setea tipoEv=Gol sin filtro especial extra, pero podemos filtrar por subtipo si se detecta)
+
+  // Resumen
+  const totalEvs=evsFiltrados.length
+  const jugInvolucrados=new Set(evsFiltrados.map(ev=>ev.jugador_id)).size
+  const partsInvolucrados=new Set(evsFiltrados.map(ev=>ev.partido_id)).size
+
+  // Ranking por jugador
+  const jugMap={}
+  evsFiltrados.forEach(ev=>{
+    if(!jugMap[ev.jugador_id])jugMap[ev.jugador_id]={jugador:ev.jugador,evs:[]}
+    jugMap[ev.jugador_id].evs.push(ev)
+  })
+  const ranking=Object.values(jugMap).sort((a,b)=>b.evs.length-a.evs.length)
+
+  // Color por tipo de evento
+  function evColor(tipo){
+    if(tipo==='Gol')return'var(--vc)'
+    if(tipo==='Asistencia')return'var(--az)'
+    if(tipo==='Amarilla')return'var(--am)'
+    if(tipo==='Roja')return'var(--ro)'
+    return'var(--gris)'
+  }
+
+  // Presets rápidos
+  const presets=[
+    {l:'Defensas amarillados',f:{tipoEv:'Amarilla',posicion:'DEF',condicion:'todos',resultado:'todos',periodo:'todos',competencia:'todos',posEsp:'todos'}},
+    {l:'Goles en visita',f:{tipoEv:'Gol',condicion:'Visita',posicion:'todos',resultado:'todos',periodo:'todos',competencia:'todos',posEsp:'todos'}},
+    {l:'Goles de cabeza',f:{tipoEv:'Gol',posicion:'todos',condicion:'todos',resultado:'todos',periodo:'todos',competencia:'todos',posEsp:'todos',_subtipo:'De cabeza'}},
+    {l:'Asistencias en visita',f:{tipoEv:'Asistencia',condicion:'Visita',posicion:'todos',resultado:'todos',periodo:'todos',competencia:'todos',posEsp:'todos'}},
+    {l:'Goles último cuarto',f:{tipoEv:'Gol',periodo:'61+',posicion:'todos',condicion:'todos',resultado:'todos',competencia:'todos',posEsp:'todos'}},
+    {l:'Tarjetas en derrota',f:{tipoEv:'Amarilla',resultado:'D',posicion:'todos',condicion:'todos',periodo:'todos',competencia:'todos',posEsp:'todos'}},
+  ]
+  const presetsHtml=presets.map(p=>`<button onclick="Object.assign(S.consulta,${JSON.stringify(p.f)});render()"
+    style="padding:4px 12px;border-radius:20px;border:1px solid var(--borde2);background:rgba(255,255,255,0.04);color:var(--gris);font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);white-space:nowrap;transition:all .15s"
+    onmouseover="this.style.borderColor='var(--vc)';this.style.color='var(--vc)'"
+    onmouseout="this.style.borderColor='var(--borde2)';this.style.color='var(--gris)'">${p.l}</button>`).join('')
+
+  // Ranking HTML
+  const rankingHtml=ranking.length?ranking.map(({jugador:j,evs})=>{
+    const ini=j.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
+    const color=evColor(evs[0]?.tipo||'todos')
+    const evsList=evs.sort((a,b)=>a.partido?.fecha?.localeCompare(b.partido?.fecha||'')||0).map(ev=>{
+      const p=ev.partido
+      const condLabel=p.condicion==='Local'?'Local':'Visita'
+      const fecha=p.fecha||''
+      return`<div style="font-size:10px;color:var(--gris);padding:2px 0 2px 52px;border-bottom:1px solid rgba(46,168,79,0.05)">
+        ${ICONOS[ev.tipo]||'•'} vs <strong style="color:var(--blanco)">${p.rival}</strong>
+        <span style="color:var(--muted)">(${condLabel})</span>
+        <span style="color:var(--am);font-weight:700"> ${ev.minuto}'</span>
+        <span style="color:var(--muted);margin-left:4px">${fecha}</span>
+        ${ev.subtipo?`<span style="font-size:9px;color:var(--muted)"> · ${ev.subtipo}</span>`:''}
+      </div>`
+    }).join('')
+    return`<div style="background:rgba(255,255,255,0.03);border:1px solid var(--borde);border-radius:8px;margin-bottom:8px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px">
+        <div style="width:44px;height:44px;border-radius:50%;background:var(--vo);border:2px solid var(--v);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--vc);flex-shrink:0;overflow:hidden">
+          ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:800;color:var(--blanco)">${j.numero} ${j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre}</div>
+          <span class="pos-${j.posicion}" style="font-size:10px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:28px;font-weight:900;color:${color};line-height:1">${evs.length}</div>
+          <div style="font-size:9px;color:var(--gris)">${evs.length===1?'evento':'eventos'}</div>
+        </div>
+      </div>
+      ${evsList}
+    </div>`
+  }).join(''):`<div class="empty" style="padding:40px">Sin datos para estos filtros</div>`
+
+  return`<div class="content">
+    <div class="panel" style="margin-bottom:12px">
+      <div class="ph"><span class="pt">Filtros de consulta</span>
+        <button class="bsm" onclick="S.consulta={tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'};render()">Limpiar filtros</button>
+      </div>
+      <div class="pb">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:12px">
+          <div class="fg" style="margin-bottom:0">
+            <label>Evento</label>
+            <select style="${selStyle};width:100%" onchange="S.consulta.tipoEv=this.value;render()">
+              <option value="todos" ${c.tipoEv==='todos'?'selected':''}>Todos</option>
+              ${['Gol','Asistencia','Amarilla','Roja','Sustitución'].map(t=>`<option value="${t}" ${c.tipoEv===t?'selected':''}>${t}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label>Posición</label>
+            <select style="${selStyle};width:100%" onchange="S.consulta.posicion=this.value;S.consulta.posEsp='todos';render()">
+              <option value="todos" ${c.posicion==='todos'?'selected':''}>Todos</option>
+              ${['POR','DEF','MED','DEL'].map(p=>`<option value="${p}" ${c.posicion===p?'selected':''}>${p}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label>Pos. específica</label>
+            <select style="${selStyle};width:100%" onchange="S.consulta.posEsp=this.value;render()">
+              <option value="todos" ${c.posEsp==='todos'?'selected':''}>Todas</option>
+              ${(c.posicion==='todos'?posEspUnicas:(POS_GRUPOS[c.posicion]||[])).map(p=>`<option value="${p}" ${c.posEsp===p?'selected':''}>${p}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label>Condición</label>
+            <select style="${selStyle};width:100%" onchange="S.consulta.condicion=this.value;render()">
+              <option value="todos" ${c.condicion==='todos'?'selected':''}>Todos</option>
+              ${['Local','Visita'].map(v=>`<option value="${v}" ${c.condicion===v?'selected':''}>${v}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label>Competencia</label>
+            <select style="${selStyle};width:100%" onchange="S.consulta.competencia=this.value;render()">
+              <option value="todos" ${c.competencia==='todos'?'selected':''}>Todas</option>
+              ${compUnicas.map(comp=>`<option value="${comp}" ${c.competencia===comp?'selected':''}>${comp}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label>Resultado</label>
+            <select style="${selStyle};width:100%" onchange="S.consulta.resultado=this.value;render()">
+              <option value="todos" ${c.resultado==='todos'?'selected':''}>Todos</option>
+              <option value="V" ${c.resultado==='V'?'selected':''}>Victoria (V)</option>
+              <option value="E" ${c.resultado==='E'?'selected':''}>Empate (E)</option>
+              <option value="D" ${c.resultado==='D'?'selected':''}>Derrota (D)</option>
+            </select>
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label>Período</label>
+            <select style="${selStyle};width:100%" onchange="S.consulta.periodo=this.value;render()">
+              <option value="todos" ${c.periodo==='todos'?'selected':''}>Todos</option>
+              <option value="0-30" ${c.periodo==='0-30'?'selected':''}>0-30 min</option>
+              <option value="31-60" ${c.periodo==='31-60'?'selected':''}>31-60 min</option>
+              <option value="61+" ${c.periodo==='61+'?'selected':''}>61+ min</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:4px">
+          <div style="font-size:10px;color:var(--gris);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:700">Presets rápidos:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">${presetsHtml}</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:12px">
+      <div class="ph">
+        <span class="pt">Resultados</span>
+        <span style="font-size:11px;color:var(--gris)">${totalEvs} evento${totalEvs!==1?'s':''} encontrado${totalEvs!==1?'s':''}</span>
+      </div>
+      <div class="pb">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+          <div class="mc"><div class="mc-l">Eventos</div><div class="mc-v" style="color:var(--vc)">${totalEvs}</div></div>
+          <div class="mc"><div class="mc-l">Jugadores</div><div class="mc-v">${jugInvolucrados}</div></div>
+          <div class="mc"><div class="mc-l">Partidos</div><div class="mc-v">${partsInvolucrados}</div></div>
+        </div>
+        ${rankingHtml}
+      </div>
+    </div>
+  </div>`
+}
+
 function render(){
   const root=document.getElementById('root')
   if(S.pag==='login'){root.innerHTML=renderLogin();return}
@@ -2401,6 +2612,7 @@ function render(){
     S.pag==='plantilla'?renderPlantilla():
     S.pag==='partidos'?renderPartidos():
     S.pag==='estadisticas'?renderEstadisticas():
+    S.pag==='consultas'?renderConsultas():
     S.pag==='notas'?renderNotas():
     S.pag==='debug'?renderDebug():
     S.pag==='config'?renderConfig():

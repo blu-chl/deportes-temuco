@@ -1019,6 +1019,21 @@ async function guardarEventoSlot(){
     S.slotEvPanel=null
     document.getElementById('modal-root').innerHTML=''
     await cargarDatos();await selPartido(S.partidoActivo)
+    // Auto-recalcular minutaje en sustituciones
+    if(p.tipo==='Sustitución'){
+      const titIds=S.titulares.filter(x=>x)
+      if(titIds.length>0){
+        const mins=calcMinutajeAuto(titIds,S.evPartido,S.duracion)
+        await Promise.all(Object.entries(mins).filter(([,v])=>v>0).map(([jid,minutos])=>
+          fetch(`${SB_URL}/rest/v1/minutaje`,{
+            method:'POST',
+            headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
+            body:JSON.stringify({partido_id:S.partidoActivo,jugador_id:+jid,minutos})
+          })
+        ))
+        await cargarDatos()
+      }
+    }
   }else toast('Error al guardar',true)
 }
 

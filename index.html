@@ -718,9 +718,10 @@ async function borrarPartido(id){
 
 async function borrarEvento(id){
   await del('eventos',`?id=eq.${id}`)
-  toast('Evento eliminado')
   S.evPartido=S.evPartido.filter(e=>e.id!==id)
+  await recalcPartidoAuto()
   await cargarDatos()
+  toast('Evento eliminado')
 }
 
 // ===== PITCH / FORMACIÓN =====
@@ -1019,21 +1020,8 @@ async function guardarEventoSlot(){
     S.slotEvPanel=null
     document.getElementById('modal-root').innerHTML=''
     await cargarDatos();await selPartido(S.partidoActivo)
-    // Auto-recalcular minutaje en sustituciones
-    if(p.tipo==='Sustitución'){
-      const titIds=S.titulares.filter(x=>x)
-      if(titIds.length>0){
-        const mins=calcMinutajeAuto(titIds,S.evPartido,S.duracion)
-        await Promise.all(Object.entries(mins).filter(([,v])=>v>0).map(([jid,minutos])=>
-          fetch(`${SB_URL}/rest/v1/minutaje`,{
-            method:'POST',
-            headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
-            body:JSON.stringify({partido_id:S.partidoActivo,jugador_id:+jid,minutos})
-          })
-        ))
-        await cargarDatos()
-      }
-    }
+    await recalcPartidoAuto()
+    await cargarDatos()
   }else toast('Error al guardar',true)
 }
 
@@ -1053,6 +1041,28 @@ async function guardarFormacionPartido(){
     ))
   }
   toast('Formación y minutaje guardados ✓');await cargarDatos()
+}
+
+// Recalcula marcador y minutaje del partido activo en base a los eventos actuales
+async function recalcPartidoAuto(){
+  if(!S.partidoActivo)return
+  // Marcador: contar eventos Gol del partido
+  const gf=S.evPartido.filter(e=>e.tipo==='Gol').length
+  // Goles contra: los marcamos manualmente solo si el partido los tiene ya; no los sobreescribimos automáticamente
+  // ya que no registramos goles del rival como eventos propios
+  await patch('partidos',{goles_favor:gf},`?id=eq.${S.partidoActivo}`)
+  // Minutaje
+  const titIds=S.titulares.filter(x=>x)
+  if(titIds.length>0){
+    const mins=calcMinutajeAuto(titIds,S.evPartido,S.duracion)
+    await Promise.all(Object.entries(mins).filter(([,v])=>v>0).map(([jid,minutos])=>
+      fetch(`${SB_URL}/rest/v1/minutaje`,{
+        method:'POST',
+        headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
+        body:JSON.stringify({partido_id:S.partidoActivo,jugador_id:+jid,minutos})
+      })
+    ))
+  }
 }
 
 async function guardarTitularesAuto(){
@@ -1217,21 +1227,8 @@ async function agregarEvento(){
     toast(msg)
     await cargarDatos()
     await selPartido(S.partidoActivo)
-    // Auto-recalcular minutaje si hay titulares y es sustitución
-    if(ev.tipo==='Sustitución'){
-      const titIds=S.titulares.filter(x=>x)
-      if(titIds.length>0){
-        const mins=calcMinutajeAuto(titIds,S.evPartido,S.duracion)
-        await Promise.all(Object.entries(mins).filter(([,v])=>v>0).map(([jid,minutos])=>
-          fetch(`${SB_URL}/rest/v1/minutaje`,{
-            method:'POST',
-            headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
-            body:JSON.stringify({partido_id:S.partidoActivo,jugador_id:+jid,minutos})
-          })
-        ))
-        toast('Minutaje actualizado automáticamente ✓')
-      }
-    }
+    await recalcPartidoAuto()
+    await cargarDatos()
   }else toast('Error',true)
 }
 
@@ -1244,10 +1241,12 @@ async function guardarEdicionEvento(){
     jugador_id:+e.jugador_id,
     jugador_sale_id:e.tipo==='Sustitución'?(+e.jugador_sale_id||null):null,
   },`?id=eq.${e.id}`)
-  toast('Evento actualizado ✓')
   S.editEv=null
   await cargarDatos()
   await selPartido(S.partidoActivo)
+  await recalcPartidoAuto()
+  await cargarDatos()
+  toast('Evento actualizado ✓')
 }
 
 // ===== PLANTILLA =====

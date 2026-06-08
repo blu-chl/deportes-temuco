@@ -1632,8 +1632,8 @@ function renderEstadisticas(){
       <div class="mc ro"><div class="mc-l">Rojas</div><div class="mc-v">${tr}</div></div>
     </div>
     <div class="g2">
-      <div class="mc az"><div class="mc-l">Pts Local (${locales.length} partidos)</div><div class="mc-v">${locPts}</div><div class="mc-s">${locales.filter(p=>p.goles_favor>p.goles_contra).length}V ${locales.filter(p=>p.goles_favor===p.goles_contra).length}E ${locales.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
-      <div class="mc"><div class="mc-l">Pts Visita (${visitas.length} partidos)</div><div class="mc-v">${visPts}</div><div class="mc-s">${visitas.filter(p=>p.goles_favor>p.goles_contra).length}V ${visitas.filter(p=>p.goles_favor===p.goles_contra).length}E ${visitas.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
+      <div class="mc az"><div class="mc-l">Pts Local (${locales.length} partidos)</div><div class="mc-v">${locPts} <span style="font-size:13px;font-weight:400;color:var(--gris)">/ ${locales.length*3} pos.</span></div><div class="mc-s">${locales.filter(p=>p.goles_favor>p.goles_contra).length}V ${locales.filter(p=>p.goles_favor===p.goles_contra).length}E ${locales.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
+      <div class="mc"><div class="mc-l">Pts Visita (${visitas.length} partidos)</div><div class="mc-v">${visPts} <span style="font-size:13px;font-weight:400;color:var(--gris)">/ ${visitas.length*3} pos.</span></div><div class="mc-s">${visitas.filter(p=>p.goles_favor>p.goles_contra).length}V ${visitas.filter(p=>p.goles_favor===p.goles_contra).length}E ${visitas.filter(p=>p.goles_favor<p.goles_contra).length}D</div></div>
     </div>
     ${(()=>{
       const ult5=[...partsFilt].slice(-5).reverse()

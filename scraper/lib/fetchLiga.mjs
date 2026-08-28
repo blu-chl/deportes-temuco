@@ -2,9 +2,24 @@ import * as cheerio from 'cheerio';
 
 const UA = 'Mozilla/5.0 (compatible; deportes-temuco-scraper/1.0; +https://github.com/blu-chl/deportes-temuco)';
 
+// Cloudflare devuelve de vez en cuando un 5xx transitorio (ej. 520) sin que
+// haya nada mal con la request; un reintento simple con backoff resuelve
+// casi todos esos casos sin tener que relanzar todo el workflow.
+async function fetchConReintentos(url, options, intentos = 3) {
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      const r = await fetch(url, options);
+      if (r.ok) return r;
+      if (r.status < 500 || i === intentos) throw new Error(`HTTP ${r.status} al pedir ${url}`);
+    } catch (e) {
+      if (i === intentos) throw e;
+    }
+    await new Promise((res) => setTimeout(res, 1000 * i));
+  }
+}
+
 async function fetchHtml(url) {
-  const r = await fetch(url, { headers: { 'User-Agent': UA } });
-  if (!r.ok) throw new Error(`HTTP ${r.status} al pedir ${url}`);
+  const r = await fetchConReintentos(url, { headers: { 'User-Agent': UA } });
   return r.text();
 }
 
@@ -111,7 +126,6 @@ export async function findMinutosU21Url(ligaUrl) {
 }
 
 export async function downloadPdf(pdfUrl) {
-  const r = await fetch(pdfUrl, { headers: { 'User-Agent': UA } });
-  if (!r.ok) throw new Error(`HTTP ${r.status} al descargar ${pdfUrl}`);
+  const r = await fetchConReintentos(pdfUrl, { headers: { 'User-Agent': UA } });
   return Buffer.from(await r.arrayBuffer());
 }

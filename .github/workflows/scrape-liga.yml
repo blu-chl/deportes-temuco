@@ -43,6 +43,7 @@ jobs:
             ${{ github.event.inputs.force == 'true' && '--force' || '' }}
 
       - name: Scrapear tabla oficial de minutos sub-21
+        if: ${{ !cancelled() }}
         working-directory: scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

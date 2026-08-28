@@ -1,0 +1,50 @@
+name: Scrapear liga
+
+on:
+  workflow_dispatch:
+    inputs:
+      liga_url:
+        description: 'URL de la liga en campeonatochileno.cl'
+        required: false
+        default: 'https://www.campeonatochileno.cl/ligas/liga-de-ascenso-caixun/'
+      limit:
+        description: 'Máximo de partidos a procesar (0 = todos)'
+        required: false
+        default: '0'
+      force:
+        description: 'Re-scrapear partidos que ya están en la base'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        working-directory: scraper
+        run: npm install
+
+      - name: Scrapear partidos (alineaciones, goles, tarjetas, minutaje)
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node scrape.mjs \
+            --liga "${{ github.event.inputs.liga_url }}" \
+            --limit "${{ github.event.inputs.limit }}" \
+            ${{ github.event.inputs.force == 'true' && '--force' || '' }}
+
+      - name: Scrapear tabla oficial de minutos sub-21
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scrapeU21.mjs --liga "${{ github.event.inputs.liga_url }}"

@@ -1,0 +1,14 @@
+{
+  "name": "deportes-temuco-scraper",
+  "version": "1.0.0",
+  "description": "Scrapea partidos de campeonatochileno.cl (informes de árbitro en PDF) y los carga a Supabase.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "scrape": "node scrape.mjs"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "pdfjs-dist": "^4.7.76"
+  }
+}

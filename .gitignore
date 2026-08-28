@@ -1,0 +1,3 @@
+.DS_Store
+scraper/node_modules/
+scraper/*.pdf

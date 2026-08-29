@@ -35,7 +35,8 @@ nav{background:var(--vo);border-bottom:1px solid rgba(255,255,255,.1);display:fl
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
-@media(max-width:700px){.g2,.g3,.g4{grid-template-columns:1fr}.hstats{display:none}}
+@media(max-width:700px){.g2,.g3{grid-template-columns:1fr}.g4{grid-template-columns:1fr 1fr;gap:8px}.hstats{display:none}}
+@media(max-width:420px){.mc-v{font-size:22px}}
 .mc{background:rgba(16,24,32,0.035);border:1px solid var(--borde);border-radius:8px;padding:12px 14px}
 .mc-l{font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
 .mc-v{font-size:26px;font-weight:800;color:var(--blanco);line-height:1}
@@ -2625,6 +2626,41 @@ function svgRachaPuntos(partidos){
   return svg
 }
 
+// ---- Evolución de puntos de 2+ equipos superpuesta, eje X = jornada ----
+function svgRachaMultiple(series){
+  // series: [{nombre,color,serie:[{jornada,acumulado}]}]
+  const todas=series.flatMap(s=>s.serie)
+  if(!todas.length)return`<div class="empty">Sin partidos jugados todavía.</div>`
+  const pad={l:30,r:14,t:14,b:34},w=680,h=170
+  const plotW=w-pad.l-pad.r,plotH=h-pad.t-pad.b
+  const maxY=Math.max(1,...todas.map(p=>p.acumulado))
+  const minJ=Math.min(...todas.map(p=>p.jornada||1)),maxJ=Math.max(...todas.map(p=>p.jornada||1))
+  const spanJ=Math.max(1,maxJ-minJ)
+  const x=j=>pad.l+((j-minJ)/spanJ)*plotW
+  const y=v=>pad.t+plotH-(v/maxY)*plotH
+  let svg=`<svg class="chart-svg" width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px">`
+  for(let i=0;i<=3;i++){
+    const gy=pad.t+plotH-plotH*i/3
+    svg+=`<line x1="${pad.l}" y1="${gy}" x2="${pad.l+plotW}" y2="${gy}" class="chart-grid"/>`
+    svg+=`<text x="${pad.l-6}" y="${gy+3}" text-anchor="end" class="chart-axis">${Math.round(maxY*i/3)}</text>`
+  }
+  const step=Math.max(1,Math.ceil(spanJ/9))
+  for(let j=minJ;j<=maxJ;j++){
+    if((j-minJ)%step!==0&&j!==maxJ)continue
+    svg+=`<text x="${x(j)}" y="${h-6}" text-anchor="middle" class="chart-axis">F${j}</text>`
+  }
+  series.forEach(s=>{
+    if(!s.serie.length)return
+    const path=s.serie.map((p,i)=>`${i===0?'M':'L'}${x(p.jornada).toFixed(1)},${y(p.acumulado).toFixed(1)}`).join(' ')
+    svg+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5"/>`
+    s.serie.forEach(p=>{
+      svg+=`<circle cx="${x(p.jornada)}" cy="${y(p.acumulado)}" r="3.5" fill="${s.color}" stroke="#fff" stroke-width="1.5"><title>${s.nombre} · F${p.jornada}: ${p.acumulado} pts acumulados</title></circle>`
+    })
+  })
+  svg+=`</svg>`
+  return svg
+}
+
 function renderInicio(){
   const L=S.liga
   if(!L.loaded)return`<div class="pb"><div class="empty">Cargando datos de la liga…</div></div>`
@@ -2861,7 +2897,7 @@ function statsBloque(partidosSet,equipoId,goles,tarjetas){
 
 async function statsEquipoLiga(equipoId){
   const[partidos,goles,tarjetas]=await Promise.all([
-    ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${equipoId},equipo_visita_id.eq.${equipoId})&select=id,fecha_hora,equipo_local_id,equipo_visita_id,goles_local,goles_visita&goles_local=not.is.null&order=fecha_hora.asc`),
+    ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${equipoId},equipo_visita_id.eq.${equipoId})&select=id,jornada,fecha_hora,equipo_local_id,equipo_visita_id,goles_local,goles_visita&goles_local=not.is.null&order=fecha_hora.asc`),
     ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=partido_id,minuto,minuto_extra`),
     ligaGet('liga_tarjetas',`?equipo_id=eq.${equipoId}&select=partido_id,tipo`),
   ])
@@ -2881,12 +2917,22 @@ async function statsEquipoLiga(equipoId){
   const sub21Min=eq?.sub21_minutos_contable??0
   const global=statsBloque(partidosArr,equipoId,golesArr,tarjetasArr)
   const u5=statsBloque(partidosArr.slice(-5),equipoId,golesArr,tarjetasArr)
+  // Serie de puntos acumulados partido a partido, para el gráfico de
+  // evolución comparada con el rival.
+  let acc=0
+  const serie=partidosArr.map(p=>{
+    const esLocal=p.equipo_local_id===equipoId
+    const gf=esLocal?p.goles_local:p.goles_visita,gc=esLocal?p.goles_visita:p.goles_local
+    acc+=gf>gc?3:gf===gc?1:0
+    return{jornada:p.jornada,acumulado:acc}
+  })
   return{
     ...global,
     pppLocal:s.pjLocal?+(s.ptsLocal/s.pjLocal).toFixed(2):0,
     pppVisita:s.pjVisita?+(s.ptsVisita/s.pjVisita).toFixed(2):0,
     sub21Min,
     u5,
+    serie,
   }
 }
 
@@ -2956,39 +3002,54 @@ function renderProximoRival(){
   const posTemuco=S.liga.tabla.findIndex(e=>e.id===S.liga.temucoId)
   const posRival=S.liga.tabla.findIndex(e=>e.id===rival.id)
   const nEquipos=S.liga.tabla.length
-  const posBadge=pos=>pos>=0?`<div style="font-size:10px;color:var(--muted);font-weight:700">${pos+1}° / ${nEquipos}</div>`:''
-  return`<div class="panel" style="margin-bottom:22px;overflow:visible">
-    <div class="ph"><div class="pt disp" style="font-size:16px">🔜 Próximo rival</div></div>
-    <div class="pb">
-      <div style="display:flex;align-items:center;justify-content:center;gap:26px;margin-bottom:4px;flex-wrap:wrap">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
-          <img src="${crestUrl('Deportes Temuco')}" style="width:44px;height:44px;object-fit:contain">
-          <div style="font-weight:800;font-size:12px">Deportes Temuco</div>
-          ${posBadge(posTemuco)}
+  const posBadge=pos=>pos>=0?`<div style="font-size:10.5px;color:rgba(255,255,255,.65);font-weight:700;margin-top:2px">${pos+1}° / ${nEquipos}</div>`:''
+  return`<div style="margin-bottom:22px">
+    <div class="hero2">
+      <div class="hero2-split"></div><div class="hero2-stripes"></div>
+      <div class="hero2-inner">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.85)">Liga de Ascenso Caixun 2026</div>
+            <div class="disp" style="color:#fff;font-size:28px;margin-top:4px">FECHA ${p.jornada||''}</div>
+          </div>
+          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(p.fecha_hora)}${p.estadio?'<br>'+p.estadio:''}</div>
         </div>
-        <div style="text-align:center">
-          <div class="disp" style="font-size:20px;color:var(--gris)">VS</div>
-          <div style="font-size:10.5px;color:var(--gris);white-space:nowrap">${esLocal?'Local':'Visita'} · Fecha ${p.jornada||'?'}</div>
-          <div style="font-size:10px;color:var(--muted)">${fmtFechaLarga(p.fecha_hora)}${p.estadio?' · '+p.estadio:''}</div>
+        <div class="hero2-mid">
+          <div class="hero2-team"><img class="hero2-crest" src="${crestUrl('Deportes Temuco')}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">DEPORTES TEMUCO</div>${posBadge(posTemuco)}</div>
+          <div class="disp hero2-score" style="font-size:36px">VS</div>
+          <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(rival.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${rival.nombre.toUpperCase()}</div>${posBadge(posRival)}</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
-          <img src="${crestUrl(rival.nombre)}" style="width:44px;height:44px;object-fit:contain">
-          <div style="font-weight:800;font-size:12px">${rival.nombre}</div>
-          ${posBadge(posRival)}
-        </div>
+        <div style="display:flex;justify-content:center"><div class="hero2-meta">${esLocal?'Juega de Local':'Juega de Visita'}</div></div>
       </div>
-      ${c?`<div style="margin-top:14px">
-        <div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:2px">
-          <span style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Número grande = temporada completa · "Ú5" = últimos 5 partidos</span>
+    </div>
+
+    ${c?`<div class="panel" style="margin-top:14px">
+      <div class="ph"><div class="pt disp" style="font-size:15px">📈 Evolución de puntos</div></div>
+      <div class="pb">
+        <div style="display:flex;gap:14px;margin-bottom:8px;font-size:11px;font-weight:700;color:var(--gris)">
+          <span><span style="display:inline-block;width:9px;height:9px;background:var(--v);border-radius:2px;margin-right:4px"></span>Deportes Temuco</span>
+          <span><span style="display:inline-block;width:9px;height:9px;background:var(--az);border-radius:2px;margin-right:4px"></span>${rival.nombre}</span>
         </div>
-        ${filaComparacion('Goles a favor / PJ',c.temuco.gfPP,c.rival.gfPP,v=>v.toFixed(2),true,c.temuco.u5.gfPP,c.rival.u5.gfPP)}
-        ${filaComparacion('Goles en contra / PJ',c.temuco.gcPP,c.rival.gcPP,v=>v.toFixed(2),false,c.temuco.u5.gcPP,c.rival.u5.gcPP)}
-        ${filaComparacion('Amarillas / PJ',c.temuco.amPP,c.rival.amPP,v=>v.toFixed(2),false,c.temuco.u5.amPP,c.rival.u5.amPP)}
-        ${filaComparacion('Rojas / PJ',c.temuco.rjPP,c.rival.rjPP,v=>v.toFixed(2),false,c.temuco.u5.rjPP,c.rival.u5.rjPP)}
-        ${filaComparacion(esLocal?'Pts/PJ Local':'Pts/PJ Visita',esLocal?c.temuco.pppLocal:c.temuco.pppVisita,esLocal?c.rival.pppVisita:c.rival.pppLocal,v=>v.toFixed(2),true,c.temuco.u5.ptsPP,c.rival.u5.ptsPP)}
-        ${filaComparacion('% goles en descuento',c.temuco.pctDescuento,c.rival.pctDescuento,v=>v.toFixed(1)+'%',true,c.temuco.u5.pctDescuento,c.rival.u5.pctDescuento)}
-        ${filaComparacion('Minutos sub-21',c.temuco.sub21Min,c.rival.sub21Min,v=>v.toLocaleString('es-CL'))}
-      </div>`:`<div class="empty">Calculando comparación…</div>`}
+        ${svgRachaMultiple([{nombre:'Deportes Temuco',color:'var(--v)',serie:c.temuco.serie||[]},{nombre:rival.nombre,color:'var(--az)',serie:c.rival.serie||[]}])}
+      </div>
+    </div>`:''}
+
+    <div class="panel" style="margin-top:14px">
+      <div class="ph"><div class="pt disp" style="font-size:15px">📊 Estadísticas generales</div></div>
+      <div class="pb">
+        ${c?`<div>
+          <div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:2px">
+            <span style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Número grande = temporada completa · "Ú5" = últimos 5 partidos</span>
+          </div>
+          ${filaComparacion('Goles a favor / PJ',c.temuco.gfPP,c.rival.gfPP,v=>v.toFixed(2),true,c.temuco.u5.gfPP,c.rival.u5.gfPP)}
+          ${filaComparacion('Goles en contra / PJ',c.temuco.gcPP,c.rival.gcPP,v=>v.toFixed(2),false,c.temuco.u5.gcPP,c.rival.u5.gcPP)}
+          ${filaComparacion('Amarillas / PJ',c.temuco.amPP,c.rival.amPP,v=>v.toFixed(2),false,c.temuco.u5.amPP,c.rival.u5.amPP)}
+          ${filaComparacion('Rojas / PJ',c.temuco.rjPP,c.rival.rjPP,v=>v.toFixed(2),false,c.temuco.u5.rjPP,c.rival.u5.rjPP)}
+          ${filaComparacion(esLocal?'Pts/PJ Local':'Pts/PJ Visita',esLocal?c.temuco.pppLocal:c.temuco.pppVisita,esLocal?c.rival.pppVisita:c.rival.pppLocal,v=>v.toFixed(2),true,c.temuco.u5.ptsPP,c.rival.u5.ptsPP)}
+          ${filaComparacion('% goles en descuento',c.temuco.pctDescuento,c.rival.pctDescuento,v=>v.toFixed(1)+'%',true,c.temuco.u5.pctDescuento,c.rival.u5.pctDescuento)}
+          ${filaComparacion('Minutos sub-21',c.temuco.sub21Min,c.rival.sub21Min,v=>v.toLocaleString('es-CL'))}
+        </div>`:`<div class="empty">Calculando comparación…</div>`}
+      </div>
     </div>
   </div>`
 }
@@ -2998,7 +3059,7 @@ function renderProximoRival(){
 async function cargarAnalisis(){
   let[equipos,partidos,goles,tarjetas]=await Promise.all([
     ligaGet('liga_equipos','?select=id,nombre,sub21_minutos_contable&order=nombre'),
-    ligaGet('liga_partidos','?goles_local=not.is.null&select=id,equipo_local_id,equipo_visita_id,goles_local,goles_visita&limit=1000'),
+    ligaGet('liga_partidos','?goles_local=not.is.null&select=id,jornada,fecha_hora,equipo_local_id,equipo_visita_id,goles_local,goles_visita&order=fecha_hora.asc&limit=1000'),
     ligaGetAll('liga_goles','equipo_id,autogol,minuto,minuto_extra'),
     ligaGetAll('liga_tarjetas','equipo_id,tipo'),
   ])
@@ -3222,6 +3283,7 @@ function renderFiltroEquipos(){
 }
 
 const ANALISIS_CATS=[
+  {id:'evolucion',l:'📈 Evolución'},
   {id:'ataque',l:'⚔️ Ataque y Defensa'},
   {id:'disciplina',l:'🟨 Disciplina'},
   {id:'rendimiento',l:'🏠 Local / Visita'},
@@ -3229,6 +3291,14 @@ const ANALISIS_CATS=[
   {id:'sub21',l:'🌱 Sub-21'},
   {id:'correlaciones',l:'📈 Dependencia estadística'},
 ]
+// Paleta fija para distinguir equipos en el gráfico de evolución — Temuco
+// siempre rojo (var(--v)), el resto un color distinto por posición en la
+// lista para que no cambien de color al filtrar.
+const COLORES_EQUIPO=['var(--az)','var(--am)','#8e44ad','#16a085','#e67e22','#2c3e50','#c0392b','#27ae60','#2980b9','#d35400','#7f8c8d','#f39c12','#1abc9c','#34495e','#9b59b6']
+function colorEquipo(id,isTemuco){
+  if(isTemuco)return'var(--v)'
+  return COLORES_EQUIPO[id%COLORES_EQUIPO.length]
+}
 
 function renderAnalisis(){
   if(!S.analisis.loaded)return`<div class="pb"><div class="empty">Cargando comparativa…</div></div>`
@@ -3236,6 +3306,26 @@ function renderAnalisis(){
   const cat=S.analisis.tab
 
   const contenido=
+    cat==='evolucion'?(()=>{
+      const temuco=S.analisis.equipos.find(e=>e.nombre==='Deportes Temuco')
+      const porEquipo={}
+      S.analisis.equipos.forEach(e=>{if(S.analisis.seleccion.has(e.id))porEquipo[e.id]={acc:0,serie:[]}})
+      S.analisis.partidos.forEach(p=>{
+        const l=porEquipo[p.equipo_local_id],v=porEquipo[p.equipo_visita_id]
+        if(l){l.acc+=p.goles_local>p.goles_visita?3:p.goles_local===p.goles_visita?1:0;l.serie.push({jornada:p.jornada,acumulado:l.acc})}
+        if(v){v.acc+=p.goles_visita>p.goles_local?3:p.goles_local===p.goles_visita?1:0;v.serie.push({jornada:p.jornada,acumulado:v.acc})}
+      })
+      const series=S.analisis.equipos.filter(e=>S.analisis.seleccion.has(e.id)).map(e=>({
+        nombre:e.nombre,color:colorEquipo(e.id,!!(temuco&&e.id===temuco.id)),serie:porEquipo[e.id].serie,
+      }))
+      return`
+        <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Puntos acumulados por jornada. Usa los filtros de equipos de arriba para elegir cuáles comparar — con muchos equipos a la vez se pone difícil de leer.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;font-size:11px;font-weight:700;color:var(--gris)">
+          ${series.map(s=>`<span><span style="display:inline-block;width:9px;height:9px;background:${s.color};border-radius:2px;margin-right:4px"></span>${s.nombre}</span>`).join('')}
+        </div>
+        ${svgRachaMultiple(series)}
+      `
+    })():
     cat==='ataque'?`
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Cada escudo es un equipo. Arriba a la izquierda = ataca mucho y recibe poco. Las líneas punteadas marcan el promedio de los equipos filtrados.</div>
       ${svgScatterXY(rows,{xFn:r=>r.gcPP,yFn:r=>r.gfPP,xFmt:v=>v.toFixed(1),yFmt:v=>v.toFixed(1),xLabel:'Goles en contra por partido',yLabel:'Goles a favor por partido',xMaxHint:2.2,yMaxHint:2.2})}

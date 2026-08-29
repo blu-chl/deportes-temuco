@@ -1,3 +1,6 @@
 .DS_Store
 scraper/node_modules/
 scraper/*.pdf
+telegram-bot/node_modules/
+telegram-bot/.dev.vars
+telegram-bot/.wrangler/

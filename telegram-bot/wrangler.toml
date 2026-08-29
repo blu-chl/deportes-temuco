@@ -1,0 +1,10 @@
+name = "temuco-bot"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+SUPABASE_URL = "https://vskhzbstwadaabzyhzwh.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_Xpm4vH8few7gjsDcIM_2qA_3rjYFHeu"
+
+# TELEGRAM_BOT_TOKEN y TELEGRAM_WEBHOOK_SECRET NO van acá — son secretos,
+# se configuran con `wrangler secret put` (ver README.md).

@@ -156,6 +156,16 @@ tr:hover td{background:rgba(200,21,39,0.05)}
 .team-chip.on{border-color:var(--vc);background:rgba(200,21,39,.06);color:var(--vc)}
 .rival-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--borde);font-size:12.5px}
 .rival-row:first-child{border-top:none}
+.tl-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--borde)}
+.tl-hdr-team{display:flex;align-items:center;gap:8px;font-weight:800;font-size:12.5px;flex:1}
+.tl-hdr-team img{width:24px;height:24px;object-fit:contain;flex-shrink:0}
+.tl-row{display:grid;grid-template-columns:1fr 46px 1fr;gap:6px;padding:9px 14px;border-top:1px solid var(--borde)}
+.tl-row:first-child{border-top:none}
+.tl-side{display:flex}
+.tl-l{justify-content:flex-end;text-align:right}
+.tl-r{justify-content:flex-start;text-align:left}
+.tl-min{text-align:center;font-weight:800;font-family:var(--font-disp);color:var(--gris);font-size:12.5px;padding-top:1px}
+@media(max-width:520px){.tl-hdr-team{font-size:11px}.tl-hdr-team img{width:18px;height:18px}}
 .chart-svg text{font-family:var(--font);fill:var(--blanco)}
 .chart-axis{fill:var(--gris);font-size:10.5px}
 .chart-grid{stroke:var(--borde2);stroke-width:1}
@@ -2816,26 +2826,32 @@ async function verPartidoLiga(id,volverA){
 
 const EV_ICONS={gol:'⚽',autogol:'⚽ (p.p.)',amarilla:'🟨',segunda:'🟨🟥',roja:'🟥',cambio:'🔄'}
 function filaEventoPartido(ev){
-  const min=`${ev.minuto}'${ev.minuto_extra?`+${ev.minuto_extra}`:''}`
   let texto
   if(ev.tipo==='cambio')texto=`<span style="color:var(--v)">↑${ev.entra}</span> <span style="color:var(--gris)">↓${ev.sale}</span>`
   else{
     texto=`<b>${ev.jugador}</b>${ev.penal?' <span style="color:var(--muted);font-size:10.5px">(penal)</span>':''}`
     if(ev.motivo)texto+=`<div style="color:var(--muted);font-size:10.5px;margin-top:1px">${ev.motivo}</div>`
   }
-  return`<div style="display:flex;align-items:flex-start;gap:6px;font-size:12.5px;line-height:1.35">
-    <span style="font-weight:800;color:var(--gris);width:34px;flex-shrink:0;font-family:var(--font-disp)">${min}</span>
+  return`<span style="display:inline-flex;align-items:flex-start;gap:6px;font-size:12.5px;line-height:1.35">
     <span style="flex-shrink:0">${EV_ICONS[ev.tipo]||''}</span>
     <span>${texto}</span>
-  </div>`
+  </span>`
 }
 
 function renderPartidoLiga(){
   const P=S.partidoLiga
   if(!P.loaded||!P.data)return`<div class="pb"><div class="empty">Cargando partido…</div></div>`
   const d=P.data
-  const evLocal=P.eventos.filter(e=>e.equipo_id===d.equipo_local_id)
-  const evVisita=P.eventos.filter(e=>e.equipo_id===d.equipo_visita_id)
+  const filasTimeline=P.eventos.map(ev=>{
+    const esLocal=ev.equipo_id===d.equipo_local_id
+    const min=`${ev.minuto}'${ev.minuto_extra?`+${ev.minuto_extra}`:''}`
+    const contenido=filaEventoPartido(ev)
+    return`<div class="tl-row">
+      <div class="tl-side tl-l">${esLocal?contenido:''}</div>
+      <div class="tl-min">${min}</div>
+      <div class="tl-side tl-r">${esLocal?'':contenido}</div>
+    </div>`
+  }).join('')
   return`<div class="pb">
     <button class="bsm" onclick="navTo('${P.volverA}')" style="margin-bottom:12px">← Volver</button>
     <div class="hero2">
@@ -2857,13 +2873,12 @@ function renderPartidoLiga(){
     </div>
 
     <div class="pt disp" style="font-size:18px;margin:20px 0 12px">Minutaje de eventos</div>
-    <div class="g2" style="align-items:start">
-      <div class="panel"><div class="ph"><span class="pt" style="font-size:13px">${d.local.nombre}</span></div>
-        <div class="pb" style="display:flex;flex-direction:column;gap:9px">${evLocal.length?evLocal.map(filaEventoPartido).join(''):'<div class="empty">Sin eventos registrados.</div>'}</div>
+    <div class="panel">
+      <div class="tl-hdr">
+        <div class="tl-hdr-team"><img src="${crestUrl(d.local.nombre)}">${d.local.nombre}</div>
+        <div class="tl-hdr-team" style="justify-content:flex-end">${d.visita.nombre}<img src="${crestUrl(d.visita.nombre)}"></div>
       </div>
-      <div class="panel"><div class="ph"><span class="pt" style="font-size:13px">${d.visita.nombre}</span></div>
-        <div class="pb" style="display:flex;flex-direction:column;gap:9px">${evVisita.length?evVisita.map(filaEventoPartido).join(''):'<div class="empty">Sin eventos registrados.</div>'}</div>
-      </div>
+      <div class="pb">${P.eventos.length?filasTimeline:'<div class="empty">Sin eventos registrados.</div>'}</div>
     </div>
   </div>`
 }

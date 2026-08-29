@@ -60,11 +60,10 @@ async function cmdProximo(env) {
 
 async function cmdTabla(env) {
   const { equipos } = await equipoTemuco(env)
-  const partidos = await sbGet(
-    env,
-    'liga_partidos',
-    '?goles_local=not.is.null&select=equipo_local_id,equipo_visita_id,goles_local,goles_visita&limit=1000'
-  )
+  const [partidos, sanciones] = await Promise.all([
+    sbGet(env, 'liga_partidos', '?goles_local=not.is.null&select=equipo_local_id,equipo_visita_id,goles_local,goles_visita&limit=1000'),
+    sbGet(env, 'liga_sanciones', '?select=equipo_id,puntos'),
+  ])
   const st = {}
   equipos.forEach((e) => (st[e.id] = { nombre: e.nombre, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, pts: 0 }))
   partidos.forEach((p) => {
@@ -77,6 +76,7 @@ async function cmdTabla(env) {
     else if (p.goles_local < p.goles_visita) { v.pg++; v.pts += 3; l.pp++ }
     else { l.pe++; v.pe++; l.pts++; v.pts++ }
   })
+  sanciones.forEach((s) => { const e = st[s.equipo_id]; if (e) e.pts -= s.puntos })
   const tabla = Object.values(st).sort((a, b) => b.pts - a.pts || (b.gf - b.gc) - (a.gf - a.gc))
   const filas = tabla
     .map((e, i) => {

@@ -56,7 +56,11 @@ export async function fetchMatch(matchUrl) {
   const pdfUrl = pdfLink.attr('href') || null;
 
   const scoreboard = $('.match-scoreboard').first();
-  const datetimeIso = scoreboard.attr('data-fl-game-datetime') || null;
+  const datetimeRaw = scoreboard.attr('data-fl-game-datetime') || null;
+  // Partidos pospuestos sin fecha reagendada traen un placeholder inválido
+  // en vez de venir vacío (ej. "-001-11-30T00:00:00-04:42"): un año negativo
+  // de 3 dígitos no es una fecha real, así que lo tratamos como "sin fecha".
+  const datetimeIso = datetimeRaw && /^\d{4}-/.test(datetimeRaw) ? datetimeRaw : null;
 
   const clubWrappers = scoreboard.find('.match-scoreboard__club-wrapper');
   const homeWrap = clubWrappers.eq(0);

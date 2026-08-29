@@ -340,7 +340,7 @@ let S={
   bgImage:localStorage.getItem('dt-bg')||'',
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false},
   rivales:{loaded:false,proximos:[],notas:[],rivalSel:null,notaTexto:''},
-  analisis:{loaded:false,equipos:[],partidos:[],goles:[],tarjetas:[],jugadores:[],seleccion:new Set()},
+  analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],jugadores:[],seleccion:new Set()},
 }
 
 async function cargarDatos(){
@@ -2835,39 +2835,75 @@ function renderRivales(){
 
 // ===== ANÁLISIS (comparativa liga con gráficos) =====
 async function cargarAnalisis(){
-  const[equipos,partidos,goles,tarjetas]=await Promise.all([
+  const[equipos,partidos,goles,tarjetas,jugadores]=await Promise.all([
     ligaGet('liga_equipos','?select=id,nombre&order=nombre'),
     ligaGet('liga_partidos','?select=id,equipo_local_id,equipo_visita_id,goles_local,goles_visita&limit=1000'),
-    ligaGet('liga_goles','?select=equipo_id,autogol&autogol=eq.false&limit=1000'),
-    ligaGet('liga_tarjetas','?select=equipo_id,tipo&limit=1000'),
+    ligaGetAll('liga_goles','equipo_id,autogol,minuto,minuto_extra'),
+    ligaGetAll('liga_tarjetas','equipo_id,tipo'),
+    ligaGetAll('liga_jugadores','equipo_id,sub21,minutos_oficial_temporada'),
   ])
   S.analisis.equipos=Array.isArray(equipos)?equipos:[]
   S.analisis.partidos=Array.isArray(partidos)?partidos:[]
-  S.analisis.goles=Array.isArray(goles)?goles:[]
+  S.analisis.goles=Array.isArray(goles)?goles.filter(g=>!g.autogol):[]
   S.analisis.tarjetas=Array.isArray(tarjetas)?tarjetas:[]
+  S.analisis.jugadores=Array.isArray(jugadores)?jugadores:[]
   S.analisis.seleccion=new Set(S.analisis.equipos.map(e=>e.id))
   S.analisis.loaded=true
   if(S.pag==='analisis')render()
 }
 
+// El servidor limita a ~1000 filas por respuesta pase lo que pase con
+// ?limit=, así que para tablas grandes (goles, tarjetas, alineaciones)
+// paginamos con Range hasta agotarlas.
+async function ligaGetAll(table,select){
+  let all=[],offset=0
+  const page=1000
+  while(true){
+    const r=await fetch(`${SB_URL}/rest/v1/${table}?select=${select}`,{headers:{apikey:SB_KEY,Authorization:'Bearer '+AUTH_TOKEN,Range:`${offset}-${offset+page-1}`}})
+    const chunk=await r.json()
+    if(!Array.isArray(chunk))break
+    all=all.concat(chunk)
+    if(chunk.length<page)break
+    offset+=page
+  }
+  return all
+}
+
 function statsAnalisis(){
   const temuco=S.analisis.equipos.find(e=>e.nombre==='Deportes Temuco')
   const stat={}
-  S.analisis.equipos.forEach(e=>{stat[e.id]={id:e.id,nombre:e.nombre,pj:0,gf:0,gc:0,am:0,rj:0}})
+  S.analisis.equipos.forEach(e=>{stat[e.id]={id:e.id,nombre:e.nombre,pj:0,gf:0,gc:0,am:0,rj:0,pjLocal:0,ptsLocal:0,pjVisita:0,ptsVisita:0,golesTotal:0,golesDescuento:0,sub21Min:0}})
   S.analisis.partidos.forEach(p=>{
     const l=stat[p.equipo_local_id],v=stat[p.equipo_visita_id]
     if(!l||!v)return
     l.pj++;v.pj++;l.gf+=p.goles_local;l.gc+=p.goles_visita;v.gf+=p.goles_visita;v.gc+=p.goles_local
+    l.pjLocal++;v.pjVisita++
+    const ptsL=p.goles_local>p.goles_visita?3:p.goles_local===p.goles_visita?1:0
+    const ptsV=p.goles_visita>p.goles_local?3:p.goles_local===p.goles_visita?1:0
+    l.ptsLocal+=ptsL;v.ptsVisita+=ptsV
   })
   S.analisis.tarjetas.forEach(t=>{
     const e=stat[t.equipo_id];if(!e)return
     if(t.tipo==='amarilla')e.am++;else if(t.tipo==='roja')e.rj++
+  })
+  S.analisis.goles.forEach(g=>{
+    const e=stat[g.equipo_id];if(!e)return
+    e.golesTotal++
+    if(g.minuto_extra>0&&(g.minuto===45||g.minuto===90))e.golesDescuento++
+  })
+  S.analisis.jugadores.forEach(j=>{
+    const e=stat[j.equipo_id];if(!e||!j.sub21)return
+    e.sub21Min+=j.minutos_oficial_temporada||0
   })
   return Object.values(stat).map(e=>({
     ...e,
     gfPP:e.pj?+(e.gf/e.pj).toFixed(2):0,
     gcPP:e.pj?+(e.gc/e.pj).toFixed(2):0,
     amPP:e.pj?+(e.am/e.pj).toFixed(2):0,
+    rjPP:e.pj?+(e.rj/e.pj).toFixed(2):0,
+    pppLocal:e.pjLocal?+(e.ptsLocal/e.pjLocal).toFixed(2):0,
+    pppVisita:e.pjVisita?+(e.ptsVisita/e.pjVisita).toFixed(2):0,
+    pctDescuento:e.golesTotal?+((e.golesDescuento/e.golesTotal)*100).toFixed(1):0,
     isTemuco:temuco&&e.id===temuco.id,
   })).filter(e=>S.analisis.seleccion.has(e.id))
 }
@@ -2878,9 +2914,12 @@ function toggleAnalisisEquipo(id){
   render()
 }
 
+function nombreCorto(n){return n.length>16?n.slice(0,15)+'…':n}
+
+// ---- Barra simple (una serie, Temuco resaltado) ----
 function svgBarChart(rows,opts){
-  const rowH=28,barH=18,labelW=140,rightPad=50,topPad=6,botPad=24
-  const w=760,plotW=w-labelW-rightPad
+  const rowH=28,barH=18,labelW=140,rightPad=50,topPad=6,botPad=6
+  const w=720,plotW=w-labelW-rightPad
   const h=rows.length*rowH+topPad+botPad
   if(!rows.length)return`<div class="empty">Selecciona al menos un equipo.</div>`
   const maxVal=Math.max(opts.maxHint||0.01,...rows.map(opts.val))
@@ -2892,43 +2931,163 @@ function svgBarChart(rows,opts){
     const val=opts.val(r)
     const bw=Math.max(scale(val),1)
     const color=r.isTemuco?'var(--v)':'var(--gris)'
-    svg+=`<text x="${labelW-8}" y="${cy+4}" text-anchor="end" font-size="11" font-weight="${r.isTemuco?800:600}" fill="${r.isTemuco?'var(--v)':'var(--blanco)'}">${r.nombre.length>16?r.nombre.slice(0,15)+'…':r.nombre}</text>`
-    svg+=`<rect x="${labelW}" y="${cy-barH/2}" width="${bw}" height="${barH}" rx="4" fill="${color}" opacity="${r.isTemuco?1:.55}"></rect>`
+    svg+=`<text x="${labelW-8}" y="${cy+4}" text-anchor="end" font-size="11" font-weight="${r.isTemuco?800:600}" fill="${r.isTemuco?'var(--v)':'var(--blanco)'}">${nombreCorto(r.nombre)}</text>`
+    svg+=`<rect x="${labelW}" y="${cy-barH/2}" width="${bw}" height="${barH}" rx="4" fill="${color}" opacity="${r.isTemuco?1:.55}"><title>${r.nombre}: ${opts.fmt(val)}</title></rect>`
     svg+=`<text x="${labelW+bw+8}" y="${cy+4}" font-size="11" font-weight="700" class="chart-axis">${opts.fmt(val)}</text>`
   })
   svg+=`</svg>`
   return svg
 }
 
-function renderAnalisis(){
-  if(!S.analisis.loaded)return`<div class="pb"><div class="empty">Cargando comparativa…</div></div>`
-  const rows=statsAnalisis()
+// ---- Barra apilada (2 series, ej. amarillas+rojas) ----
+function svgStackedChart(rows,segs,opts){
+  const rowH=28,barH=18,labelW=140,rightPad=50,topPad=6,botPad=6
+  const w=720,plotW=w-labelW-rightPad
+  const h=rows.length*rowH+topPad+botPad
+  if(!rows.length)return`<div class="empty">Selecciona al menos un equipo.</div>`
+  const total=r=>segs.reduce((a,s)=>a+s.val(r),0)
+  const maxVal=Math.max(opts.maxHint||0.01,...rows.map(total))
+  const scale=v=>(v/maxVal)*plotW
+  let svg=`<svg class="chart-svg" width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px">`
+  const sorted=[...rows].sort((a,b)=>total(b)-total(a))
+  sorted.forEach((r,i)=>{
+    const y=topPad+i*rowH,cy=y+barH/2
+    svg+=`<text x="${labelW-8}" y="${cy+4}" text-anchor="end" font-size="11" font-weight="${r.isTemuco?800:600}" fill="${r.isTemuco?'var(--v)':'var(--blanco)'}">${nombreCorto(r.nombre)}</text>`
+    let acc=0
+    segs.forEach((s,si)=>{
+      const val=s.val(r)
+      const bx=labelW+scale(acc)+(si>0?1.5:0)
+      const bw=Math.max(scale(val)-(si>0?1.5:0),0)
+      svg+=`<rect x="${bx}" y="${cy-barH/2}" width="${bw}" height="${barH}" rx="3" fill="${s.color}"><title>${r.nombre} · ${s.label}: ${val}</title></rect>`
+      acc+=val
+    })
+    svg+=`<text x="${labelW+scale(acc)+8}" y="${cy+4}" font-size="11" font-weight="700" class="chart-axis">${total(r).toFixed(2)}</text>`
+  })
+  svg+=`</svg>`
+  return svg
+}
+
+// ---- Barras agrupadas (2 series lado a lado, ej. local/visita) ----
+function svgGroupedChart(rows,segs,opts){
+  const rowH=44,barH=15,gap=2,labelW=140,rightPad=50,topPad=6,botPad=6
+  const w=720,plotW=w-labelW-rightPad
+  const h=rows.length*rowH+topPad+botPad
+  if(!rows.length)return`<div class="empty">Selecciona al menos un equipo.</div>`
+  const maxVal=Math.max(opts.maxHint||0.01,...rows.map(r=>Math.max(...segs.map(s=>s.val(r)))))
+  const scale=v=>(v/maxVal)*plotW
+  let svg=`<svg class="chart-svg" width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px">`
+  const sorted=[...rows].sort((a,b)=>(segs[0].val(b)+segs[1].val(b))-(segs[0].val(a)+segs[1].val(a)))
+  sorted.forEach((r,i)=>{
+    const y=topPad+i*rowH
+    svg+=`<text x="${labelW-8}" y="${y+rowH/2+4}" text-anchor="end" font-size="11" font-weight="${r.isTemuco?800:600}" fill="${r.isTemuco?'var(--v)':'var(--blanco)'}">${nombreCorto(r.nombre)}</text>`
+    segs.forEach((s,si)=>{
+      const val=s.val(r)
+      const by=y+rowH/2-barH-gap/2+si*(barH+gap)
+      const bw=Math.max(scale(val),1)
+      svg+=`<rect x="${labelW}" y="${by}" width="${bw}" height="${barH}" rx="3" fill="${s.color}"><title>${r.nombre} · ${s.label}: ${val.toFixed(2)}</title></rect>`
+      svg+=`<text x="${labelW+bw+6}" y="${by+barH-3}" font-size="10.5" font-weight="700" class="chart-axis">${val.toFixed(2)}</text>`
+    })
+  })
+  svg+=`</svg>`
+  return svg
+}
+
+// ---- Cuadrante ataque vs defensa (scatter) ----
+function svgScatter(rows){
+  const pad={l:44,r:20,t:14,b:34},w=560,h=420
+  const plotW=w-pad.l-pad.r,plotH=h-pad.t-pad.b
+  if(!rows.length)return`<div class="empty">Selecciona al menos un equipo.</div>`
+  const maxGC=Math.max(2.2,...rows.map(r=>r.gcPP))
+  const maxGF=Math.max(2.2,...rows.map(r=>r.gfPP))
+  const x=v=>pad.l+(v/maxGC)*plotW
+  const y=v=>pad.t+plotH-(v/maxGF)*plotH
+  const avgGC=rows.reduce((a,r)=>a+r.gcPP,0)/rows.length
+  const avgGF=rows.reduce((a,r)=>a+r.gfPP,0)/rows.length
+  let svg=`<svg class="chart-svg" width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px">`
+  for(let i=0;i<=4;i++){
+    const gx=pad.l+plotW*i/4
+    svg+=`<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t+plotH}" class="chart-grid"/>`
+    svg+=`<text x="${gx}" y="${pad.t+plotH+16}" text-anchor="middle" class="chart-axis">${(maxGC*i/4).toFixed(1)}</text>`
+    const gy=pad.t+plotH-plotH*i/4
+    svg+=`<line x1="${pad.l}" y1="${gy}" x2="${pad.l+plotW}" y2="${gy}" class="chart-grid"/>`
+    svg+=`<text x="${pad.l-6}" y="${gy+4}" text-anchor="end" class="chart-axis">${(maxGF*i/4).toFixed(1)}</text>`
+  }
+  svg+=`<text x="${pad.l+plotW/2}" y="${h-2}" text-anchor="middle" class="chart-axis">Goles en contra por partido →</text>`
+  svg+=`<text x="12" y="${pad.t+plotH/2}" text-anchor="middle" class="chart-axis" transform="rotate(-90 12 ${pad.t+plotH/2})">Goles a favor por partido →</text>`
+  svg+=`<line x1="${x(avgGC)}" y1="${pad.t}" x2="${x(avgGC)}" y2="${pad.t+plotH}" stroke="var(--borde2)" stroke-width="1.5"/>`
+  svg+=`<line x1="${pad.l}" y1="${y(avgGF)}" x2="${pad.l+plotW}" y2="${y(avgGF)}" stroke="var(--borde2)" stroke-width="1.5"/>`
+  rows.forEach(r=>{
+    const cx=x(r.gcPP),cy=y(r.gfPP)
+    const rad=r.isTemuco?8:6
+    const fill=r.isTemuco?'var(--v)':'var(--borde2)'
+    const stroke=r.isTemuco?'var(--v)':'var(--gris)'
+    svg+=`<circle cx="${cx}" cy="${cy}" r="${rad}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"><title>${r.nombre}\nGF/PJ: ${r.gfPP}  GC/PJ: ${r.gcPP}</title></circle>`
+    if(r.isTemuco)svg+=`<text x="${cx}" y="${cy-13}" text-anchor="middle" font-size="11" font-weight="800" fill="var(--v)">${r.nombre}</text>`
+  })
+  svg+=`</svg>`
+  return svg
+}
+
+function renderFiltroEquipos(){
   const allEquipos=[...S.analisis.equipos].sort((a,b)=>a.nombre.localeCompare(b.nombre))
-  return`<div class="pb">
-    <div class="pt disp" style="font-size:18px;margin-bottom:4px">Análisis de datos · Liga de Ascenso</div>
-    <div style="color:var(--gris);font-size:12px;margin-bottom:14px">Comparación entre equipos. Filtra quiénes se muestran en los gráficos.</div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+  return`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
       <span class="bsm" onclick="S.analisis.seleccion=new Set(S.analisis.equipos.map(e=>e.id));render()">Todos</span>
       <span class="bsm" onclick="S.analisis.seleccion=new Set();render()">Ninguno</span>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px">
       ${allEquipos.map(e=>`<div class="team-chip ${S.analisis.seleccion.has(e.id)?'on':''}" onclick="toggleAnalisisEquipo(${e.id})"><img src="${crestUrl(e.nombre)}">${e.nombre}</div>`).join('')}
-    </div>
+    </div>`
+}
 
-    <div class="panel"><div class="pb">
-      <div class="pt disp" style="font-size:15px;margin-bottom:10px">Goles a favor por partido</div>
-      ${svgBarChart(rows,{val:r=>r.gfPP,fmt:v=>v.toFixed(2),maxHint:2})}
-    </div></div>
+const ANALISIS_CATS=[
+  {id:'ataque',l:'⚔️ Ataque y Defensa'},
+  {id:'disciplina',l:'🟨 Disciplina'},
+  {id:'rendimiento',l:'🏠 Local / Visita'},
+  {id:'descuento',l:'⏱ Descuento'},
+  {id:'sub21',l:'🌱 Sub-21'},
+]
 
-    <div class="panel"><div class="pb">
-      <div class="pt disp" style="font-size:15px;margin-bottom:10px">Goles en contra por partido</div>
-      ${svgBarChart(rows,{val:r=>r.gcPP,fmt:v=>v.toFixed(2),maxHint:2})}
-    </div></div>
+function renderAnalisis(){
+  if(!S.analisis.loaded)return`<div class="pb"><div class="empty">Cargando comparativa…</div></div>`
+  const rows=statsAnalisis()
+  const cat=S.analisis.tab
 
-    <div class="panel"><div class="pb">
-      <div class="pt disp" style="font-size:15px;margin-bottom:10px">Tarjetas amarillas por partido</div>
-      ${svgBarChart(rows,{val:r=>r.amPP,fmt:v=>v.toFixed(2),maxHint:3})}
-    </div></div>
+  const contenido=
+    cat==='ataque'?`
+      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Cada punto es un equipo. Arriba a la izquierda = ataca mucho y recibe poco. Las líneas marcan el promedio de los equipos filtrados.</div>
+      ${svgScatter(rows)}
+    `:
+    cat==='disciplina'?`
+      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Tarjetas recibidas por partido jugado.</div>
+      <div style="display:flex;gap:14px;margin-bottom:10px;font-size:11px;font-weight:700;color:var(--gris)">
+        <span><span style="display:inline-block;width:9px;height:9px;background:var(--am);border-radius:2px;margin-right:4px"></span>Amarillas</span>
+        <span><span style="display:inline-block;width:9px;height:9px;background:var(--ro);border-radius:2px;margin-right:4px"></span>Rojas</span>
+      </div>
+      ${svgStackedChart(rows,[{val:r=>r.amPP,color:'var(--am)',label:'Amarillas'},{val:r=>r.rjPP,color:'var(--ro)',label:'Rojas'}],{maxHint:3.5})}
+    `:
+    cat==='rendimiento'?`
+      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Puntos obtenidos por partido jugado, según condición.</div>
+      <div style="display:flex;gap:14px;margin-bottom:10px;font-size:11px;font-weight:700;color:var(--gris)">
+        <span><span style="display:inline-block;width:9px;height:9px;background:var(--az);border-radius:2px;margin-right:4px"></span>Local</span>
+        <span><span style="display:inline-block;width:9px;height:9px;background:var(--gold);border-radius:2px;margin-right:4px"></span>Visita</span>
+      </div>
+      ${svgGroupedChart(rows,[{val:r=>r.pppLocal,color:'var(--az)',label:'Local'},{val:r=>r.pppVisita,color:'var(--gold)',label:'Visita'}],{maxHint:3})}
+    `:
+    cat==='descuento'?`
+      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">% de los goles del equipo marcados en el 45'+ o el 90'+.</div>
+      ${svgBarChart(rows,{val:r=>r.pctDescuento,fmt:v=>v.toFixed(1)+'%',maxHint:20})}
+    `:
+    `
+      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Suma de minutos oficiales de todos los jugadores sub-21 usados en la temporada (dato ANFP).</div>
+      ${svgBarChart(rows,{val:r=>r.sub21Min,fmt:v=>v.toLocaleString('es-CL'),maxHint:1000})}
+    `
+
+  return`<div class="pb">
+    <div class="pt disp" style="font-size:18px;margin-bottom:4px">Análisis de datos · Liga de Ascenso</div>
+    <div style="color:var(--gris);font-size:12px;margin-bottom:14px">Comparación entre los 16 equipos. Filtra quiénes se muestran.</div>
+    ${renderFiltroEquipos()}
+    <div class="tabs">${ANALISIS_CATS.map(c=>`<button class="tab ${cat===c.id?'on':''}" onclick="S.analisis.tab='${c.id}';render()">${c.l}</button>`).join('')}</div>
+    <div class="panel"><div class="pb">${contenido}</div></div>
   </div>`
 }
 

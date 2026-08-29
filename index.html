@@ -2754,40 +2754,6 @@ async function verRival(id){
 function toggleGoleadores(){S.liga.golExpand=!S.liga.golExpand;render()}
 
 // ---- Evolución de puntos acumulados, jornada a jornada ----
-function svgRachaPuntos(partidos){
-  const jugados=partidos.filter(p=>p.resultado)
-  if(!jugados.length)return`<div class="empty">Sin partidos jugados todavía.</div>`
-  let acc=0
-  const pts=jugados.map(p=>{acc+=p.resultado==='G'?3:p.resultado==='E'?1:0;return{...p,acumulado:acc}})
-  const pad={l:30,r:14,t:14,b:34},w=680,h=160
-  const plotW=w-pad.l-pad.r,plotH=h-pad.t-pad.b
-  const maxY=Math.max(1,...pts.map(p=>p.acumulado))
-  const n=pts.length
-  const x=i=>pad.l+(n<=1?plotW/2:(i/(n-1))*plotW)
-  const y=v=>pad.t+plotH-(v/maxY)*plotH
-  const path=pts.map((p,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(p.acumulado).toFixed(1)}`).join(' ')
-  let svg=`<svg class="chart-svg" width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px">`
-  for(let i=0;i<=3;i++){
-    const gy=pad.t+plotH-plotH*i/3
-    svg+=`<line x1="${pad.l}" y1="${gy}" x2="${pad.l+plotW}" y2="${gy}" class="chart-grid"/>`
-    svg+=`<text x="${pad.l-6}" y="${gy+3}" text-anchor="end" class="chart-axis">${Math.round(maxY*i/3)}</text>`
-  }
-  // Eje X: número de fecha (jornada) bajo cada partido — si hay muchas, se
-  // etiqueta cada N para que no se amontonen, siempre mostrando la primera y la última.
-  const step=Math.max(1,Math.ceil(n/9))
-  pts.forEach((p,i)=>{
-    if(i%step!==0&&i!==n-1)return
-    svg+=`<text x="${x(i)}" y="${h-6}" text-anchor="middle" class="chart-axis">F${p.jornada??'?'}</text>`
-  })
-  svg+=`<path d="${path}" fill="none" stroke="var(--v)" stroke-width="2.5"/>`
-  pts.forEach((p,i)=>{
-    const col=p.resultado==='G'?'var(--vc)':p.resultado==='E'?'var(--am)':'var(--ro)'
-    svg+=`<circle cx="${x(i)}" cy="${y(p.acumulado)}" r="4" fill="${col}" stroke="#fff" stroke-width="1.5"><title>F${p.jornada||'?'} vs ${p.rival}: ${p.gf}-${p.gc} (${p.resultado}) · ${p.acumulado} pts acumulados</title></circle>`
-  })
-  svg+=`</svg>`
-  return svg
-}
-
 // ---- Evolución de puntos de 2+ equipos superpuesta, eje X = jornada ----
 function svgRachaMultiple(series){
   // series: [{nombre,color,serie:[{jornada,acumulado}]}]
@@ -2811,12 +2777,18 @@ function svgRachaMultiple(series){
     if((j-minJ)%step!==0&&j!==maxJ)continue
     svg+=`<text x="${x(j)}" y="${h-6}" text-anchor="middle" class="chart-axis">F${j}</text>`
   }
+  // El punto se colorea por el resultado de ESE partido (ganó/empató/perdió),
+  // no por el color del equipo — así se lee de un vistazo la racha, mientras
+  // la línea (color del equipo) sigue marcando de quién es cada serie.
+  const colorResultado={G:'#27ae60',E:'var(--muted)',P:'var(--ro)'}
+  const nombreResultado={G:'Ganó',E:'Empató',P:'Perdió'}
   series.forEach(s=>{
     if(!s.serie.length)return
     const path=s.serie.map((p,i)=>`${i===0?'M':'L'}${x(p.jornada).toFixed(1)},${y(p.acumulado).toFixed(1)}`).join(' ')
     svg+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5"/>`
     s.serie.forEach(p=>{
-      svg+=`<circle cx="${x(p.jornada)}" cy="${y(p.acumulado)}" r="3.5" fill="${s.color}" stroke="#fff" stroke-width="1.5"><title>${s.nombre} · F${p.jornada}: ${p.acumulado} pts acumulados</title></circle>`
+      const dot=colorResultado[p.resultado]||s.color
+      svg+=`<circle cx="${x(p.jornada)}" cy="${y(p.acumulado)}" r="3.5" fill="${dot}" stroke="#fff" stroke-width="1.5"><title>${s.nombre} · F${p.jornada}: ${p.acumulado} pts acumulados${p.resultado?` (${nombreResultado[p.resultado]})`:''}</title></circle>`
     })
   })
   svg+=`</svg>`
@@ -2839,11 +2811,6 @@ function renderInicio(){
 
   return`<div class="pb">
     ${S.rivales.loaded&&S.rivales.proximo?renderProximoRival():''}
-
-    ${S.partidosLiga.loaded&&S.partidosLiga.partidos.some(p=>p.resultado)?`<div class="panel" style="margin-bottom:22px">
-      <div class="ph"><span class="pt">Evolución de puntos</span><span style="font-size:10px;color:var(--gris)">acumulados por jornada</span></div>
-      <div class="pb">${svgRachaPuntos(S.partidosLiga.partidos)}</div>
-    </div>`:''}
 
     ${u?`<div class="hero2" onclick="verPartidoLiga(${u.id},'inicio')" style="cursor:pointer">
       <div class="hero2-split"></div><div class="hero2-stripes"></div>
@@ -3086,8 +3053,9 @@ async function statsEquipoLiga(equipoId){
   const serie=partidosArr.map(p=>{
     const esLocal=p.equipo_local_id===equipoId
     const gf=esLocal?p.goles_local:p.goles_visita,gc=esLocal?p.goles_visita:p.goles_local
-    acc+=gf>gc?3:gf===gc?1:0
-    return{jornada:p.jornada,acumulado:acc}
+    const resultado=gf>gc?'G':gf===gc?'E':'P'
+    acc+=resultado==='G'?3:resultado==='E'?1:0
+    return{jornada:p.jornada,acumulado:acc,resultado}
   })
   return{
     ...global,
@@ -3475,8 +3443,8 @@ function renderAnalisis(){
       S.analisis.equipos.forEach(e=>{if(S.analisis.seleccion.has(e.id))porEquipo[e.id]={acc:0,serie:[]}})
       S.analisis.partidos.forEach(p=>{
         const l=porEquipo[p.equipo_local_id],v=porEquipo[p.equipo_visita_id]
-        if(l){l.acc+=p.goles_local>p.goles_visita?3:p.goles_local===p.goles_visita?1:0;l.serie.push({jornada:p.jornada,acumulado:l.acc})}
-        if(v){v.acc+=p.goles_visita>p.goles_local?3:p.goles_local===p.goles_visita?1:0;v.serie.push({jornada:p.jornada,acumulado:v.acc})}
+        if(l){const r=p.goles_local>p.goles_visita?'G':p.goles_local===p.goles_visita?'E':'P';l.acc+=r==='G'?3:r==='E'?1:0;l.serie.push({jornada:p.jornada,acumulado:l.acc,resultado:r})}
+        if(v){const r=p.goles_visita>p.goles_local?'G':p.goles_local===p.goles_visita?'E':'P';v.acc+=r==='G'?3:r==='E'?1:0;v.serie.push({jornada:p.jornada,acumulado:v.acc,resultado:r})}
       })
       const series=S.analisis.equipos.filter(e=>S.analisis.seleccion.has(e.id)).map(e=>({
         nombre:e.nombre,color:colorEquipo(e.id,!!(temuco&&e.id===temuco.id)),serie:porEquipo[e.id].serie,

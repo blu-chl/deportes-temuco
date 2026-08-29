@@ -30,7 +30,7 @@ npm install
 Necesitas una cuenta de Cloudflare (gratis, si no tienes créala en
 cloudflare.com). Luego:
 ```bash
-npx wrangler login
+./node_modules/.bin/wrangler login
 ```
 Esto abre el navegador para autorizar — solo se hace una vez.
 
@@ -39,16 +39,16 @@ El token de Telegram y un secreto propio para verificar que los mensajes
 al webhook realmente vienen de Telegram (no van en `wrangler.toml` porque
 ese archivo queda en el repo):
 ```bash
-npx wrangler secret put TELEGRAM_BOT_TOKEN
+./node_modules/.bin/wrangler secret put TELEGRAM_BOT_TOKEN
 # pega el token de BotFather cuando lo pida
 
-npx wrangler secret put TELEGRAM_WEBHOOK_SECRET
+./node_modules/.bin/wrangler secret put TELEGRAM_WEBHOOK_SECRET
 # pega cualquier string random largo, ej generado con: openssl rand -hex 24
 ```
 
 **5. Deploy**
 ```bash
-npm run deploy
+./node_modules/.bin/wrangler deploy
 ```
 Al terminar te muestra la URL del worker, algo como:
 `https://temuco-bot.<tu-subdominio>.workers.dev`
@@ -70,6 +70,6 @@ Abre el chat con tu bot en Telegram y manda `/start`.
 
 Cualquier cambio en `src/index.js` se sube con:
 ```bash
-npm run deploy
+./node_modules/.bin/wrangler deploy
 ```
 No hace falta volver a registrar el webhook (la URL no cambia).

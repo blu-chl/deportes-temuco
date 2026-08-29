@@ -2777,7 +2777,11 @@ async function verRival(id){
 }
 function toggleGoleadores(){S.liga.golExpand=!S.liga.golExpand;render()}
 
-// ---- Evolución de puntos acumulados, jornada a jornada ----
+// Color/etiqueta de resultado (G/E/P) — compartido entre el gráfico de
+// evolución (color de cada punto) y la "forma reciente" de Próximo Rival.
+const COLOR_RESULTADO={G:'#27ae60',E:'var(--muted)',P:'var(--ro)'}
+const LABEL_RESULTADO={G:'Ganó',E:'Empató',P:'Perdió'}
+
 // ---- Evolución de puntos de 2+ equipos superpuesta, eje X = jornada ----
 function svgRachaMultiple(series){
   // series: [{nombre,color,serie:[{jornada,acumulado}]}]
@@ -2804,15 +2808,13 @@ function svgRachaMultiple(series){
   // El punto se colorea por el resultado de ESE partido (ganó/empató/perdió),
   // no por el color del equipo — así se lee de un vistazo la racha, mientras
   // la línea (color del equipo) sigue marcando de quién es cada serie.
-  const colorResultado={G:'#27ae60',E:'var(--muted)',P:'var(--ro)'}
-  const nombreResultado={G:'Ganó',E:'Empató',P:'Perdió'}
   series.forEach(s=>{
     if(!s.serie.length)return
     const path=s.serie.map((p,i)=>`${i===0?'M':'L'}${x(p.jornada).toFixed(1)},${y(p.acumulado).toFixed(1)}`).join(' ')
     svg+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5"/>`
     s.serie.forEach(p=>{
-      const dot=colorResultado[p.resultado]||s.color
-      svg+=`<circle cx="${x(p.jornada)}" cy="${y(p.acumulado)}" r="3.5" fill="${dot}" stroke="#fff" stroke-width="1.5"><title>${s.nombre} · F${p.jornada}: ${p.acumulado} pts acumulados${p.resultado?` (${nombreResultado[p.resultado]})`:''}</title></circle>`
+      const dot=COLOR_RESULTADO[p.resultado]||s.color
+      svg+=`<circle cx="${x(p.jornada)}" cy="${y(p.acumulado)}" r="3.5" fill="${dot}" stroke="#fff" stroke-width="1.5"><title>${s.nombre} · F${p.jornada}: ${p.acumulado} pts acumulados${p.resultado?` (${LABEL_RESULTADO[p.resultado]})`:''}</title></circle>`
     })
   })
   svg+=`</svg>`
@@ -3158,6 +3160,9 @@ function renderProximoRival(){
   const posRival=S.liga.tabla.findIndex(e=>e.id===rival.id)
   const nEquipos=S.liga.tabla.length
   const posBadge=pos=>pos>=0?`<div style="font-size:10.5px;color:rgba(255,255,255,.65);font-weight:700;margin-top:2px">${pos+1}° / ${nEquipos}</div>`:''
+  const stTemuco=posTemuco>=0?S.liga.tabla[posTemuco]:null
+  const stRival=posRival>=0?S.liga.tabla[posRival]:null
+  const formaReciente=serie=>(serie||[]).slice(-5).map(pt=>`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLOR_RESULTADO[pt.resultado]||'var(--borde2)'}" title="F${pt.jornada}: ${LABEL_RESULTADO[pt.resultado]||'?'}"></span>`).join('')
   return`<div style="margin-bottom:22px">
     <div class="hero2">
       <div class="hero2-split"></div><div class="hero2-stripes"></div>
@@ -3180,12 +3185,46 @@ function renderProximoRival(){
 
     ${c?`<div class="panel" style="margin-top:14px">
       <div class="ph"><div class="pt disp" style="font-size:15px">📈 Evolución de puntos</div></div>
-      <div class="pb">
-        <div style="display:flex;gap:14px;margin-bottom:8px;font-size:11px;font-weight:700;color:var(--gris)">
-          <span><span style="display:inline-block;width:9px;height:9px;background:var(--v);border-radius:2px;margin-right:4px"></span>Deportes Temuco</span>
-          <span><span style="display:inline-block;width:9px;height:9px;background:var(--az);border-radius:2px;margin-right:4px"></span>${rival.nombre}</span>
+      <div class="pb" style="display:flex;gap:24px;flex-wrap:wrap">
+        <div style="flex:1 1 460px;min-width:260px">
+          <div style="display:flex;gap:14px;margin-bottom:8px;font-size:11px;font-weight:700;color:var(--gris)">
+            <span><span style="display:inline-block;width:9px;height:9px;background:var(--v);border-radius:2px;margin-right:4px"></span>Deportes Temuco</span>
+            <span><span style="display:inline-block;width:9px;height:9px;background:var(--az);border-radius:2px;margin-right:4px"></span>${rival.nombre}</span>
+          </div>
+          ${svgRachaMultiple([{nombre:'Deportes Temuco',color:'var(--v)',serie:c.temuco.serie||[]},{nombre:rival.nombre,color:'var(--az)',serie:c.rival.serie||[]}])}
         </div>
-        ${svgRachaMultiple([{nombre:'Deportes Temuco',color:'var(--v)',serie:c.temuco.serie||[]},{nombre:rival.nombre,color:'var(--az)',serie:c.rival.serie||[]}])}
+        <div style="flex:1 1 180px;min-width:170px;max-width:220px;display:flex;flex-direction:column;gap:16px">
+          <div>
+            <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Cada punto = resultado</div>
+            <div style="display:flex;flex-direction:column;gap:5px;font-size:11.5px;font-weight:600">
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLOR_RESULTADO.G};margin-right:6px"></span>Ganó</span>
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLOR_RESULTADO.E};margin-right:6px"></span>Empató</span>
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLOR_RESULTADO.P};margin-right:6px"></span>Perdió</span>
+            </div>
+          </div>
+          ${stTemuco&&stRival?`
+          <div>
+            <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Puntos totales</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-weight:800;font-size:20px;color:var(--v)">${stTemuco.pts}</span>
+              <span style="font-weight:800;font-size:20px;color:var(--az)">${stRival.pts}</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Diferencia de gol</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-weight:800;font-size:15px;color:${stTemuco.gf-stTemuco.gc>=0?'#27ae60':'var(--ro)'}">${stTemuco.gf-stTemuco.gc>=0?'+':''}${stTemuco.gf-stTemuco.gc}</span>
+              <span style="font-weight:800;font-size:15px;color:${stRival.gf-stRival.gc>=0?'#27ae60':'var(--ro)'}">${stRival.gf-stRival.gc>=0?'+':''}${stRival.gf-stRival.gc}</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Últimos 5</div>
+            <div style="display:flex;justify-content:space-between">
+              <span style="display:flex;gap:3px">${formaReciente(c.temuco.serie)}</span>
+              <span style="display:flex;gap:3px">${formaReciente(c.rival.serie)}</span>
+            </div>
+          </div>`:''}
+        </div>
       </div>
     </div>`:''}
 

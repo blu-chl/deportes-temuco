@@ -350,6 +350,7 @@ let S={
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
+  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false},
   partidosLiga:{loaded:false,partidos:[],goles:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[]},
@@ -1107,6 +1108,109 @@ async function guardarTitularesAuto(){
   await patch('partidos',{formacion:S.formacion,titulares:JSON.stringify(S.titulares)},`?id=eq.${S.partidoActivo}`)
 }
 
+// ===== ENRIQUECER (datos que el scraper no puede sacar del PDF) =====
+async function cargarEnriquecimiento(){
+  if(!S.liga.loaded)await cargarLiga()
+  const tid=S.liga.temucoId
+  if(!tid){S.enriq.loaded=true;render();return}
+  const[goles,jugadores]=await Promise.all([
+    ligaGet('liga_goles',`?equipo_id=eq.${tid}&autogol=eq.false&select=id,minuto,minuto_extra,penal,subtipo,asistidor_id,asist_subtipo,jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido),partido:liga_partidos!liga_goles_partido_id_fkey(jornada,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre))&order=minuto.desc`),
+    ligaGet('liga_jugadores',`?equipo_id=eq.${tid}&select=id,nombre,apellido,foto_url&order=apellido`),
+  ])
+  // Estas columnas son la migración scraper/sql/liga_enriquecimiento.sql —
+  // si todavía no se corrió, PostgREST devuelve un error (no un array) y
+  // hay que avisarlo en vez de mostrar la página vacía como si no hubiera datos.
+  S.enriq.sqlPendiente=!Array.isArray(goles)||!Array.isArray(jugadores)
+  S.enriq.goles=Array.isArray(goles)?goles:[]
+  S.enriq.jugadores=Array.isArray(jugadores)?jugadores:[]
+  S.enriq.loaded=true
+  render()
+}
+
+async function guardarGolDetalle(id,campo,val){
+  const r=await patch('liga_goles',{[campo]:val||null},`?id=eq.${id}`)
+  if(r&&r.code){toast('Error al guardar — ¿corriste sql/liga_enriquecimiento.sql?',true);return}
+  const g=S.enriq.goles.find(x=>x.id===id)
+  if(g)g[campo]=val||null
+  render()
+}
+async function guardarFotoJugadorLiga(id,url){
+  const r=await patch('liga_jugadores',{foto_url:url||null},`?id=eq.${id}`)
+  if(r&&r.code){toast('Error al guardar la foto',true);return}
+  const j=S.enriq.jugadores.find(x=>x.id===id)
+  if(j)j.foto_url=url||null
+  toast('Foto guardada')
+}
+
+const SUBTIPOS_GOL=['Pie Derecho','Pie Izquierdo','Cabeza','Tiro Libre','Otro']
+const SUBTIPOS_ASIST=['Pase','Centro','Córner','Rebote','Individual','Tiro Libre','Penal Cedido','Otro']
+
+function renderEnriquecer(){
+  const E=S.enriq
+  if(!E.loaded)return`<div class="empty">Cargando…</div>`
+  if(E.sqlPendiente)return`<div class="panel"><div class="pb">
+    <div style="font-weight:800;color:var(--ro);margin-bottom:6px">⚠ Falta correr un SQL en Supabase</div>
+    <div style="font-size:12px;color:var(--gris);line-height:1.6">Esta sección necesita columnas que todavía no existen en la base
+    (<code style="color:var(--am)">scraper/sql/liga_enriquecimiento.sql</code>). Cópialo y pégalo en el SQL Editor de Supabase, corre una vez, y vuelve a entrar acá.</div>
+  </div></div>`
+  const pendientes=E.golesPendientes=E.goles.filter(g=>!g.subtipo).length
+  return`<div>
+    <div class="ph" style="background:none;border:none;padding:0 0 8px"><span class="pt">📸 Fotos de jugadores</span></div>
+    <div style="color:var(--gris);font-size:11px;margin-bottom:10px">Pega la URL de una foto para cada jugador. Se muestra en Plantilla, Jugadores Clave y goleadores.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:22px">
+      ${E.jugadores.map(j=>`<div class="pcard" style="cursor:default;display:flex;align-items:center;gap:8px;padding:8px 10px">
+        <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;background:rgba(16,24,32,0.08);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">
+          ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:iniciales(`${j.nombre} ${j.apellido}`)}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${j.nombre} ${j.apellido}</div>
+          <input type="url" placeholder="URL de la foto…" value="${j.foto_url||''}"
+            style="width:100%;font-size:9px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;padding:3px 6px;color:var(--blanco);font-family:var(--font);margin-top:3px"
+            onchange="guardarFotoJugadorLiga(${j.id},this.value)">
+        </div>
+      </div>`).join('')}
+    </div>
+
+    <div class="ph" style="background:none;border:none;padding:0 0 8px">
+      <span class="pt">⚽ Detalle de goles</span>
+      <span style="font-size:10px;color:${pendientes?'var(--am)':'var(--gris)'}">${pendientes?`${pendientes} sin detalle`:'todos completos ✓'}</span>
+    </div>
+    <div style="color:var(--gris);font-size:11px;margin-bottom:10px">El scraper detecta el gol y el minuto solo — cómo fue y quién dio el pase se carga acá. Se guarda automáticamente al elegir.</div>
+    ${E.goles.length?E.goles.map(g=>{
+      const rival=g.partido?.local?.nombre==='Deportes Temuco'?g.partido?.visita?.nombre:g.partido?.local?.nombre
+      const otros=E.jugadores.filter(j=>j.id!==g.jugador?.id)
+      return`<div class="pcard" style="cursor:default;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          <span style="font-weight:800;font-family:var(--font-disp);color:var(--gris)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
+          <span style="font-weight:700;font-size:12.5px">${g.jugador?`${g.jugador.nombre} ${g.jugador.apellido}`:'?'}</span>
+          <span style="font-size:10px;color:var(--muted)">vs ${rival||'?'} · F${g.partido?.jornada||'?'}</span>
+          ${g.penal?'<span class="badge bg" style="font-size:8px">Penal</span>':''}
+        </div>
+        <div class="fr2">
+          <div class="fg" style="margin-bottom:0"><label>Cómo fue el gol</label>
+            <select onchange="guardarGolDetalle(${g.id},'subtipo',this.value)">
+              <option value="">Sin definir</option>
+              ${SUBTIPOS_GOL.map(t=>`<option value="${t}" ${g.subtipo===t?'selected':''}>${t}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg" style="margin-bottom:0"><label>Quién dio el pase</label>
+            <select onchange="guardarGolDetalle(${g.id},'asistidor_id',this.value?+this.value:'')">
+              <option value="">Sin asistencia</option>
+              ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${j.nombre} ${j.apellido}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        ${g.asistidor_id?`<div class="fg" style="margin-top:8px;margin-bottom:0"><label>Cómo fue la asistencia</label>
+          <select onchange="guardarGolDetalle(${g.id},'asist_subtipo',this.value)">
+            <option value="">Sin definir</option>
+            ${SUBTIPOS_ASIST.map(t=>`<option value="${t}" ${g.asist_subtipo===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </div>`:''}
+      </div>`
+    }).join(''):'<div class="empty">Sin goles registrados todavía.</div>'}
+  </div>`
+}
+
 // ===== REGISTRO =====
 function renderRegistro(){
   const pid=S.partidoActivo
@@ -1574,6 +1678,9 @@ function renderEstadisticas(){
   const jugados=PL.partidos.filter(p=>p.resultado)
   const nombreJ=j=>j?`${j.nombre} ${j.apellido}`:'?'
   const inicialesJ=j=>iniciales(nombreJ(j))
+  const avatarJ=(j,size)=>j?.foto_url
+    ?`<img src="${j.foto_url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+    :`<div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(16,24,32,0.05);display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*.33)}px;font-weight:800;flex-shrink:0">${inicialesJ(j)}</div>`
 
   const golesReales=PL.goles.filter(g=>!g.autogol)
   const autogoles=PL.goles.filter(g=>g.autogol).length
@@ -1603,6 +1710,19 @@ function renderEstadisticas(){
   })
   const goleadores=Object.values(golMap).sort((a,b)=>b.goles-a.goles)
 
+  const asistMap={}
+  golesReales.forEach(g=>{
+    if(!g.asistidor)return
+    const jid=g.asistidor.id
+    if(!asistMap[jid])asistMap[jid]={jugador:g.asistidor,asist:0}
+    asistMap[jid].asist++
+  })
+  const asistidores=Object.values(asistMap).sort((a,b)=>b.asist-a.asist)
+
+  const subtipoMap={}
+  golesReales.forEach(g=>{if(g.subtipo)subtipoMap[g.subtipo]=(subtipoMap[g.subtipo]||0)+1})
+  const conSubtipo=Object.values(subtipoMap).reduce((a,b)=>a+b,0)
+
   const discMap={}
   PL.tarjetas.forEach(t=>{
     const jid=t.jugador?.id
@@ -1624,13 +1744,19 @@ function renderEstadisticas(){
   const minSub21=minutaje.filter(m=>m.jugador.sub21).reduce((a,m)=>a+m.min,0)
 
   const cambioMap={}
+  const cambioPosMap={}
   PL.sustituciones.forEach(s=>{
     if(!s.entra||!s.sale)return
     const key=`${s.sale.id}_${s.entra.id}`
     if(!cambioMap[key])cambioMap[key]={sale:s.sale,entra:s.entra,n:0}
     cambioMap[key].n++
+    if(s.sale.posicion&&s.entra.posicion){
+      const pk=`${s.sale.posicion} por ${s.entra.posicion}`
+      cambioPosMap[pk]=(cambioPosMap[pk]||0)+1
+    }
   })
   const topCambios=Object.values(cambioMap).sort((a,b)=>b.n-a.n).slice(0,8)
+  const topCambiosPos=Object.entries(cambioPosMap).sort((a,b)=>b[1]-a[1])
 
   const golesUlt=golesReales.filter(g=>g.minuto>=80)
   const golesUltMap={}
@@ -1692,12 +1818,28 @@ function renderEstadisticas(){
         }).join('')}
       </div>
     </div>
-    <div class="panel" style="margin-bottom:12px">
-      <div class="ph"><span class="pt">Goleadores</span><span style="font-size:10px;color:var(--gris)">${autogoles?`+${autogoles} autogol${autogoles>1?'es':''} en contra`:''}</span></div>
-      <table><thead><tr><th></th><th>Jugador</th><th class="num">⚽</th><th class="num">Penales</th></tr></thead><tbody>
-      ${goleadores.slice(0,10).map((g,i)=>`<tr><td><div style="width:24px;height:24px;border-radius:50%;background:rgba(16,24,32,0.05);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800">${inicialesJ(g.jugador)}</div></td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${nombreJ(g.jugador)}</td><td class="num" style="color:var(--vc);font-weight:800">${g.goles}</td><td class="num" style="color:var(--gris)">${g.penales||'—'}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
-      </tbody></table>
+    <div class="g2">
+      <div class="panel"><div class="ph"><span class="pt">Goleadores</span><span style="font-size:10px;color:var(--gris)">${autogoles?`+${autogoles} autogol${autogoles>1?'es':''} en contra`:''}</span></div>
+        <table><thead><tr><th></th><th>Jugador</th><th class="num">⚽</th><th class="num">Penales</th></tr></thead><tbody>
+        ${goleadores.slice(0,10).map((g,i)=>`<tr><td>${avatarJ(g.jugador,22)}</td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${nombreJ(g.jugador)}</td><td class="num" style="color:var(--vc);font-weight:800">${g.goles}</td><td class="num" style="color:var(--gris)">${g.penales||'—'}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
+        </tbody></table>
+      </div>
+      <div class="panel"><div class="ph"><span class="pt">Asistidores</span></div>
+        <table><thead><tr><th></th><th>Jugador</th><th class="num">🅰️</th></tr></thead><tbody>
+        ${asistidores.slice(0,10).map((a,i)=>`<tr><td>${avatarJ(a.jugador,22)}</td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${nombreJ(a.jugador)}</td><td class="num" style="color:var(--az);font-weight:800">${a.asist}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias cargadas</td></tr>`}
+        </tbody></table>
+      </div>
     </div>
+    ${conSubtipo?`<div class="panel" style="margin-bottom:12px">
+      <div class="ph"><span class="pt">Cómo fueron los goles</span></div>
+      <div class="pb" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
+        ${SUBTIPOS_GOL.map(t=>{
+          const n=subtipoMap[t]||0
+          const pct=Math.round(n/Math.max(1,conSubtipo)*100)
+          return`<div class="mc"><div class="mc-l">${t}</div><div class="mc-v" style="font-size:20px">${n}</div><div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div><div class="mc-s">${pct}%</div></div>`
+        }).join('')}
+      </div>
+    </div>`:''}
     <div class="panel" style="margin-bottom:12px"><div class="ph"><span class="pt">Disciplina</span></div>
       <table><thead><tr><th>Jugador</th><th class="num">🟡</th><th class="num">🔴</th></tr></thead><tbody>
       ${disciplina.slice(0,8).map(j=>`<tr><td>${nombreJ(j.jugador)}</td><td class="num" style="color:var(--am)">${j.am}</td><td class="num" style="color:#b3261e">${j.ro}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Sin tarjetas</td></tr>`}
@@ -1706,6 +1848,14 @@ function renderEstadisticas(){
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">🔄 Cambios más recurrentes</span><span style="font-size:10px;color:var(--gris)">${topCambios.length} combinaciones</span></div>
       <div class="pb">
+        ${topCambiosPos.length?`<div style="margin-bottom:12px">
+          <div style="font-size:11px;color:var(--am);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:6px">¿Qué se cambia más?</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px">
+            ${topCambiosPos.map(([k,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(16,24,32,0.045);border-radius:5px;padding:4px 8px">
+              <span style="font-size:11px">${k}</span><strong style="font-size:12px;color:var(--am);margin-left:6px">${n}x</strong>
+            </div>`).join('')}
+          </div>
+        </div>`:''}
         ${topCambios.length?topCambios.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(200,21,39,0.07)">
           <div style="width:20px;text-align:right;font-size:11px;color:var(--muted)">${i+1}</div>
           <div style="flex:1;font-size:11px"><span style="color:var(--ro)">↓ ${nombreJ(c.sale)}</span> <span style="color:var(--muted)">por</span> <span style="color:var(--vc)">↑ ${nombreJ(c.entra)}</span></div>
@@ -2120,18 +2270,26 @@ async function cargarJugadoresClave(equipoId){
   S.jugClave={equipoId,loaded:false,jugadores:[],filtroPos:'todos'}
   render()
   let[goles,tarjetas,alineaciones,jugadores]=await Promise.all([
-    ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=jugador_id`),
+    ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=jugador_id,asistidor_id`),
     ligaGet('liga_tarjetas',`?equipo_id=eq.${equipoId}&select=jugador_id,tipo`),
     ligaGet('liga_alineaciones',`?equipo_id=eq.${equipoId}&select=jugador_id,minutos_jugados`),
-    ligaGet('liga_jugadores',`?equipo_id=eq.${equipoId}&select=id,nombre,apellido,posicion`),
+    ligaGet('liga_jugadores',`?equipo_id=eq.${equipoId}&select=id,nombre,apellido,posicion,foto_url`),
   ])
-  // La columna posicion es una migración nueva (sql/liga_jugadores_posicion.sql):
-  // si todavía no se corrió en Supabase, PostgREST devuelve un error en vez de
-  // un array — reintentamos sin pedirla en vez de mostrar la página vacía.
+  // posicion/foto_url/asistidor_id son columnas nuevas (ver scraper/sql/):
+  // si todavía no se corrieron en Supabase, PostgREST devuelve un error en
+  // vez de un array — reintentamos sin pedirlas en vez de mostrar la
+  // página vacía.
   if(!Array.isArray(jugadores)){
     jugadores=await ligaGet('liga_jugadores',`?equipo_id=eq.${equipoId}&select=id,nombre,apellido`)
   }
-  const golMap={};(Array.isArray(goles)?goles:[]).forEach(g=>{golMap[g.jugador_id]=(golMap[g.jugador_id]||0)+1})
+  if(!Array.isArray(goles)){
+    goles=await ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=jugador_id`)
+  }
+  const golMap={},asistMap={}
+  ;(Array.isArray(goles)?goles:[]).forEach(g=>{
+    golMap[g.jugador_id]=(golMap[g.jugador_id]||0)+1
+    if(g.asistidor_id)asistMap[g.asistidor_id]=(asistMap[g.asistidor_id]||0)+1
+  })
   const amMap={},roMap={}
   ;(Array.isArray(tarjetas)?tarjetas:[]).forEach(t=>{
     if(t.tipo==='amarilla')amMap[t.jugador_id]=(amMap[t.jugador_id]||0)+1
@@ -2146,11 +2304,12 @@ async function cargarJugadoresClave(equipoId){
   const lista=(Array.isArray(jugadores)?jugadores:[]).map(j=>({
     ...j,
     goles:golMap[j.id]||0,
+    asistencias:asistMap[j.id]||0,
     amarillas:amMap[j.id]||0,
     rojas:roMap[j.id]||0,
     minutos:minMap[j.id]||0,
     posicion:posPropia[j.id]||j.posicion||null,
-  })).filter(j=>j.goles>0||j.amarillas>0||j.rojas>0||j.minutos>0)
+  })).filter(j=>j.goles>0||j.asistencias>0||j.amarillas>0||j.rojas>0||j.minutos>0)
     .sort((a,b)=>b.goles-a.goles||b.minutos-a.minutos)
   S.jugClave.jugadores=lista
   S.jugClave.loaded=true
@@ -2174,19 +2333,21 @@ function renderConsultas(){
 
   return`<div class="pb">
     <div class="pt disp" style="font-size:18px;margin-bottom:4px">Jugadores clave por equipo</div>
-    <div style="color:var(--gris);font-size:12px;margin-bottom:14px">Goleadores, disciplina y minutaje de cualquier equipo de la liga — para tener claro a quién marcar antes de un partido. No incluye asistencias: el informe oficial de ANFP no las registra.</div>
+    <div style="color:var(--gris);font-size:12px;margin-bottom:14px">Goleadores, asistencias, disciplina y minutaje de cualquier equipo de la liga — para tener claro a quién marcar antes de un partido.</div>
     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px">
       ${equipos.map(e=>`<div class="team-chip ${JC.equipoId===e.id?'on':''}" onclick="cargarJugadoresClave(${e.id})"><img src="${crestUrl(e.nombre)}">${e.nombre}</div>`).join('')}
     </div>
     ${!JC.equipoId?'<div class="empty">Selecciona un equipo.</div>':!JC.loaded?'<div class="empty">Cargando…</div>':`
       <div class="tabs">${posOpts.map(([k,l])=>`<button class="tab ${JC.filtroPos===k?'on':''}" onclick="S.jugClave.filtroPos='${k}';render()">${l}</button>`).join('')}</div>
       <div class="panel"><div style="overflow-x:auto"><table>
-        <thead><tr><th>Jugador</th><th class="center">Pos</th><th class="num">⚽</th><th class="num">🟨</th><th class="num">🟥</th><th class="num">Min</th>${S.isAdmin?'<th></th>':''}</tr></thead>
+        <thead><tr><th></th><th>Jugador</th><th class="center">Pos</th><th class="num">⚽</th><th class="num">🅰️</th><th class="num">🟨</th><th class="num">🟥</th><th class="num">Min</th>${S.isAdmin?'<th></th>':''}</tr></thead>
         <tbody>
         ${filtrados.length?filtrados.map(j=>`<tr>
+          <td>${j.foto_url?`<img src="${j.foto_url}" style="width:22px;height:22px;border-radius:50%;object-fit:cover">`:`<div style="width:22px;height:22px;border-radius:50%;background:rgba(16,24,32,0.05);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800">${iniciales(j.nombre+' '+j.apellido)}</div>`}</td>
           <td>${j.nombre} ${j.apellido}</td>
           <td class="center">${j.posicion?`<span class="pos-${j.posicion}">${j.posicion}</span>`:'—'}</td>
           <td class="num" style="color:var(--vc);font-weight:800">${j.goles||'—'}</td>
+          <td class="num" style="color:var(--az);font-weight:800">${j.asistencias||'—'}</td>
           <td class="num" style="color:var(--am)">${j.amarillas||'—'}</td>
           <td class="num" style="color:#b3261e">${j.rojas||'—'}</td>
           <td class="num" style="color:var(--gris)">${j.minutos||0}'</td>
@@ -2194,7 +2355,7 @@ function renderConsultas(){
             <option value="">—</option>
             ${['POR','DEF','MED','DEL'].map(p=>`<option value="${p}" ${j.posicion===p?'selected':''}>${p}</option>`).join('')}
           </select></td>`:''}
-        </tr>`).join(''):`<tr><td colspan="${S.isAdmin?7:6}" style="text-align:center;color:var(--gris);padding:14px">Sin datos para este filtro.</td></tr>`}
+        </tr>`).join(''):`<tr><td colspan="${S.isAdmin?9:8}" style="text-align:center;color:var(--gris);padding:14px">Sin datos para este filtro.</td></tr>`}
         </tbody>
       </table></div></div>
     `}
@@ -2348,13 +2509,23 @@ async function cargarPartidosLiga(){
   if(!S.liga.loaded)await cargarLiga()
   const tid=S.liga.temucoId
   if(!tid){S.partidosLiga.loaded=true;render();return}
-  const[partidos,goles,tarjetas,sustituciones,alineaciones]=await Promise.all([
+  let[partidos,goles,tarjetas,sustituciones,alineaciones]=await Promise.all([
     ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${tid},equipo_visita_id.eq.${tid})&select=id,jornada,fecha_hora,estadio,equipo_local_id,equipo_visita_id,goles_local,goles_visita,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre)&order=fecha_hora.asc`),
-    ligaGet('liga_goles',`?equipo_id=eq.${tid}&select=partido_id,minuto,minuto_extra,penal,autogol,jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido)`),
+    ligaGet('liga_goles',`?equipo_id=eq.${tid}&select=partido_id,minuto,minuto_extra,penal,autogol,subtipo,asistidor_id,asist_subtipo,jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido,foto_url),asistidor:liga_jugadores!liga_goles_asistidor_id_fkey(id,nombre,apellido)`),
     ligaGet('liga_tarjetas',`?equipo_id=eq.${tid}&select=partido_id,tipo,minuto,jugador:liga_jugadores!liga_tarjetas_jugador_id_fkey(id,nombre,apellido)`),
-    ligaGet('liga_sustituciones',`?equipo_id=eq.${tid}&select=partido_id,entra:liga_jugadores!liga_sustituciones_entra_jugador_id_fkey(id,nombre,apellido),sale:liga_jugadores!liga_sustituciones_sale_jugador_id_fkey(id,nombre,apellido)`),
+    ligaGet('liga_sustituciones',`?equipo_id=eq.${tid}&select=partido_id,entra:liga_jugadores!liga_sustituciones_entra_jugador_id_fkey(id,nombre,apellido,posicion),sale:liga_jugadores!liga_sustituciones_sale_jugador_id_fkey(id,nombre,apellido,posicion)`),
     ligaGet('liga_alineaciones',`?equipo_id=eq.${tid}&select=partido_id,minutos_jugados,portero,titular,jugador:liga_jugadores!liga_alineaciones_jugador_id_fkey(id,nombre,apellido,sub21)`),
   ])
+  // subtipo/asistidor_id/asist_subtipo/posicion son columnas nuevas — si el
+  // SQL correspondiente todavía no se corrió en Supabase, la query con esos
+  // campos falla entera (PostgREST no tiene la columna). Reintentamos sin
+  // pedirlas en vez de dejar Partidos/Estadísticas sin datos.
+  if(!Array.isArray(goles)){
+    goles=await ligaGet('liga_goles',`?equipo_id=eq.${tid}&select=partido_id,minuto,minuto_extra,penal,autogol,jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido)`)
+  }
+  if(!Array.isArray(sustituciones)){
+    sustituciones=await ligaGet('liga_sustituciones',`?equipo_id=eq.${tid}&select=partido_id,entra:liga_jugadores!liga_sustituciones_entra_jugador_id_fkey(id,nombre,apellido),sale:liga_jugadores!liga_sustituciones_sale_jugador_id_fkey(id,nombre,apellido)`)
+  }
   S.partidosLiga.partidos=Array.isArray(partidos)?partidos.map(p=>partidoTemucoVista(p,tid)):[]
   S.partidosLiga.goles=Array.isArray(goles)?goles:[]
   S.partidosLiga.tarjetas=Array.isArray(tarjetas)?tarjetas:[]
@@ -2633,36 +2804,61 @@ function renderPartidoLiga(){
 }
 
 // ===== RIVALES (calendario + notas de scouting) =====
-async function statsEquipoLiga(equipoId){
-  const[partidos,goles,tarjetas,jugadores]=await Promise.all([
-    ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${equipoId},equipo_visita_id.eq.${equipoId})&select=equipo_local_id,equipo_visita_id,goles_local,goles_visita&goles_local=not.is.null`),
-    ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=minuto,minuto_extra`),
-    ligaGet('liga_tarjetas',`?equipo_id=eq.${equipoId}&select=tipo`),
-    ligaGet('liga_jugadores',`?equipo_id=eq.${equipoId}&sub21=eq.true&select=minutos_oficial_temporada`),
-  ])
-  const s={pj:0,gf:0,gc:0,am:0,rj:0,pjLocal:0,ptsLocal:0,pjVisita:0,ptsVisita:0,golesDescuento:0}
-  ;(Array.isArray(partidos)?partidos:[]).forEach(p=>{
+// Calcula un bloque de stats (gfPP/gcPP/amPP/rjPP/pctDescuento/ptsPP) para
+// un subconjunto de partidos ya jugados — se usa tanto para "temporada
+// completa" como para "últimos 5", pasando distintos sets de partido_id.
+function statsBloque(partidosSet,equipoId,goles,tarjetas){
+  const ids=new Set(partidosSet.map(p=>p.id))
+  const s={pj:0,gf:0,gc:0,am:0,rj:0,pts:0,golesDescuento:0}
+  partidosSet.forEach(p=>{
     const esLocal=p.equipo_local_id===equipoId
     s.pj++
     s.gf+=esLocal?p.goles_local:p.goles_visita
     s.gc+=esLocal?p.goles_visita:p.goles_local
-    if(esLocal){s.pjLocal++;s.ptsLocal+=p.goles_local>p.goles_visita?3:p.goles_local===p.goles_visita?1:0}
-    else{s.pjVisita++;s.ptsVisita+=p.goles_visita>p.goles_local?3:p.goles_local===p.goles_visita?1:0}
+    const gf=esLocal?p.goles_local:p.goles_visita,gc=esLocal?p.goles_visita:p.goles_local
+    s.pts+=gf>gc?3:gf===gc?1:0
   })
-  ;(Array.isArray(goles)?goles:[]).forEach(g=>{if(g.minuto_extra>0&&(g.minuto===45||g.minuto===90))s.golesDescuento++})
-  const golesTotal=Array.isArray(goles)?goles.length:0
-  ;(Array.isArray(tarjetas)?tarjetas:[]).forEach(t=>{if(t.tipo==='amarilla')s.am++;else if(t.tipo==='roja')s.rj++})
-  const sub21Min=(Array.isArray(jugadores)?jugadores:[]).reduce((a,j)=>a+(j.minutos_oficial_temporada||0),0)
+  const golesSet=goles.filter(g=>ids.has(g.partido_id))
+  golesSet.forEach(g=>{if(g.minuto_extra>0&&(g.minuto===45||g.minuto===90))s.golesDescuento++})
+  tarjetas.filter(t=>ids.has(t.partido_id)).forEach(t=>{if(t.tipo==='amarilla')s.am++;else if(t.tipo==='roja')s.rj++})
   return{
     pj:s.pj,
     gfPP:s.pj?+(s.gf/s.pj).toFixed(2):0,
     gcPP:s.pj?+(s.gc/s.pj).toFixed(2):0,
     amPP:s.pj?+(s.am/s.pj).toFixed(2):0,
     rjPP:s.pj?+(s.rj/s.pj).toFixed(2):0,
+    ptsPP:s.pj?+(s.pts/s.pj).toFixed(2):0,
+    pctDescuento:golesSet.length?+((s.golesDescuento/golesSet.length)*100).toFixed(1):0,
+  }
+}
+
+async function statsEquipoLiga(equipoId){
+  const[partidos,goles,tarjetas,jugadores]=await Promise.all([
+    ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${equipoId},equipo_visita_id.eq.${equipoId})&select=id,fecha_hora,equipo_local_id,equipo_visita_id,goles_local,goles_visita&goles_local=not.is.null&order=fecha_hora.asc`),
+    ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=partido_id,minuto,minuto_extra`),
+    ligaGet('liga_tarjetas',`?equipo_id=eq.${equipoId}&select=partido_id,tipo`),
+    ligaGet('liga_jugadores',`?equipo_id=eq.${equipoId}&sub21=eq.true&select=minutos_oficial_temporada`),
+  ])
+  const partidosArr=Array.isArray(partidos)?partidos:[]
+  const golesArr=Array.isArray(goles)?goles:[]
+  const tarjetasArr=Array.isArray(tarjetas)?tarjetas:[]
+
+  const s={pj:0,pjLocal:0,ptsLocal:0,pjVisita:0,ptsVisita:0}
+  partidosArr.forEach(p=>{
+    const esLocal=p.equipo_local_id===equipoId
+    s.pj++
+    if(esLocal){s.pjLocal++;s.ptsLocal+=p.goles_local>p.goles_visita?3:p.goles_local===p.goles_visita?1:0}
+    else{s.pjVisita++;s.ptsVisita+=p.goles_visita>p.goles_local?3:p.goles_local===p.goles_visita?1:0}
+  })
+  const sub21Min=(Array.isArray(jugadores)?jugadores:[]).reduce((a,j)=>a+(j.minutos_oficial_temporada||0),0)
+  const global=statsBloque(partidosArr,equipoId,golesArr,tarjetasArr)
+  const u5=statsBloque(partidosArr.slice(-5),equipoId,golesArr,tarjetasArr)
+  return{
+    ...global,
     pppLocal:s.pjLocal?+(s.ptsLocal/s.pjLocal).toFixed(2):0,
     pppVisita:s.pjVisita?+(s.ptsVisita/s.pjVisita).toFixed(2):0,
-    pctDescuento:golesTotal?+((s.golesDescuento/golesTotal)*100).toFixed(1):0,
     sub21Min,
+    u5,
   }
 }
 
@@ -2699,12 +2895,16 @@ async function borrarNotaRival(id){
   render()
 }
 
-function filaComparacion(label,vT,vR,fmt,masEsMejor=true){
+function filaComparacion(label,vT,vR,fmt,masEsMejor=true,u5T,u5R){
   fmt=fmt||(v=>v)
   const mejor=vT===vR?null:(masEsMejor?(vT>vR?'t':'r'):(vT<vR?'t':'r'))
   const total=Math.max(vT+vR,0.01)
-  return`<div style="display:grid;grid-template-columns:52px 1fr 52px;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--borde)">
-    <div style="text-align:right;font-weight:800;font-size:13px;color:${mejor==='t'?'var(--v)':'var(--blanco)'}">${fmt(vT)}</div>
+  const conU5=u5T!==undefined&&u5R!==undefined
+  return`<div style="display:grid;grid-template-columns:60px 1fr 60px;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--borde)">
+    <div style="text-align:right">
+      <div style="font-weight:800;font-size:13px;color:${mejor==='t'?'var(--v)':'var(--blanco)'}">${fmt(vT)}</div>
+      ${conU5?`<div style="font-size:9px;color:var(--muted);margin-top:1px">Ú5: ${fmt(u5T)}</div>`:''}
+    </div>
     <div>
       <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;text-align:center;margin-bottom:3px">${label}</div>
       <div style="display:flex;height:6px;border-radius:999px;overflow:hidden;background:var(--borde)">
@@ -2712,7 +2912,10 @@ function filaComparacion(label,vT,vR,fmt,masEsMejor=true){
         <div style="width:${(vR/total)*100}%;background:${mejor==='r'?'var(--az)':'var(--borde2)'}"></div>
       </div>
     </div>
-    <div style="text-align:left;font-weight:800;font-size:13px;color:${mejor==='r'?'var(--az)':'var(--blanco)'}">${fmt(vR)}</div>
+    <div style="text-align:left">
+      <div style="font-weight:800;font-size:13px;color:${mejor==='r'?'var(--az)':'var(--blanco)'}">${fmt(vR)}</div>
+      ${conU5?`<div style="font-size:9px;color:var(--muted);margin-top:1px">Ú5: ${fmt(u5R)}</div>`:''}
+    </div>
   </div>`
 }
 
@@ -2741,12 +2944,15 @@ function renderProximoRival(){
         </div>
       </div>
       ${c?`<div style="margin-top:14px">
-        ${filaComparacion('Goles a favor / PJ',c.temuco.gfPP,c.rival.gfPP,v=>v.toFixed(2))}
-        ${filaComparacion('Goles en contra / PJ',c.temuco.gcPP,c.rival.gcPP,v=>v.toFixed(2),false)}
-        ${filaComparacion('Amarillas / PJ',c.temuco.amPP,c.rival.amPP,v=>v.toFixed(2),false)}
-        ${filaComparacion('Rojas / PJ',c.temuco.rjPP,c.rival.rjPP,v=>v.toFixed(2),false)}
-        ${filaComparacion(esLocal?'Pts/PJ Local':'Pts/PJ Visita',esLocal?c.temuco.pppLocal:c.temuco.pppVisita,esLocal?c.rival.pppVisita:c.rival.pppLocal,v=>v.toFixed(2))}
-        ${filaComparacion('% goles en descuento',c.temuco.pctDescuento,c.rival.pctDescuento,v=>v.toFixed(1)+'%')}
+        <div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:2px">
+          <span style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Número grande = temporada completa · "Ú5" = últimos 5 partidos</span>
+        </div>
+        ${filaComparacion('Goles a favor / PJ',c.temuco.gfPP,c.rival.gfPP,v=>v.toFixed(2),true,c.temuco.u5.gfPP,c.rival.u5.gfPP)}
+        ${filaComparacion('Goles en contra / PJ',c.temuco.gcPP,c.rival.gcPP,v=>v.toFixed(2),false,c.temuco.u5.gcPP,c.rival.u5.gcPP)}
+        ${filaComparacion('Amarillas / PJ',c.temuco.amPP,c.rival.amPP,v=>v.toFixed(2),false,c.temuco.u5.amPP,c.rival.u5.amPP)}
+        ${filaComparacion('Rojas / PJ',c.temuco.rjPP,c.rival.rjPP,v=>v.toFixed(2),false,c.temuco.u5.rjPP,c.rival.u5.rjPP)}
+        ${filaComparacion(esLocal?'Pts/PJ Local':'Pts/PJ Visita',esLocal?c.temuco.pppLocal:c.temuco.pppVisita,esLocal?c.rival.pppVisita:c.rival.pppLocal,v=>v.toFixed(2),true,c.temuco.u5.ptsPP,c.rival.u5.ptsPP)}
+        ${filaComparacion('% goles en descuento',c.temuco.pctDescuento,c.rival.pctDescuento,v=>v.toFixed(1)+'%',true,c.temuco.u5.pctDescuento,c.rival.u5.pctDescuento)}
         ${filaComparacion('Minutos sub-21',c.temuco.sub21Min,c.rival.sub21Min,v=>v.toLocaleString('es-CL'))}
       </div>`:`<div class="empty">Calculando comparación…</div>`}
     </div>
@@ -3141,10 +3347,11 @@ function renderSanciones(){
 
 function renderAdmin(){
   if(!S.isAdmin)return renderLogin()
-  const subs=[{id:'registro',l:'Registro'},{id:'medico',l:'Médico'},{id:'sanciones',l:'⚖ Sanciones'},{id:'config',l:'⚙ Config'},{id:'debug',l:'🛠 Debug'}]
-  return`<div class="tabs">${subs.map(t=>`<button class="tab ${S.adminSub===t.id?'on':''}" onclick="S.adminSub='${t.id}';render()">${t.l}</button>`).join('')}</div>
+  const subs=[{id:'registro',l:'Registro'},{id:'enriquecer',l:'✏️ Enriquecer'},{id:'medico',l:'Médico'},{id:'sanciones',l:'⚖ Sanciones'},{id:'config',l:'⚙ Config'},{id:'debug',l:'🛠 Debug'}]
+  return`<div class="tabs">${subs.map(t=>`<button class="tab ${S.adminSub===t.id?'on':''}" onclick="S.adminSub='${t.id}';if(t.id==='enriquecer'&&!S.enriq.loaded)cargarEnriquecimiento();render()">${t.l}</button>`).join('')}</div>
   ${
     S.adminSub==='registro'?renderRegistro():
+    S.adminSub==='enriquecer'?renderEnriquecer():
     S.adminSub==='medico'?renderMedico():
     S.adminSub==='sanciones'?renderSanciones():
     S.adminSub==='config'?renderConfig():

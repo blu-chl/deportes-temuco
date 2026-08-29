@@ -355,6 +355,7 @@ let S={
   bgImage:localStorage.getItem('dt-bg')||'',
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[]},
   debutsExpand:false,
+  jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
   partidosLiga:{loaded:false,partidos:[],goles:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[]},
@@ -437,9 +438,9 @@ async function doLogin(){
 function doLogout(){AUTH_TOKEN=SB_KEY;S.isAdmin=false;S.pag='inicio';render()}
 function navTo(p){
   S.pag=p;render()
-  if((p==='inicio'||p==='tabla')&&!S.liga.loaded)cargarLiga()
-  if((p==='partidos'||p==='estadisticas')&&!S.partidosLiga.loaded)cargarPartidosLiga()
-  if(p==='rivales'&&!S.rivales.loaded)cargarRivales()
+  if((p==='inicio'||p==='tabla'||p==='consultas')&&!S.liga.loaded)cargarLiga()
+  if((p==='inicio'||p==='partidos'||p==='estadisticas')&&!S.partidosLiga.loaded)cargarPartidosLiga()
+  if((p==='inicio'||p==='rivales')&&!S.rivales.loaded)cargarRivales()
   if(p==='analisis'&&!S.analisis.loaded)cargarAnalisis()
 }
 
@@ -2149,202 +2150,95 @@ function renderNotas(){
   </div>`
 }
 
-// ===== CONSULTAS =====
-const PRESETS_CONSULTA=[
-  {l:'Defensas amarillados',f:{tipoEv:'Amarilla',posicion:'DEF',condicion:'todos',resultado:'todos',periodo:'todos',competencia:'todos',posEsp:'todos'}},
-  {l:'Goles en visita',f:{tipoEv:'Gol',condicion:'Visita',posicion:'todos',resultado:'todos',periodo:'todos',competencia:'todos',posEsp:'todos'}},
-  {l:'Goles de cabeza',f:{tipoEv:'Gol',posicion:'todos',condicion:'todos',resultado:'todos',periodo:'todos',competencia:'todos',posEsp:'todos',_subtipo:'De cabeza'}},
-  {l:'Asistencias en visita',f:{tipoEv:'Asistencia',condicion:'Visita',posicion:'todos',resultado:'todos',periodo:'todos',competencia:'todos',posEsp:'todos'}},
-  {l:'Goles último cuarto',f:{tipoEv:'Gol',periodo:'61+',posicion:'todos',condicion:'todos',resultado:'todos',competencia:'todos',posEsp:'todos'}},
-  {l:'Tarjetas en derrota',f:{tipoEv:'Amarilla',resultado:'D',posicion:'todos',condicion:'todos',periodo:'todos',competencia:'todos',posEsp:'todos'}},
-]
-function aplicarPreset(i){Object.assign(S.consulta,PRESETS_CONSULTA[i].f);render()}
-function limpiarConsulta(){S.consulta={tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'};render()}
+// ===== JUGADORES CLAVE (antes "Consultas") =====
+// Reemplaza al viejo sistema de filtros de eventos propios (Gol/Asistencia/
+// tipo/subtipo, etc): esa taxonomía rica solo existía en las tablas propias
+// del club y no tiene equivalente en los datos scrapeados de la liga (ANFP
+// no registra asistencias ni subtipo de gol). Esto es lo que realmente hace
+// falta para scouting: quién mete goles y quién se indisciplina, de
+// cualquier equipo de la liga, con la posición para poder filtrar.
+async function cargarJugadoresClave(equipoId){
+  S.jugClave={equipoId,loaded:false,jugadores:[],filtroPos:'todos'}
+  render()
+  let[goles,tarjetas,alineaciones,jugadores]=await Promise.all([
+    ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=jugador_id`),
+    ligaGet('liga_tarjetas',`?equipo_id=eq.${equipoId}&select=jugador_id,tipo`),
+    ligaGet('liga_alineaciones',`?equipo_id=eq.${equipoId}&select=jugador_id,minutos_jugados`),
+    ligaGet('liga_jugadores',`?equipo_id=eq.${equipoId}&select=id,nombre,apellido,posicion`),
+  ])
+  // La columna posicion es una migración nueva (sql/liga_jugadores_posicion.sql):
+  // si todavía no se corrió en Supabase, PostgREST devuelve un error en vez de
+  // un array — reintentamos sin pedirla en vez de mostrar la página vacía.
+  if(!Array.isArray(jugadores)){
+    jugadores=await ligaGet('liga_jugadores',`?equipo_id=eq.${equipoId}&select=id,nombre,apellido`)
+  }
+  const golMap={};(Array.isArray(goles)?goles:[]).forEach(g=>{golMap[g.jugador_id]=(golMap[g.jugador_id]||0)+1})
+  const amMap={},roMap={}
+  ;(Array.isArray(tarjetas)?tarjetas:[]).forEach(t=>{
+    if(t.tipo==='amarilla')amMap[t.jugador_id]=(amMap[t.jugador_id]||0)+1
+    else roMap[t.jugador_id]=(roMap[t.jugador_id]||0)+1
+  })
+  const minMap={};(Array.isArray(alineaciones)?alineaciones:[]).forEach(a=>{minMap[a.jugador_id]=(minMap[a.jugador_id]||0)+(a.minutos_jugados||0)})
+  // La posición de los jugadores propios (Plantilla/Admin) manda si el
+  // jugador está vinculado vía liga_jugador_id — hoy eso solo aplica a
+  // Temuco. Para el resto de los equipos, se puede setear a mano acá.
+  const posPropia={}
+  S.jugadores.forEach(j=>{if(j.liga_jugador_id)posPropia[j.liga_jugador_id]=j.posicion})
+  const lista=(Array.isArray(jugadores)?jugadores:[]).map(j=>({
+    ...j,
+    goles:golMap[j.id]||0,
+    amarillas:amMap[j.id]||0,
+    rojas:roMap[j.id]||0,
+    minutos:minMap[j.id]||0,
+    posicion:posPropia[j.id]||j.posicion||null,
+  })).filter(j=>j.goles>0||j.amarillas>0||j.rojas>0||j.minutos>0)
+    .sort((a,b)=>b.goles-a.goles||b.minutos-a.minutos)
+  S.jugClave.jugadores=lista
+  S.jugClave.loaded=true
+  render()
+}
+
+async function guardarPosicionLiga(id,val){
+  const r=await patch('liga_jugadores',{posicion:val||null},`?id=eq.${id}`)
+  if(r&&r.code){toast('Error al guardar — ¿corriste sql/liga_jugadores_posicion.sql?',true);return}
+  const j=S.jugClave.jugadores.find(x=>x.id===id)
+  if(j)j.posicion=val||null
+  render()
+  toast('Posición actualizada')
+}
 
 function renderConsultas(){
-  const c=S.consulta
-  const selStyle='background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:6px;padding:6px 10px;color:var(--blanco);font-size:11px;font-family:var(--font);cursor:pointer'
+  const equipos=[...S.liga.equipos].sort((a,b)=>a.id===S.liga.temucoId?-1:b.id===S.liga.temucoId?1:a.nombre.localeCompare(b.nombre))
+  const JC=S.jugClave
+  const posOpts=[['todos','Todos'],['POR','POR'],['DEF','DEF'],['MED','MED'],['DEL','DEL']]
+  const filtrados=!JC.loaded?[]:JC.filtroPos==='todos'?JC.jugadores:JC.jugadores.filter(j=>j.posicion===JC.filtroPos)
 
-  // Opciones dinámicas
-  const posEspUnicas=[...new Set(S.jugadores.map(j=>j.posicion_especifica).filter(Boolean))].sort()
-  const compUnicas=[...new Set(S.partidos.map(p=>p.competencia).filter(Boolean))].sort()
-
-  // Filtros: todos los eventos con su contexto de partido
-  let evsFiltrados=S.eventos.map(ev=>{
-    const partido=S.partidos.find(p=>p.id===ev.partido_id)
-    const jugador=S.jugadores.find(j=>j.id===ev.jugador_id)
-    return{...ev,partido,jugador}
-  }).filter(ev=>ev.partido&&ev.jugador)
-
-  // Aplicar filtros AND
-  if(c.tipoEv!=='todos')evsFiltrados=evsFiltrados.filter(ev=>ev.tipo===c.tipoEv)
-  if(c.posicion!=='todos')evsFiltrados=evsFiltrados.filter(ev=>ev.jugador.posicion===c.posicion)
-  if(c.posEsp!=='todos')evsFiltrados=evsFiltrados.filter(ev=>ev.jugador.posicion_especifica===c.posEsp)
-  if(c.condicion!=='todos')evsFiltrados=evsFiltrados.filter(ev=>ev.partido.condicion===c.condicion)
-  if(c.competencia!=='todos')evsFiltrados=evsFiltrados.filter(ev=>ev.partido.competencia===c.competencia)
-  if(c.resultado!=='todos'){
-    evsFiltrados=evsFiltrados.filter(ev=>{
-      const p=ev.partido
-      const res=p.goles_favor>p.goles_contra?'V':p.goles_favor===p.goles_contra?'E':'D'
-      return res===c.resultado
-    })
-  }
-  if(c.periodo!=='todos'){
-    evsFiltrados=evsFiltrados.filter(ev=>{
-      const min=ev.minuto||0
-      if(c.periodo==='0-30')return min<=30
-      if(c.periodo==='31-60')return min>30&&min<=60
-      if(c.periodo==='61+')return min>60
-      return true
-    })
-  }
-
-  // Filtro especial para preset "Goles de cabeza" — si tipoEv=Gol y no hay otro filtro especial, chequeamos subtipo si el preset lo indica
-  // (El preset de cabeza setea tipoEv=Gol sin filtro especial extra, pero podemos filtrar por subtipo si se detecta)
-
-  // Resumen
-  const totalEvs=evsFiltrados.length
-  const jugInvolucrados=new Set(evsFiltrados.map(ev=>ev.jugador_id)).size
-  const partsInvolucrados=new Set(evsFiltrados.map(ev=>ev.partido_id)).size
-
-  // Ranking por jugador
-  const jugMap={}
-  evsFiltrados.forEach(ev=>{
-    if(!jugMap[ev.jugador_id])jugMap[ev.jugador_id]={jugador:ev.jugador,evs:[]}
-    jugMap[ev.jugador_id].evs.push(ev)
-  })
-  const ranking=Object.values(jugMap).sort((a,b)=>b.evs.length-a.evs.length)
-
-  // Color por tipo de evento
-  function evColor(tipo){
-    if(tipo==='Gol')return'var(--vc)'
-    if(tipo==='Asistencia')return'var(--az)'
-    if(tipo==='Amarilla')return'var(--am)'
-    if(tipo==='Roja')return'var(--ro)'
-    return'var(--gris)'
-  }
-
-  // Presets rápidos
-  const presetsHtml=PRESETS_CONSULTA.map((p,i)=>`<button onclick="aplicarPreset(${i})"
-    style="padding:4px 12px;border-radius:20px;border:1px solid var(--borde2);background:rgba(16,24,32,0.035);color:var(--gris);font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);white-space:nowrap;transition:all .15s"
-    onmouseover="this.style.borderColor='var(--vc)';this.style.color='var(--vc)'"
-    onmouseout="this.style.borderColor='var(--borde2)';this.style.color='var(--gris)'">${p.l}</button>`).join('')
-
-  // Ranking HTML
-  const rankingHtml=ranking.length?ranking.map(({jugador:j,evs})=>{
-    const ini=j.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase()
-    const color=evColor(evs[0]?.tipo||'todos')
-    const evsList=evs.sort((a,b)=>a.partido?.fecha?.localeCompare(b.partido?.fecha||'')||0).map(ev=>{
-      const p=ev.partido
-      const condLabel=p.condicion==='Local'?'Local':'Visita'
-      const fecha=p.fecha||''
-      return`<div style="font-size:10px;color:var(--gris);padding:2px 0 2px 52px;border-bottom:1px solid rgba(200,21,39,0.05)">
-        ${ICONOS[ev.tipo]||'•'} vs <strong style="color:var(--blanco)">${p.rival}</strong>
-        <span style="color:var(--muted)">(${condLabel})</span>
-        <span style="color:var(--am);font-weight:700"> ${ev.minuto}'</span>
-        <span style="color:var(--muted);margin-left:4px">${fecha}</span>
-        ${ev.subtipo?`<span style="font-size:9px;color:var(--muted)"> · ${ev.subtipo}</span>`:''}
-      </div>`
-    }).join('')
-    return`<div style="background:rgba(16,24,32,0.028);border:1px solid var(--borde);border-radius:8px;margin-bottom:8px;overflow:hidden">
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px">
-        <div style="width:44px;height:44px;border-radius:50%;background:var(--vo);border:2px solid var(--v);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--goldbr);flex-shrink:0;overflow:hidden">
-          ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:800;color:var(--blanco)">${j.numero} ${j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre}</div>
-          <span class="pos-${j.posicion}" style="font-size:10px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:28px;font-weight:900;color:${color};line-height:1">${evs.length}</div>
-          <div style="font-size:9px;color:var(--gris)">${evs.length===1?'evento':'eventos'}</div>
-        </div>
-      </div>
-      ${evsList}
-    </div>`
-  }).join(''):`<div class="empty" style="padding:40px">Sin datos para estos filtros</div>`
-
-  return`<div class="content">
-    <div class="panel" style="margin-bottom:12px">
-      <div class="ph"><span class="pt">Filtros de consulta</span>
-        <button class="bsm" onclick="limpiarConsulta()">Limpiar filtros</button>
-      </div>
-      <div class="pb">
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:12px">
-          <div class="fg" style="margin-bottom:0">
-            <label>Evento</label>
-            <select style="${selStyle};width:100%" onchange="S.consulta.tipoEv=this.value;render()">
-              <option value="todos" ${c.tipoEv==='todos'?'selected':''}>Todos</option>
-              ${['Gol','Asistencia','Amarilla','Roja','Sustitución'].map(t=>`<option value="${t}" ${c.tipoEv===t?'selected':''}>${t}</option>`).join('')}
-            </select>
-          </div>
-          <div class="fg" style="margin-bottom:0">
-            <label>Posición</label>
-            <select style="${selStyle};width:100%" onchange="S.consulta.posicion=this.value;S.consulta.posEsp='todos';render()">
-              <option value="todos" ${c.posicion==='todos'?'selected':''}>Todos</option>
-              ${['POR','DEF','MED','DEL'].map(p=>`<option value="${p}" ${c.posicion===p?'selected':''}>${p}</option>`).join('')}
-            </select>
-          </div>
-          <div class="fg" style="margin-bottom:0">
-            <label>Pos. específica</label>
-            <select style="${selStyle};width:100%" onchange="S.consulta.posEsp=this.value;render()">
-              <option value="todos" ${c.posEsp==='todos'?'selected':''}>Todas</option>
-              ${(c.posicion==='todos'?posEspUnicas:(POS_GRUPOS[c.posicion]||[])).map(p=>`<option value="${p}" ${c.posEsp===p?'selected':''}>${p}</option>`).join('')}
-            </select>
-          </div>
-          <div class="fg" style="margin-bottom:0">
-            <label>Condición</label>
-            <select style="${selStyle};width:100%" onchange="S.consulta.condicion=this.value;render()">
-              <option value="todos" ${c.condicion==='todos'?'selected':''}>Todos</option>
-              ${['Local','Visita'].map(v=>`<option value="${v}" ${c.condicion===v?'selected':''}>${v}</option>`).join('')}
-            </select>
-          </div>
-          <div class="fg" style="margin-bottom:0">
-            <label>Competencia</label>
-            <select style="${selStyle};width:100%" onchange="S.consulta.competencia=this.value;render()">
-              <option value="todos" ${c.competencia==='todos'?'selected':''}>Todas</option>
-              ${compUnicas.map(comp=>`<option value="${comp}" ${c.competencia===comp?'selected':''}>${comp}</option>`).join('')}
-            </select>
-          </div>
-          <div class="fg" style="margin-bottom:0">
-            <label>Resultado</label>
-            <select style="${selStyle};width:100%" onchange="S.consulta.resultado=this.value;render()">
-              <option value="todos" ${c.resultado==='todos'?'selected':''}>Todos</option>
-              <option value="V" ${c.resultado==='V'?'selected':''}>Victoria (V)</option>
-              <option value="E" ${c.resultado==='E'?'selected':''}>Empate (E)</option>
-              <option value="D" ${c.resultado==='D'?'selected':''}>Derrota (D)</option>
-            </select>
-          </div>
-          <div class="fg" style="margin-bottom:0">
-            <label>Período</label>
-            <select style="${selStyle};width:100%" onchange="S.consulta.periodo=this.value;render()">
-              <option value="todos" ${c.periodo==='todos'?'selected':''}>Todos</option>
-              <option value="0-30" ${c.periodo==='0-30'?'selected':''}>0-30 min</option>
-              <option value="31-60" ${c.periodo==='31-60'?'selected':''}>31-60 min</option>
-              <option value="61+" ${c.periodo==='61+'?'selected':''}>61+ min</option>
-            </select>
-          </div>
-        </div>
-        <div style="margin-top:4px">
-          <div style="font-size:10px;color:var(--gris);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:700">Presets rápidos:</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">${presetsHtml}</div>
-        </div>
-      </div>
+  return`<div class="pb">
+    <div class="pt disp" style="font-size:18px;margin-bottom:4px">Jugadores clave por equipo</div>
+    <div style="color:var(--gris);font-size:12px;margin-bottom:14px">Goleadores, disciplina y minutaje de cualquier equipo de la liga — para tener claro a quién marcar antes de un partido. No incluye asistencias: el informe oficial de ANFP no las registra.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px">
+      ${equipos.map(e=>`<div class="team-chip ${JC.equipoId===e.id?'on':''}" onclick="cargarJugadoresClave(${e.id})"><img src="${crestUrl(e.nombre)}">${e.nombre}</div>`).join('')}
     </div>
-    <div class="panel" style="margin-bottom:12px">
-      <div class="ph">
-        <span class="pt">Resultados</span>
-        <span style="font-size:11px;color:var(--gris)">${totalEvs} evento${totalEvs!==1?'s':''} encontrado${totalEvs!==1?'s':''}</span>
-      </div>
-      <div class="pb">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-          <div class="mc"><div class="mc-l">Eventos</div><div class="mc-v" style="color:var(--vc)">${totalEvs}</div></div>
-          <div class="mc"><div class="mc-l">Jugadores</div><div class="mc-v">${jugInvolucrados}</div></div>
-          <div class="mc"><div class="mc-l">Partidos</div><div class="mc-v">${partsInvolucrados}</div></div>
-        </div>
-        ${rankingHtml}
-      </div>
-    </div>
+    ${!JC.equipoId?'<div class="empty">Selecciona un equipo.</div>':!JC.loaded?'<div class="empty">Cargando…</div>':`
+      <div class="tabs">${posOpts.map(([k,l])=>`<button class="tab ${JC.filtroPos===k?'on':''}" onclick="S.jugClave.filtroPos='${k}';render()">${l}</button>`).join('')}</div>
+      <div class="panel"><div style="overflow-x:auto"><table>
+        <thead><tr><th>Jugador</th><th class="center">Pos</th><th class="num">⚽</th><th class="num">🟨</th><th class="num">🟥</th><th class="num">Min</th>${S.isAdmin?'<th></th>':''}</tr></thead>
+        <tbody>
+        ${filtrados.length?filtrados.map(j=>`<tr>
+          <td>${j.nombre} ${j.apellido}</td>
+          <td class="center">${j.posicion?`<span class="pos-${j.posicion}">${j.posicion}</span>`:'—'}</td>
+          <td class="num" style="color:var(--vc);font-weight:800">${j.goles||'—'}</td>
+          <td class="num" style="color:var(--am)">${j.amarillas||'—'}</td>
+          <td class="num" style="color:#b3261e">${j.rojas||'—'}</td>
+          <td class="num" style="color:var(--gris)">${j.minutos||0}'</td>
+          ${S.isAdmin?`<td><select onchange="guardarPosicionLiga(${j.id},this.value)" style="font-size:9px;padding:2px 4px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;color:var(--blanco);font-family:var(--font)">
+            <option value="">—</option>
+            ${['POR','DEF','MED','DEL'].map(p=>`<option value="${p}" ${j.posicion===p?'selected':''}>${p}</option>`).join('')}
+          </select></td>`:''}
+        </tr>`).join(''):`<tr><td colspan="${S.isAdmin?7:6}" style="text-align:center;color:var(--gris);padding:14px">Sin datos para este filtro.</td></tr>`}
+        </tbody>
+      </table></div></div>
+    `}
   </div>`
 }
 
@@ -2508,7 +2402,7 @@ async function cargarPartidosLiga(){
   S.partidosLiga.sustituciones=Array.isArray(sustituciones)?sustituciones:[]
   S.partidosLiga.alineaciones=Array.isArray(alineaciones)?alineaciones:[]
   S.partidosLiga.loaded=true
-  if(S.pag==='partidos'||S.pag==='estadisticas')render()
+  if(S.pag==='partidos'||S.pag==='estadisticas'||S.pag==='inicio')render()
 }
 
 function renderTablaGeneral(){
@@ -2564,6 +2458,34 @@ async function verRival(id){
 }
 function toggleGoleadores(){S.liga.golExpand=!S.liga.golExpand;render()}
 
+// ---- Evolución de puntos acumulados, jornada a jornada ----
+function svgRachaPuntos(partidos){
+  const jugados=partidos.filter(p=>p.resultado)
+  if(!jugados.length)return`<div class="empty">Sin partidos jugados todavía.</div>`
+  let acc=0
+  const pts=jugados.map(p=>{acc+=p.resultado==='G'?3:p.resultado==='E'?1:0;return{...p,acumulado:acc}})
+  const pad={l:30,r:14,t:14,b:24},w=680,h=150
+  const plotW=w-pad.l-pad.r,plotH=h-pad.t-pad.b
+  const maxY=Math.max(1,...pts.map(p=>p.acumulado))
+  const n=pts.length
+  const x=i=>pad.l+(n<=1?plotW/2:(i/(n-1))*plotW)
+  const y=v=>pad.t+plotH-(v/maxY)*plotH
+  const path=pts.map((p,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(p.acumulado).toFixed(1)}`).join(' ')
+  let svg=`<svg class="chart-svg" width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px">`
+  for(let i=0;i<=3;i++){
+    const gy=pad.t+plotH-plotH*i/3
+    svg+=`<line x1="${pad.l}" y1="${gy}" x2="${pad.l+plotW}" y2="${gy}" class="chart-grid"/>`
+    svg+=`<text x="${pad.l-6}" y="${gy+3}" text-anchor="end" class="chart-axis">${Math.round(maxY*i/3)}</text>`
+  }
+  svg+=`<path d="${path}" fill="none" stroke="var(--v)" stroke-width="2.5"/>`
+  pts.forEach((p,i)=>{
+    const col=p.resultado==='G'?'var(--vc)':p.resultado==='E'?'var(--am)':'var(--ro)'
+    svg+=`<circle cx="${x(i)}" cy="${y(p.acumulado)}" r="4" fill="${col}" stroke="#fff" stroke-width="1.5"><title>F${p.jornada||'?'} vs ${p.rival}: ${p.gf}-${p.gc} (${p.resultado}) · ${p.acumulado} pts acumulados</title></circle>`
+  })
+  svg+=`</svg>`
+  return svg
+}
+
 function renderInicio(){
   const L=S.liga
   if(!L.loaded)return`<div class="pb"><div class="empty">Cargando datos de la liga…</div></div>`
@@ -2575,6 +2497,13 @@ function renderInicio(){
   const stTemuco=posTemuco>=0?L.tabla[posTemuco]:null
 
   return`<div class="pb">
+    ${S.rivales.loaded&&S.rivales.proximo?renderProximoRival():''}
+
+    ${S.partidosLiga.loaded&&S.partidosLiga.partidos.some(p=>p.resultado)?`<div class="panel" style="margin-bottom:22px">
+      <div class="ph"><span class="pt">Evolución de puntos</span><span style="font-size:10px;color:var(--gris)">acumulados por jornada</span></div>
+      <div class="pb">${svgRachaPuntos(S.partidosLiga.partidos)}</div>
+    </div>`:''}
+
     ${u?`<div class="hero2" onclick="verPartidoLiga(${u.id},'inicio')" style="cursor:pointer">
       <div class="hero2-split"></div><div class="hero2-stripes"></div>
       <div class="hero2-inner">
@@ -2601,7 +2530,7 @@ function renderInicio(){
       <div class="mc"><div class="mc-l">Goles F/C</div><div class="mc-v" style="font-size:20px">${stTemuco.gf}/${stTemuco.gc}</div><div class="mc-s">${stTemuco.gf-stTemuco.gc>=0?'+':''}${stTemuco.gf-stTemuco.gc} dif.</div></div>
     </div>`:''}
 
-    <div class="ph" style="background:none;border:none;padding:0 0 12px">
+    <div class="ph" style="background:none;border:none;padding:24px 0 12px">
       <div class="pt disp" style="font-size:18px">Goleadores de la temporada</div>
       <button class="bsm" onclick="toggleGoleadores()">${L.golExpand?'Ver menos':'Ver más'}</button>
     </div>
@@ -2793,7 +2722,7 @@ async function cargarRivales(){
     const rivalId=p.equipo_local_id===S.liga.temucoId?p.visita.id:p.local.id
     const[statsTemuco,statsRival]=await Promise.all([statsEquipoLiga(S.liga.temucoId),statsEquipoLiga(rivalId)])
     S.rivales.comparacion={temuco:statsTemuco,rival:statsRival}
-    if(S.pag==='rivales')render()
+    if(S.pag==='rivales'||S.pag==='inicio')render()
   }
 }
 
@@ -3290,6 +3219,8 @@ function render(){
 render()
 cargarDatos()
 cargarLiga()
+cargarPartidosLiga()
+cargarRivales()
 </script>
 </body>
 </html>

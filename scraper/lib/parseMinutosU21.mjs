@@ -32,7 +32,23 @@ export async function parseMinutosU21(pdfBuffer) {
     for (const r of page) {
       const it = r.items;
       const txt = rowText(it);
-      if (txt.includes('TOTAL CONTABLE')) continue;
+      if (txt.includes('TOTAL CONTABLE')) {
+        // Esta fila trae el total OFICIAL del equipo, ya calculado por ANFP
+        // con su propia regla de tope por jornada — NO es lo mismo que sumar
+        // el minutos_oficial de cada jugador (eso sobrecuenta cuando hay más
+        // de un sub-21 en cancha a la vez, hasta ~2.7x en casos extremos).
+        // La fila trae dos pares [total, tope, diferencia]; el segundo total
+        // (justo antes de la constante "1.890" = 21 fechas x 90 min) es el
+        // que ANFP usa como cifra oficial — confirmado contra el PDF real.
+        if (actual) {
+          const idx = it.findIndex((i) => i.str.trim() === '1.890' || i.str.trim() === '1890');
+          if (idx > 0) {
+            const totalContable = Number(it[idx - 1].str.replace(/\./g, ''));
+            if (Number.isFinite(totalContable)) actual.totalContable = totalContable;
+          }
+        }
+        continue;
+      }
 
       const nombre = cellJoin(it, 190, 268);
       const totalStr = cell(it, 640, 680);

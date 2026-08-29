@@ -31,7 +31,8 @@ async function main() {
 
   for (const bloque of bloques) {
     if (dryRun) {
-      console.log(`${bloque.equipoCorto}:`);
+      const suma = bloque.jugadores.reduce((a, j) => a + j.minutos_oficial, 0);
+      console.log(`${bloque.equipoCorto}: total contable oficial=${bloque.totalContable ?? '?'} (suma de jugadores=${suma})`);
       for (const j of bloque.jugadores) {
         console.log(`  · ${j.nombre.padEnd(28)} nace ${j.fecha_nacimiento || '(sin dato)'}  ${j.minutos_oficial} min oficiales`);
       }
@@ -46,7 +47,8 @@ async function main() {
     }
 
     const jugadoresEquipo = await db.listarJugadoresEquipo(equipo.id);
-    console.log(`${bloque.equipoCorto} -> ${equipo.nombre}`);
+    console.log(`${bloque.equipoCorto} -> ${equipo.nombre}${bloque.totalContable != null ? ` (total contable oficial: ${bloque.totalContable})` : ''}`);
+    await db.actualizarSub21Contable(equipo.id, bloque.totalContable);
 
     for (const j of bloque.jugadores) {
       let jugador = encontrarJugador(j.nombre, jugadoresEquipo);

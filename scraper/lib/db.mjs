@@ -134,6 +134,16 @@ export async function actualizarDatosU21(jugadorId, { fecha_nacimiento, minutos_
   });
 }
 
+// Total oficial ANFP (fila "TOTAL CONTABLE" del PDF) — no confundir con la
+// suma de minutos_oficial_temporada de los jugadores, que sobrecuenta.
+export async function actualizarSub21Contable(equipoId, totalContable) {
+  if (totalContable == null) return;
+  await sb('PATCH', 'liga_equipos', {
+    body: { sub21_minutos_contable: totalContable },
+    params: `?id=eq.${equipoId}`,
+  });
+}
+
 // Devuelve el id si el partido ya está completo (informe procesado, con
 // resultado). Una fila "programada" (sin resultado aún, guardada solo para
 // el calendario de próximos rivales) no cuenta como completa: se debe poder

@@ -355,7 +355,7 @@ let S={
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[]},
   rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:''},
-  analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],jugadores:[],seleccion:new Set()},
+  analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],seleccion:new Set()},
 }
 
 async function cargarDatos(){
@@ -2388,14 +2388,16 @@ function pageHero(titulo,sub){return`<div class="pagehero">
 async function ligaGet(table,params){return get(table,params)}
 
 async function cargarLiga(){
-  const[equipos,goles,jugadores,partidosAll,sanciones,alineacionesAll]=await Promise.all([
-    ligaGet('liga_equipos','?select=id,nombre&order=nombre'),
+  let[equipos,goles,jugadores,partidosAll,sanciones,alineacionesAll]=await Promise.all([
+    ligaGet('liga_equipos','?select=id,nombre,sub21_minutos_contable&order=nombre'),
     ligaGet('liga_goles','?select=jugador_id,autogol&autogol=eq.false&limit=1000'),
     ligaGet('liga_jugadores','?select=id,apellido,nombre,equipo_id,sub21,minutos_oficial_temporada,fecha_nacimiento&limit=1000'),
     ligaGetAll('liga_partidos','id,jornada,fecha_hora,equipo_local_id,equipo_visita_id,goles_local,goles_visita'),
     ligaGet('liga_sanciones','?select=id,equipo_id,puntos,motivo,fecha&order=fecha.desc'),
     ligaGetAll('liga_alineaciones','partido_id,equipo_id,jugador_id'),
   ])
+  // sub21_minutos_contable es una columna nueva (scraper/sql/liga_equipos_sub21_contable.sql)
+  if(!Array.isArray(equipos))equipos=await ligaGet('liga_equipos','?select=id,nombre&order=nombre')
   S.liga.equipos=Array.isArray(equipos)?equipos:[]
   const temuco=S.liga.equipos.find(e=>e.nombre==='Deportes Temuco')
   S.liga.temucoId=temuco?temuco.id:null
@@ -2628,7 +2630,11 @@ function renderInicio(){
   if(!L.loaded)return`<div class="pb"><div class="empty">Cargando datos de la liga…</div></div>`
   const u=L.ultimo
   const goleadores=L.golExpand?L.goleadores:L.goleadores.slice(0,5)
-  const sub21Total=L.sub21.reduce((a,j)=>a+(j.minutos_oficial_temporada||0),0)
+  // Total OFICIAL de ANFP (tope por jornada) — no la suma de cada jugador,
+  // que sobrecuenta cuando hay más de un sub-21 en cancha a la vez. Si la
+  // columna nueva todavía no está poblada, cae de respaldo a la suma.
+  const temucoEquipo=L.equipos.find(e=>e.id===L.temucoId)
+  const sub21Total=temucoEquipo?.sub21_minutos_contable??L.sub21.reduce((a,j)=>a+(j.minutos_oficial_temporada||0),0)
   const equiposOrdenados=[...L.equipos].sort((a,b)=>a.id===L.temucoId?-1:b.id===L.temucoId?1:a.nombre.localeCompare(b.nombre))
   const posTemuco=L.tabla.findIndex(e=>e.id===L.temucoId)
   const stTemuco=posTemuco>=0?L.tabla[posTemuco]:null
@@ -2840,11 +2846,10 @@ function statsBloque(partidosSet,equipoId,goles,tarjetas){
 }
 
 async function statsEquipoLiga(equipoId){
-  const[partidos,goles,tarjetas,jugadores]=await Promise.all([
+  const[partidos,goles,tarjetas]=await Promise.all([
     ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${equipoId},equipo_visita_id.eq.${equipoId})&select=id,fecha_hora,equipo_local_id,equipo_visita_id,goles_local,goles_visita&goles_local=not.is.null&order=fecha_hora.asc`),
     ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=partido_id,minuto,minuto_extra`),
     ligaGet('liga_tarjetas',`?equipo_id=eq.${equipoId}&select=partido_id,tipo`),
-    ligaGet('liga_jugadores',`?equipo_id=eq.${equipoId}&sub21=eq.true&select=minutos_oficial_temporada`),
   ])
   const partidosArr=Array.isArray(partidos)?partidos:[]
   const golesArr=Array.isArray(goles)?goles:[]
@@ -2857,7 +2862,9 @@ async function statsEquipoLiga(equipoId){
     if(esLocal){s.pjLocal++;s.ptsLocal+=p.goles_local>p.goles_visita?3:p.goles_local===p.goles_visita?1:0}
     else{s.pjVisita++;s.ptsVisita+=p.goles_visita>p.goles_local?3:p.goles_local===p.goles_visita?1:0}
   })
-  const sub21Min=(Array.isArray(jugadores)?jugadores:[]).reduce((a,j)=>a+(j.minutos_oficial_temporada||0),0)
+  // Total oficial ANFP (tope por jornada, ver liga_equipos_sub21_contable.sql).
+  const eq=S.liga.equipos.find(e=>e.id===equipoId)
+  const sub21Min=eq?.sub21_minutos_contable??0
   const global=statsBloque(partidosArr,equipoId,golesArr,tarjetasArr)
   const u5=statsBloque(partidosArr.slice(-5),equipoId,golesArr,tarjetasArr)
   return{
@@ -3010,18 +3017,18 @@ function renderRivales(){
 
 // ===== ANÁLISIS (comparativa liga con gráficos) =====
 async function cargarAnalisis(){
-  const[equipos,partidos,goles,tarjetas,jugadores]=await Promise.all([
-    ligaGet('liga_equipos','?select=id,nombre&order=nombre'),
+  let[equipos,partidos,goles,tarjetas]=await Promise.all([
+    ligaGet('liga_equipos','?select=id,nombre,sub21_minutos_contable&order=nombre'),
     ligaGet('liga_partidos','?goles_local=not.is.null&select=id,equipo_local_id,equipo_visita_id,goles_local,goles_visita&limit=1000'),
     ligaGetAll('liga_goles','equipo_id,autogol,minuto,minuto_extra'),
     ligaGetAll('liga_tarjetas','equipo_id,tipo'),
-    ligaGetAll('liga_jugadores','equipo_id,sub21,minutos_oficial_temporada'),
   ])
+  // sub21_minutos_contable es una columna nueva, ver arriba en cargarLiga.
+  if(!Array.isArray(equipos))equipos=await ligaGet('liga_equipos','?select=id,nombre&order=nombre')
   S.analisis.equipos=Array.isArray(equipos)?equipos:[]
   S.analisis.partidos=Array.isArray(partidos)?partidos:[]
   S.analisis.goles=Array.isArray(goles)?goles.filter(g=>!g.autogol):[]
   S.analisis.tarjetas=Array.isArray(tarjetas)?tarjetas:[]
-  S.analisis.jugadores=Array.isArray(jugadores)?jugadores:[]
   S.analisis.seleccion=new Set(S.analisis.equipos.map(e=>e.id))
   S.analisis.loaded=true
   if(S.pag==='analisis')render()
@@ -3047,7 +3054,9 @@ async function ligaGetAll(table,select){
 function statsAnalisis(){
   const temuco=S.analisis.equipos.find(e=>e.nombre==='Deportes Temuco')
   const stat={}
-  S.analisis.equipos.forEach(e=>{stat[e.id]={id:e.id,nombre:e.nombre,pj:0,gf:0,gc:0,am:0,rj:0,pjLocal:0,ptsLocal:0,pjVisita:0,ptsVisita:0,golesTotal:0,golesDescuento:0,sub21Min:0}})
+  // sub21Min = total OFICIAL de ANFP (tope por jornada), no la suma de cada
+  // jugador — esa sobrecuenta cuando hay más de un sub-21 en cancha a la vez.
+  S.analisis.equipos.forEach(e=>{stat[e.id]={id:e.id,nombre:e.nombre,pj:0,gf:0,gc:0,am:0,rj:0,pjLocal:0,ptsLocal:0,pjVisita:0,ptsVisita:0,golesTotal:0,golesDescuento:0,sub21Min:e.sub21_minutos_contable||0}})
   S.analisis.partidos.forEach(p=>{
     const l=stat[p.equipo_local_id],v=stat[p.equipo_visita_id]
     if(!l||!v)return
@@ -3065,10 +3074,6 @@ function statsAnalisis(){
     const e=stat[g.equipo_id];if(!e)return
     e.golesTotal++
     if(g.minuto_extra>0&&(g.minuto===45||g.minuto===90))e.golesDescuento++
-  })
-  S.analisis.jugadores.forEach(j=>{
-    const e=stat[j.equipo_id];if(!e||!j.sub21)return
-    e.sub21Min+=j.minutos_oficial_temporada||0
   })
   return Object.values(stat).map(e=>({
     ...e,

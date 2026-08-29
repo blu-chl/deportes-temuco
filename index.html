@@ -2932,6 +2932,10 @@ function renderProximoRival(){
   const esLocal=p.equipo_local_id===S.liga.temucoId
   const rival=esLocal?p.visita:p.local
   const c=S.rivales.comparacion
+  const posTemuco=S.liga.tabla.findIndex(e=>e.id===S.liga.temucoId)
+  const posRival=S.liga.tabla.findIndex(e=>e.id===rival.id)
+  const nEquipos=S.liga.tabla.length
+  const posBadge=pos=>pos>=0?`<div style="font-size:10px;color:var(--muted);font-weight:700">${pos+1}° / ${nEquipos}</div>`:''
   return`<div class="panel" style="margin-bottom:22px;overflow:visible">
     <div class="ph"><div class="pt disp" style="font-size:16px">🔜 Próximo rival</div></div>
     <div class="pb">
@@ -2939,6 +2943,7 @@ function renderProximoRival(){
         <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
           <img src="${crestUrl('Deportes Temuco')}" style="width:44px;height:44px;object-fit:contain">
           <div style="font-weight:800;font-size:12px">Deportes Temuco</div>
+          ${posBadge(posTemuco)}
         </div>
         <div style="text-align:center">
           <div class="disp" style="font-size:20px;color:var(--gris)">VS</div>
@@ -2948,6 +2953,7 @@ function renderProximoRival(){
         <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
           <img src="${crestUrl(rival.nombre)}" style="width:44px;height:44px;object-fit:contain">
           <div style="font-weight:800;font-size:12px">${rival.nombre}</div>
+          ${posBadge(posRival)}
         </div>
       </div>
       ${c?`<div style="margin-top:14px">

@@ -352,7 +352,7 @@ let S={
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
-  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false},
+  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,verCompletos:false},
   partidosLiga:{loaded:false,partidos:[],goles:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[]},
@@ -1141,14 +1141,18 @@ async function cargarEnriquecimiento(){
 // hay que volver a pegar las mismas URLs a mano. Solo completa lo que
 // esté vacío, nunca pisa una foto ya cargada acá.
 async function sincronizarFotosLiga(){
-  let sincronizadas=0
-  for(const j of S.enriq.jugadores){
-    if(j.foto_url)continue
+  // En paralelo — antes era un await secuencial por jugador, que con ~30
+  // jugadores hacía sentir lenta la primera entrada a Enriquecer (varios
+  // segundos solo esperando escrituras una por una).
+  const pendientes=S.enriq.jugadores.map(j=>{
+    if(j.foto_url)return null
     const match=matchJugadorPropio(j.nombre,j.apellido)
-    if(!match||!match.foto_url)continue
-    const r=await patch('liga_jugadores',{foto_url:match.foto_url},`?id=eq.${j.id}`)
-    if(!(r&&r.code)){j.foto_url=match.foto_url;sincronizadas++}
-  }
+    return match&&match.foto_url?{j,url:match.foto_url}:null
+  }).filter(Boolean)
+  if(!pendientes.length)return
+  const resultados=await Promise.all(pendientes.map(({j,url})=>patch('liga_jugadores',{foto_url:url},`?id=eq.${j.id}`).then(r=>({j,url,ok:!(r&&r.code)}))))
+  let sincronizadas=0
+  resultados.forEach(({j,url,ok})=>{if(ok){j.foto_url=url;sincronizadas++}})
   if(sincronizadas>0){render();toast(`${sincronizadas} foto${sincronizadas>1?'s':''} sincronizada${sincronizadas>1?'s':''} desde Plantilla`)}
 }
 
@@ -1289,39 +1293,59 @@ function renderEnriquecer(){
       <span class="pt">⚽ Detalle de goles</span>
       <span style="font-size:10px;color:${pendientes?'var(--am)':'var(--gris)'}">${pendientes?`${pendientes} sin detalle`:'todos completos ✓'}</span>
     </div>
-    <div style="color:var(--gris);font-size:11px;margin-bottom:10px">El scraper detecta el gol y el minuto solo — cómo fue y quién dio el pase se carga acá. Se guarda automáticamente al elegir.</div>
-    ${E.goles.length?E.goles.map(g=>{
-      const rival=g.partido?.local?.nombre==='Deportes Temuco'?g.partido?.visita?.nombre:g.partido?.local?.nombre
-      const otros=E.jugadores.filter(j=>j.id!==g.jugador?.id)
-      return`<div class="pcard" style="cursor:default;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-          <span style="font-weight:800;font-family:var(--font-disp);color:var(--gris)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
-          <span style="font-weight:700;font-size:12.5px">${g.jugador?nombreCompacto(g.jugador.nombre,g.jugador.apellido):'?'}</span>
-          <span style="font-size:10px;color:var(--muted)">vs ${rival||'?'} · F${g.partido?.jornada||'?'}</span>
-          ${g.penal?'<span class="badge bg" style="font-size:8px">Penal</span>':''}
-        </div>
-        <div class="fr2">
-          <div class="fg" style="margin-bottom:0"><label>Cómo fue el gol</label>
-            <select onchange="guardarGolDetalle(${g.id},'subtipo',this.value)">
-              <option value="">Sin definir</option>
-              ${SUBTIPOS_GOL.map(t=>`<option value="${t}" ${g.subtipo===t?'selected':''}>${t}</option>`).join('')}
-            </select>
-          </div>
-          <div class="fg" style="margin-bottom:0"><label>Quién dio el pase</label>
-            <select onchange="guardarGolDetalle(${g.id},'asistidor_id',this.value?+this.value:'')">
-              <option value="">Sin asistencia</option>
-              ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${nombreCompacto(j.nombre,j.apellido)}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        ${g.asistidor_id?`<div class="fg" style="margin-top:8px;margin-bottom:0"><label>Cómo fue la asistencia</label>
-          <select onchange="guardarGolDetalle(${g.id},'asist_subtipo',this.value)">
-            <option value="">Sin definir</option>
-            ${SUBTIPOS_ASIST.map(t=>`<option value="${t}" ${g.asist_subtipo===t?'selected':''}>${t}</option>`).join('')}
-          </select>
-        </div>`:''}
-      </div>`
-    }).join(''):'<div class="empty">Sin goles registrados todavía.</div>'}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="color:var(--gris);font-size:11px">El scraper detecta el gol y el minuto solo — cómo fue y quién dio el pase se carga acá. Al completar un gol, sale de esta lista.</div>
+      ${E.goles.length-pendientes>0?`<button class="bsm" onclick="S.enriq.verCompletos=!S.enriq.verCompletos;render()">${E.verCompletos?'Ver solo pendientes':`Ver completos (${E.goles.length-pendientes})`}</button>`:''}
+    </div>
+    ${(()=>{
+      const visibles=(E.verCompletos?E.goles:E.goles.filter(g=>!g.subtipo)).slice().sort((a,b)=>(b.partido?.jornada||0)-(a.partido?.jornada||0)||a.minuto-b.minuto)
+      if(!visibles.length)return`<div class="empty">${E.goles.length?'Sin goles pendientes — todo al día ✓':'Sin goles registrados todavía.'}</div>`
+      const grupos=[]
+      visibles.forEach(g=>{
+        const jornada=g.partido?.jornada??'?'
+        let grp=grupos[grupos.length-1]
+        if(!grp||grp.jornada!==jornada){
+          const rival=g.partido?.local?.nombre==='Deportes Temuco'?g.partido?.visita?.nombre:g.partido?.local?.nombre
+          grp={jornada,rival:rival||'?',goles:[]}
+          grupos.push(grp)
+        }
+        grp.goles.push(g)
+      })
+      return grupos.map(grp=>`
+        <div style="font-size:11px;font-weight:800;color:var(--gris);margin:14px 0 6px">F${grp.jornada} · vs ${grp.rival}</div>
+        ${grp.goles.map(g=>{
+          const otros=E.jugadores.filter(j=>j.id!==g.jugador?.id)
+          return`<div class="pcard" style="cursor:default;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+              <span style="font-weight:800;font-family:var(--font-disp);color:var(--gris)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
+              <span style="font-weight:700;font-size:12.5px">${g.jugador?nombreCompacto(g.jugador.nombre,g.jugador.apellido):'?'}</span>
+              ${g.penal?'<span class="badge bg" style="font-size:8px">Penal</span>':''}
+              ${g.subtipo?'<span class="badge bv" style="font-size:8px">✓ completo</span>':''}
+            </div>
+            <div class="fr2">
+              <div class="fg" style="margin-bottom:0"><label>Cómo fue el gol</label>
+                <select onchange="guardarGolDetalle(${g.id},'subtipo',this.value)">
+                  <option value="">Sin definir</option>
+                  ${SUBTIPOS_GOL.map(t=>`<option value="${t}" ${g.subtipo===t?'selected':''}>${t}</option>`).join('')}
+                </select>
+              </div>
+              <div class="fg" style="margin-bottom:0"><label>Quién dio el pase</label>
+                <select onchange="guardarGolDetalle(${g.id},'asistidor_id',this.value?+this.value:'')">
+                  <option value="">Sin asistencia</option>
+                  ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${nombreCompacto(j.nombre,j.apellido)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            ${g.asistidor_id?`<div class="fg" style="margin-top:8px;margin-bottom:0"><label>Cómo fue la asistencia</label>
+              <select onchange="guardarGolDetalle(${g.id},'asist_subtipo',this.value)">
+                <option value="">Sin definir</option>
+                ${SUBTIPOS_ASIST.map(t=>`<option value="${t}" ${g.asist_subtipo===t?'selected':''}>${t}</option>`).join('')}
+              </select>
+            </div>`:''}
+          </div>`
+        }).join('')}
+      `).join('')
+    })()}
   </div>`
 }
 

@@ -31,7 +31,8 @@ async function sb(method, table, { body, params = '', prefer } = {}) {
   return parsed;
 }
 
-const get = (table, params = '') => sb('GET', table, { params });
+export const get = (table, params = '') => sb('GET', table, { params });
+export const patch = (table, params, body) => sb('PATCH', table, { params, body });
 const del = (table, params) => sb('DELETE', table, { params });
 
 // Upsert por una columna "clave" (ej. slug, o una combinación con

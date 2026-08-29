@@ -446,9 +446,9 @@ function renderHdr(){
     <div class="logo"><div class="esc"><img src="https://www.campeonatochileno.cl/wp-content/uploads/2025/01/Temuco-1.svg" style="width:100%;height:100%;object-fit:contain"></div><div class="lt"><h1>Deportes Temuco</h1><p>Temporada 2026</p></div></div>
     <div class="hstats">
       <div class="hs"><div class="hs-v">${s.pts}</div><div class="hs-l">Pts</div></div>
-      <div class="hs"><div class="hs-v">${s.pg}</div><div class="hs-l">V</div></div>
+      <div class="hs"><div class="hs-v">${s.pg}</div><div class="hs-l">G</div></div>
       <div class="hs"><div class="hs-v">${s.pe}</div><div class="hs-l">E</div></div>
-      <div class="hs"><div class="hs-v">${s.pp}</div><div class="hs-l">D</div></div>
+      <div class="hs"><div class="hs-v">${s.pp}</div><div class="hs-l">P</div></div>
       <div class="hs"><div class="hs-v">${s.gf}</div><div class="hs-l">GF</div></div>
       <div class="hs"><div class="hs-v">${s.gc}</div><div class="hs-l">GC</div></div>
     </div>
@@ -1145,7 +1145,7 @@ function renderRegistro(){
       <div style="font-size:12px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">vs ${p.rival}</div>
       <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
         <span style="font-size:15px;font-weight:800;color:${bc}">${p.goles_favor}–${p.goles_contra}</span>
-        <span class="badge ${rb}" style="font-size:8px">${res==='W'?'V':res==='D'?'E':'D'}</span>
+        <span class="badge ${rb}" style="font-size:8px">${res==='W'?'G':res==='D'?'E':'P'}</span>
         ${p.formacion?`<span class="badge bg" style="font-size:7px">${p.formacion}</span>`:''}
       </div>
       <button onclick="event.stopPropagation();abrirEditarPartido(${p.id})" style="position:absolute;top:6px;right:6px;background:transparent;border:none;color:var(--gris);font-size:11px;cursor:pointer;padding:2px">✏️</button>
@@ -1535,7 +1535,7 @@ function renderPartidos(){
   const cards=[...lista].reverse().map(p=>{
     const res=p.goles_favor>p.goles_contra?'W':p.goles_favor===p.goles_contra?'D':'L'
     const rb=res==='W'?'bv':res==='D'?'ba':'br'
-    const rl=res==='W'?'V':res==='D'?'E':'D'
+    const rl=res==='W'?'G':res==='D'?'E':'P'
     const borderColor=res==='W'?'var(--vc)':res==='D'?'var(--am)':'var(--ro)'
     const pts=res==='W'?3:res==='D'?1:0
     const goles=S.eventos.filter(e=>e.partido_id===p.id&&e.tipo==='Gol')
@@ -1571,14 +1571,14 @@ function renderPartidos(){
     <div class="tabs">${['todos','Primera B','Copa Chile'].map(c=>`<button class="tab ${fc===c?'on':''}" onclick="S.filtComp='${c}';render()">${c==='todos'?'Todos':c}</button>`).join('')}</div>
     <div class="g4">
       <div class="mc verde"><div class="mc-l">Puntos</div><div class="mc-v">${pg*3+pe}</div></div>
-      <div class="mc"><div class="mc-l">P / E / D</div><div class="mc-v">${pg}-${pe}-${pp}</div></div>
+      <div class="mc"><div class="mc-l">G / E / P</div><div class="mc-v">${pg}-${pe}-${pp}</div></div>
       <div class="mc"><div class="mc-l">Goles F/C</div><div class="mc-v">${gf}/${gc}</div></div>
       <div class="mc verde"><div class="mc-l">Porterías 0</div><div class="mc-v">${pz}</div></div>
     </div>
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">Últimos 5 partidos</span></div>
       <div class="pb" style="display:flex;gap:4px;align-items:center">
-        ${racha.length?racha.map(r=>`<span class="form-dot ${r}">${r}</span>`).join(''):'<span style="color:var(--gris);font-size:11px">Sin partidos</span>'}
+        ${racha.length?racha.map(r=>`<span class="form-dot ${r}">${r==='W'?'G':r==='D'?'E':'P'}</span>`).join(''):'<span style="color:var(--gris);font-size:11px">Sin partidos</span>'}
       </div>
     </div>
     ${lista.length?cards:'<div class="empty">Sin partidos registrados</div>'}
@@ -1693,7 +1693,7 @@ function renderEstadisticas(){
               const r=p.goles_favor>p.goles_contra?'W':p.goles_favor===p.goles_contra?'D':'L'
               const col=r==='W'?'var(--vc)':r==='D'?'var(--am)':'var(--ro)'
               return`<div style="flex:1;background:rgba(0,0,0,.2);border-radius:6px;padding:7px 4px;text-align:center;border-top:3px solid ${col}">
-                <div style="font-size:10px;font-weight:800;color:${col}">${r==='W'?'V':r==='D'?'E':'D'}</div>
+                <div style="font-size:10px;font-weight:800;color:${col}">${r==='W'?'G':r==='D'?'E':'P'}</div>
                 <div style="font-size:9px;font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.rival.split(' ')[0]}</div>
                 <div style="font-size:11px;font-weight:800;color:${col};margin-top:2px">${p.goles_favor}—${p.goles_contra}</div>
                 ${p.goles_contra===0?`<div style="font-size:8px;margin-top:2px">🧤</div>`:'<div style="font-size:8px;margin-top:2px;opacity:0"> </div>'}
@@ -2848,7 +2848,7 @@ function renderInicio(){
     ${stTemuco?`<div class="g4" style="margin-top:16px">
       <div class="mc verde"><div class="mc-l">Posición</div><div class="mc-v">${posTemuco+1}°<span style="font-size:11px;color:var(--muted);font-weight:600"> / ${L.tabla.length}</span></div></div>
       <div class="mc"><div class="mc-l">Puntos</div><div class="mc-v">${stTemuco.pts}</div><div class="mc-s">${stTemuco.pj} PJ</div></div>
-      <div class="mc"><div class="mc-l">P / E / D</div><div class="mc-v" style="font-size:20px">${stTemuco.pg}-${stTemuco.pe}-${stTemuco.pp}</div></div>
+      <div class="mc"><div class="mc-l">G / E / P</div><div class="mc-v" style="font-size:20px">${stTemuco.pg}-${stTemuco.pe}-${stTemuco.pp}</div></div>
       <div class="mc"><div class="mc-l">Goles F/C</div><div class="mc-v" style="font-size:20px">${stTemuco.gf}/${stTemuco.gc}</div><div class="mc-s">${stTemuco.gf-stTemuco.gc>=0?'+':''}${stTemuco.gf-stTemuco.gc} dif.</div></div>
     </div>`:''}
 

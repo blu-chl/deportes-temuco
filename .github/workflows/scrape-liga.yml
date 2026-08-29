@@ -49,3 +49,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scrapeU21.mjs --liga "${{ github.event.inputs.liga_url }}"
+
+      - name: Vincular plantel propio con liga_jugadores
+        if: ${{ !cancelled() }}
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node link-jugadores.mjs

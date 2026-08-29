@@ -79,6 +79,26 @@ node scrapeU21.mjs             # actualiza Supabase
 
 Se corre después de `scrape.mjs` en el mismo workflow de GitHub Actions.
 
+## Vincular el plantel propio con liga_jugadores
+
+`jugadores` (el plantel propio, cargado a mano en Admin) y `liga_jugadores`
+(scrapeado de ANFP) son dos tablas independientes que hasta ahora solo
+"coincidían" por nombre en texto libre — sin nada que garantice que sigan
+alineadas si cambia una ortografía. `link-jugadores.mjs` agrega esa
+conexión real: llena `jugadores.liga_jugador_id` matcheando por similitud
+de nombre (mismo criterio que `scrapeU21.mjs`, `lib/nameMatch.mjs`, umbral
+alto). Es idempotente — los que ya están vinculados se saltan — así que
+corre solo, después de cada scrapeo (requiere que `sql/link_jugadores_liga.sql`
+ya se haya corrido en Supabase).
+
+```bash
+node link-jugadores.mjs   # requiere SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY
+```
+
+Los que no matchean con confianza (score < 0.9) se listan en el log tal
+cual — normalmente son jugadores que todavía no debutan en un partido
+scrapeado (no tienen fila en `liga_jugadores` para matchear), no un error.
+
 ## Qué falta / próximos pasos
 
 - No parsea "Informe del árbitro / delegado" (página 4, incidencias como

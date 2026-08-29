@@ -135,6 +135,10 @@ tr:hover td{background:rgba(200,21,39,0.05)}
 .hero2-crest{width:64px;height:64px;background:#fff;border-radius:50%;padding:9px;box-shadow:0 10px 26px rgba(0,0,0,.25);object-fit:contain}
 .hero2-score{color:#fff;font-size:52px;line-height:1}
 .hero2-meta{background:rgba(255,255,255,.16);color:#fff;font-weight:700;font-size:12px;padding:8px 18px;border-radius:999px}
+.pagehero{position:relative;border-radius:20px;overflow:hidden;background:var(--vo);margin-bottom:16px}
+.pagehero-split{position:absolute;inset:0;background:linear-gradient(115deg, var(--v) 0%, var(--v) 42%, var(--vo) 43%, var(--vo) 100%)}
+.pagehero-stripes{position:absolute;inset:0;opacity:.10;background:repeating-linear-gradient(115deg, #fff 0 2px, transparent 2px 40px)}
+.pagehero-inner{position:relative;padding:20px 26px}
 .gcard-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
 @media(max-width:900px){.gcard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .gcard{background:var(--panel);border-radius:16px;padding:18px 14px;display:flex;flex-direction:column;align-items:center;gap:8px;border:1px solid var(--borde)}
@@ -1462,6 +1466,7 @@ function renderPlantilla(){
   </div>`
 
   return`<div class="content">
+    ${pageHero('PLANTILLA',`${tp.length} jugadores`)}
     ${vistaToggle}
     ${statsPanel}
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -1549,6 +1554,7 @@ function renderPartidos(){
   }).join('')
 
   return`<div class="content">
+    ${pageHero('PARTIDOS')}
     <div class="tabs">${['todos','Primera B','Copa Chile'].map(c=>`<button class="tab ${fc===c?'on':''}" onclick="S.filtComp='${c}';render()">${c==='todos'?'Todos':c}</button>`).join('')}</div>
     <div class="g4">
       <div class="mc verde"><div class="mc-l">Puntos</div><div class="mc-v">${pg*3+pe}</div></div>
@@ -1644,6 +1650,7 @@ function renderEstadisticas(){
   const asistUlt=evsFilt.filter(e=>e.tipo==='Asistencia'&&e.minuto>=threshold)
 
   return`<div class="content">
+    ${pageHero('ESTADÍSTICAS')}
     <div class="tabs">${['todos','Primera B','Copa Chile'].map(c=>`<button class="tab ${S.filtCompEst===c?'on':''}" onclick="S.filtCompEst='${c}';render()">${c==='todos'?'Todas':c}</button>`).join('')}</div>
     <div class="g4">
       <div class="mc verde"><div class="mc-l">Goles/partido</div><div class="mc-v">${partsFilt.length>0?(gf/partsFilt.length).toFixed(2):'0.00'}</div></div>
@@ -2664,6 +2671,14 @@ const CRESTS={
 function crestUrl(n){return CRESTS[n]||''}
 function iniciales(n){return (n||'').trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase()}
 function fmtFechaLarga(iso){return iso?new Date(iso).toLocaleDateString('es-CL',{day:'numeric',month:'long'}):''}
+function pageHero(titulo,sub){return`<div class="pagehero">
+    <div class="pagehero-split"></div><div class="pagehero-stripes"></div>
+    <div class="pagehero-inner">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.85)">Deportes Temuco · Temporada 2026</div>
+      <div class="disp" style="color:#fff;font-size:24px;margin-top:4px">${titulo}</div>
+      ${sub?`<div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;margin-top:2px">${sub}</div>`:''}
+    </div>
+  </div>`}
 async function ligaGet(table,params){return get(table,params)}
 
 async function cargarLiga(){

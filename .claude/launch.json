@@ -1,0 +1,41 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rutina-diaria",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "3456", "rutina-diaria"],
+      "port": 3456
+    },
+    {
+      "name": "portfolio",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "4200", "portfolio"],
+      "port": 4200
+    },
+    {
+      "name": "splitcuenta",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "--prefix", "splitcuenta", "dev"],
+      "port": 3000
+    }
+  ,{
+      "name": "control-gastos",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "4500", "control-gastos"],
+      "port": 4500
+    }
+  ,{
+      "name": "pasteleria-kit",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "--prefix", "pasteleria-kit", "dev", "--", "-p", "3001"],
+      "port": 3001
+    }
+  ,{
+      "name": "deportes-temuco",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "5050", "."],
+      "port": 5050
+    }
+  ]
+}

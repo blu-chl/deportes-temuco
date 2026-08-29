@@ -22,7 +22,8 @@ body.has-bg::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,0.72
 body.has-bg #root{position:relative;z-index:1}
 #app{max-width:1100px;margin:0 auto;background:var(--fondo);border-radius:12px;border:1px solid var(--borde2);overflow:hidden;min-height:100vh}
 body.has-bg #app{background:rgba(8,15,9,0.88)}
-.hdr{background:var(--vo);border-bottom:1px solid var(--borde2);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:50}
+.hdrwrap{position:sticky;top:0;z-index:50}
+.hdr{background:var(--vo);padding:12px 18px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .logo{display:flex;align-items:center;gap:10px}
 .esc{width:44px;height:44px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;border:2px solid var(--vc);overflow:hidden;padding:4px}
 .esc img{width:100%;height:100%;object-fit:cover}
@@ -31,9 +32,9 @@ body.has-bg #app{background:rgba(8,15,9,0.88)}
 .hs{text-align:center}
 .hs-v{font-family:var(--font-disp);font-size:24px;font-weight:800;color:var(--goldbr);line-height:1}
 .hs-l{font-size:10.5px;color:rgba(255,255,255,.55);text-transform:uppercase}
-nav{background:rgba(0,0,0,0.35);border-bottom:1px solid var(--borde);display:flex;overflow-x:auto}
-.nb{padding:11px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;border:none;background:none;color:rgba(255,255,255,.6);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-family:var(--font)}
-.nb:hover{color:#fff}.nb.on{color:var(--goldbr);border-bottom-color:var(--goldbr)}
+nav{background:var(--vo);border-bottom:1px solid rgba(255,255,255,.1);display:flex;overflow-x:auto;padding:0 18px;gap:4px}
+.nb{padding:11px 4px;margin-bottom:0;font-size:11.5px;font-weight:600;letter-spacing:.3px;border:none;background:none;color:rgba(255,255,255,.5);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-family:var(--font);transition:color .15s}
+.nb:hover{color:rgba(255,255,255,.85)}.nb.on{color:#fff;font-weight:700;border-bottom-color:var(--goldbr)}
 .content{padding:14px 16px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
@@ -2704,7 +2705,7 @@ async function cargarLiga(){
     .sort((a,b)=>(b.minutos_oficial_temporada||0)-(a.minutos_oficial_temporada||0))
 
   if(S.liga.temucoId){
-    const partidos=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${S.liga.temucoId},equipo_visita_id.eq.${S.liga.temucoId})&select=jornada,fecha_hora,estadio,equipo_local_id,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=1`)
+    const partidos=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${S.liga.temucoId},equipo_visita_id.eq.${S.liga.temucoId})&goles_local=not.is.null&select=jornada,fecha_hora,estadio,equipo_local_id,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=1`)
     S.liga.ultimo=Array.isArray(partidos)&&partidos[0]?partidos[0]:null
   }
   S.liga.loaded=true
@@ -2714,7 +2715,7 @@ async function cargarLiga(){
 async function verRival(id){
   if(S.liga.rivalSel===id){S.liga.rivalSel=null;render();return}
   S.liga.rivalSel=id;S.liga.rivalPartidos=null;render()
-  const partidos=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${id},equipo_visita_id.eq.${id})&select=jornada,fecha_hora,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=5`)
+  const partidos=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${id},equipo_visita_id.eq.${id})&goles_local=not.is.null&select=jornada,fecha_hora,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=5`)
   S.liga.rivalPartidos=Array.isArray(partidos)?partidos:[]
   render()
 }
@@ -2951,7 +2952,7 @@ function renderRivales(){
 async function cargarAnalisis(){
   const[equipos,partidos,goles,tarjetas,jugadores]=await Promise.all([
     ligaGet('liga_equipos','?select=id,nombre&order=nombre'),
-    ligaGet('liga_partidos','?select=id,equipo_local_id,equipo_visita_id,goles_local,goles_visita&limit=1000'),
+    ligaGet('liga_partidos','?goles_local=not.is.null&select=id,equipo_local_id,equipo_visita_id,goles_local,goles_visita&limit=1000'),
     ligaGetAll('liga_goles','equipo_id,autogol,minuto,minuto_extra'),
     ligaGetAll('liga_tarjetas','equipo_id,tipo'),
     ligaGetAll('liga_jugadores','equipo_id,sub21,minutos_oficial_temporada'),
@@ -3219,7 +3220,7 @@ function renderAdmin(){
 
 function render(){
   const root=document.getElementById('root')
-  root.innerHTML=`<div id="app">${renderHdr()}${renderNav()}${
+  root.innerHTML=`<div id="app"><div class="hdrwrap">${renderHdr()}${renderNav()}</div>${
     S.pag==='inicio'?renderInicio():
     S.pag==='plantilla'?renderPlantilla():
     S.pag==='partidos'?renderPartidos():

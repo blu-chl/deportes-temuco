@@ -59,6 +59,30 @@ export async function upsertJugador(equipoId, apellido, nombre) {
   const params = `?equipo_id=eq.${equipoId}&apellido=eq.${encodeURIComponent(apellido)}&nombre=eq.${encodeURIComponent(nombre)}`;
   const rows = await get('liga_jugadores', params);
   if (Array.isArray(rows) && rows[0]) return rows[0];
+
+  // A jugador cuya celda "Nombre" viene vacía en el PDF fuente de ANFP (pasa
+  // en algunos informes, no es un bug del parser) crearía un duplicado cada
+  // vez que un scrapeo posterior sí trajera el nombre completo, o viceversa.
+  // Antes de crear uno nuevo, si hay exactamente un jugador con el mismo
+  // apellido en ese equipo cuyo nombre está vacío o coincide con este por
+  // prefijo, lo reutilizamos (completando el nombre si nos falta a nosotros).
+  if (apellido) {
+    const mismosApellido = await get(
+      'liga_jugadores',
+      `?equipo_id=eq.${equipoId}&apellido=eq.${encodeURIComponent(apellido)}&select=id,nombre`
+    );
+    if (Array.isArray(mismosApellido) && mismosApellido.length === 1) {
+      const existente = mismosApellido[0];
+      if (!existente.nombre && nombre) {
+        await sb('PATCH', 'liga_jugadores', { body: { nombre }, params: `?id=eq.${existente.id}` });
+        return { ...existente, nombre };
+      }
+      if (existente.nombre && !nombre) {
+        return existente;
+      }
+    }
+  }
+
   const created = await sb('POST', 'liga_jugadores', {
     body: { equipo_id: equipoId, apellido, nombre },
     prefer: 'return=representation',

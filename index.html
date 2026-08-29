@@ -344,6 +344,7 @@ let S={
   visitante:false,
   bgImage:localStorage.getItem('dt-bg')||'',
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false},
+  partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[]},
   rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:''},
   analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],jugadores:[],seleccion:new Set()},
 }
@@ -2705,7 +2706,7 @@ async function cargarLiga(){
     .sort((a,b)=>(b.minutos_oficial_temporada||0)-(a.minutos_oficial_temporada||0))
 
   if(S.liga.temucoId){
-    const partidos=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${S.liga.temucoId},equipo_visita_id.eq.${S.liga.temucoId})&goles_local=not.is.null&select=jornada,fecha_hora,estadio,equipo_local_id,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=1`)
+    const partidos=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${S.liga.temucoId},equipo_visita_id.eq.${S.liga.temucoId})&goles_local=not.is.null&select=id,jornada,fecha_hora,estadio,equipo_local_id,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=1`)
     S.liga.ultimo=Array.isArray(partidos)&&partidos[0]?partidos[0]:null
   }
   S.liga.loaded=true
@@ -2715,7 +2716,7 @@ async function cargarLiga(){
 async function verRival(id){
   if(S.liga.rivalSel===id){S.liga.rivalSel=null;render();return}
   S.liga.rivalSel=id;S.liga.rivalPartidos=null;render()
-  const partidos=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${id},equipo_visita_id.eq.${id})&goles_local=not.is.null&select=jornada,fecha_hora,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=5`)
+  const partidos=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${id},equipo_visita_id.eq.${id})&goles_local=not.is.null&select=id,jornada,fecha_hora,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=5`)
   S.liga.rivalPartidos=Array.isArray(partidos)?partidos:[]
   render()
 }
@@ -2730,7 +2731,7 @@ function renderInicio(){
   const equiposOrdenados=[...L.equipos].sort((a,b)=>a.id===L.temucoId?-1:b.id===L.temucoId?1:a.nombre.localeCompare(b.nombre))
 
   return`<div class="pb">
-    ${u?`<div class="hero2">
+    ${u?`<div class="hero2" onclick="verPartidoLiga(${u.id},'inicio')" style="cursor:pointer">
       <div class="hero2-split"></div><div class="hero2-stripes"></div>
       <div class="hero2-inner">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
@@ -2745,7 +2746,7 @@ function renderInicio(){
           <div class="disp hero2-score">${u.goles_local}&nbsp;–&nbsp;${u.goles_visita}</div>
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(u.visita.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${u.visita.nombre.toUpperCase()}</div></div>
         </div>
-        <div style="display:flex;justify-content:center"><div class="hero2-meta">Tiempo completo</div></div>
+        <div style="display:flex;justify-content:center;gap:8px"><div class="hero2-meta">Tiempo completo</div><div class="hero2-meta">Ver minutaje →</div></div>
       </div>
     </div>`:''}
 
@@ -2785,9 +2786,85 @@ function renderInicio(){
     ${L.rivalSel?`<div class="panel" style="margin-top:14px"><div class="pb">
       <div class="pt disp" style="font-size:15px;margin-bottom:8px">${(L.equipos.find(e=>e.id===L.rivalSel)||{}).nombre||''} · últimos partidos</div>
       ${L.rivalPartidos===null?'<div class="empty">Cargando…</div>':(L.rivalPartidos.map(p=>`
-        <div class="rival-row"><div style="color:var(--gris);width:80px">F${p.jornada||'-'}</div><div style="flex:1;text-align:right;font-weight:700">${p.local.nombre}</div><div class="disp" style="width:44px;text-align:center">${p.goles_local}-${p.goles_visita}</div><div style="flex:1;font-weight:700">${p.visita.nombre}</div></div>
+        <div class="rival-row" onclick="verPartidoLiga(${p.id},'inicio')" style="cursor:pointer"><div style="color:var(--gris);width:80px">F${p.jornada||'-'}</div><div style="flex:1;text-align:right;font-weight:700">${p.local.nombre}</div><div class="disp" style="width:44px;text-align:center">${p.goles_local}-${p.goles_visita}</div><div style="flex:1;font-weight:700">${p.visita.nombre}</div></div>
       `).join('')||'<div class="empty">Sin partidos registrados.</div>')}
     </div></div>`:''}
+  </div>`
+}
+
+// ===== FICHA DE PARTIDO (minutaje detallado de un partido de liga) =====
+async function verPartidoLiga(id,volverA){
+  if(!id)return
+  S.partidoLiga={loaded:false,id,volverA:volverA||S.pag,data:null,eventos:[]}
+  S.pag='partido'
+  render()
+  const[partidos,goles,tarjetas,sustituciones]=await Promise.all([
+    ligaGet('liga_partidos',`?id=eq.${id}&select=id,jornada,fecha_hora,estadio,arbitro,equipo_local_id,equipo_visita_id,goles_local,goles_visita,local:liga_equipos!liga_partidos_equipo_local_id_fkey(id,nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(id,nombre)`),
+    ligaGet('liga_goles',`?partido_id=eq.${id}&select=equipo_id,minuto,minuto_extra,penal,autogol,jugador:liga_jugadores!liga_goles_jugador_id_fkey(nombre,apellido)`),
+    ligaGet('liga_tarjetas',`?partido_id=eq.${id}&select=equipo_id,tipo,minuto,minuto_extra,motivo,segunda_amarilla,jugador:liga_jugadores!liga_tarjetas_jugador_id_fkey(nombre,apellido)`),
+    ligaGet('liga_sustituciones',`?partido_id=eq.${id}&select=equipo_id,minuto,minuto_extra,entra:liga_jugadores!liga_sustituciones_entra_jugador_id_fkey(nombre,apellido),sale:liga_jugadores!liga_sustituciones_sale_jugador_id_fkey(nombre,apellido)`),
+  ])
+  if(S.partidoLiga.id!==id)return // el usuario ya navegó a otro partido
+  S.partidoLiga.data=Array.isArray(partidos)&&partidos[0]?partidos[0]:null
+  const evGoles=(Array.isArray(goles)?goles:[]).map(g=>({tipo:g.autogol?'autogol':'gol',minuto:g.minuto,minuto_extra:g.minuto_extra||0,equipo_id:g.equipo_id,jugador:g.jugador?`${g.jugador.nombre} ${g.jugador.apellido}`:'—',penal:g.penal}))
+  const evTarjetas=(Array.isArray(tarjetas)?tarjetas:[]).map(t=>({tipo:t.tipo==='roja'?'roja':(t.segunda_amarilla?'segunda':'amarilla'),minuto:t.minuto,minuto_extra:t.minuto_extra||0,equipo_id:t.equipo_id,jugador:t.jugador?`${t.jugador.nombre} ${t.jugador.apellido}`:'—',motivo:t.motivo}))
+  const evSubs=(Array.isArray(sustituciones)?sustituciones:[]).map(s=>({tipo:'cambio',minuto:s.minuto,minuto_extra:s.minuto_extra||0,equipo_id:s.equipo_id,entra:s.entra?`${s.entra.nombre} ${s.entra.apellido}`:'—',sale:s.sale?`${s.sale.nombre} ${s.sale.apellido}`:'—'}))
+  S.partidoLiga.eventos=[...evGoles,...evTarjetas,...evSubs].sort((a,b)=>(a.minuto+a.minuto_extra*0.01)-(b.minuto+b.minuto_extra*0.01))
+  S.partidoLiga.loaded=true
+  if(S.pag==='partido')render()
+}
+
+const EV_ICONS={gol:'⚽',autogol:'⚽ (p.p.)',amarilla:'🟨',segunda:'🟨🟥',roja:'🟥',cambio:'🔄'}
+function filaEventoPartido(ev){
+  const min=`${ev.minuto}'${ev.minuto_extra?`+${ev.minuto_extra}`:''}`
+  let texto
+  if(ev.tipo==='cambio')texto=`<span style="color:var(--v)">↑${ev.entra}</span> <span style="color:var(--gris)">↓${ev.sale}</span>`
+  else{
+    texto=`<b>${ev.jugador}</b>${ev.penal?' <span style="color:var(--muted);font-size:10.5px">(penal)</span>':''}`
+    if(ev.motivo)texto+=`<div style="color:var(--muted);font-size:10.5px;margin-top:1px">${ev.motivo}</div>`
+  }
+  return`<div style="display:flex;align-items:flex-start;gap:6px;font-size:12.5px;line-height:1.35">
+    <span style="font-weight:800;color:var(--gris);width:34px;flex-shrink:0;font-family:var(--font-disp)">${min}</span>
+    <span style="flex-shrink:0">${EV_ICONS[ev.tipo]||''}</span>
+    <span>${texto}</span>
+  </div>`
+}
+
+function renderPartidoLiga(){
+  const P=S.partidoLiga
+  if(!P.loaded||!P.data)return`<div class="pb"><div class="empty">Cargando partido…</div></div>`
+  const d=P.data
+  const evLocal=P.eventos.filter(e=>e.equipo_id===d.equipo_local_id)
+  const evVisita=P.eventos.filter(e=>e.equipo_id===d.equipo_visita_id)
+  return`<div class="pb">
+    <button class="bsm" onclick="navTo('${P.volverA}')" style="margin-bottom:12px">← Volver</button>
+    <div class="hero2">
+      <div class="hero2-split"></div><div class="hero2-stripes"></div>
+      <div class="hero2-inner">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.85)">Liga de Ascenso Caixun 2026</div>
+            <div class="disp" style="color:#fff;font-size:28px;margin-top:4px">FECHA ${d.jornada||''}</div>
+          </div>
+          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(d.fecha_hora)}${d.estadio?'<br>'+d.estadio:''}${d.arbitro?'<br>Árbitro: '+d.arbitro:''}</div>
+        </div>
+        <div class="hero2-mid">
+          <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(d.local.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.local.nombre.toUpperCase()}</div></div>
+          <div class="disp hero2-score">${d.goles_local}&nbsp;–&nbsp;${d.goles_visita}</div>
+          <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(d.visita.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.visita.nombre.toUpperCase()}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pt disp" style="font-size:18px;margin:20px 0 12px">Minutaje de eventos</div>
+    <div class="g2" style="align-items:start">
+      <div class="panel"><div class="ph"><span class="pt" style="font-size:13px">${d.local.nombre}</span></div>
+        <div class="pb" style="display:flex;flex-direction:column;gap:9px">${evLocal.length?evLocal.map(filaEventoPartido).join(''):'<div class="empty">Sin eventos registrados.</div>'}</div>
+      </div>
+      <div class="panel"><div class="ph"><span class="pt" style="font-size:13px">${d.visita.nombre}</span></div>
+        <div class="pb" style="display:flex;flex-direction:column;gap:9px">${evVisita.length?evVisita.map(filaEventoPartido).join(''):'<div class="empty">Sin eventos registrados.</div>'}</div>
+      </div>
+    </div>
   </div>`
 }
 
@@ -3227,6 +3304,7 @@ function render(){
     S.pag==='estadisticas'?renderEstadisticas():
     S.pag==='consultas'?renderConsultas():
     S.pag==='rivales'?renderRivales():
+    S.pag==='partido'?renderPartidoLiga():
     S.pag==='analisis'?renderAnalisis():
     S.pag==='notas'?renderNotas():
     S.pag==='admin'?renderAdmin():

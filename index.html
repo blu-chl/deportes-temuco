@@ -90,6 +90,7 @@ tr:hover td{background:rgba(200,21,39,0.05)}
 .tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
 .tab{padding:5px 13px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid var(--borde2);color:var(--gris);background:transparent;font-family:var(--font);text-transform:uppercase}
 .tab.on{background:var(--v);color:#fff;border-color:var(--v)}
+.tab-sep{width:1px;align-self:stretch;background:var(--borde2);margin:2px 3px}
 .bar-w{background:rgba(16,24,32,0.05);border-radius:3px;height:4px;overflow:hidden;margin-top:3px}
 .bar-f{height:4px;border-radius:3px;background:var(--vc)}
 .empty{text-align:center;padding:30px;color:var(--muted);font-size:12px}
@@ -422,7 +423,11 @@ async function doLogin(){
     body:JSON.stringify({email,password:pass})
   })
   const d=await r.json()
-  if(d.access_token){AUTH_TOKEN=d.access_token;S.isAdmin=true;S.pag='admin';S.adminSub='registro';await cargarDatos()}
+  if(d.access_token){
+    AUTH_TOKEN=d.access_token;S.isAdmin=true;S.pag='admin';S.adminSub='enriquecer'
+    await cargarDatos()
+    if(!S.enriq.loaded)cargarEnriquecimiento()
+  }
   else{err.textContent='Correo o contraseña incorrectos';err.style.display='block';btn.textContent='Ingresar';btn.disabled=false}
 }
 
@@ -1140,7 +1145,7 @@ async function cargarEnriquecimiento(){
 // fotos hace rato) hacia liga_jugadores, matcheando por nombre — así no
 // hay que volver a pegar las mismas URLs a mano. Solo completa lo que
 // esté vacío, nunca pisa una foto ya cargada acá.
-async function sincronizarFotosLiga(){
+async function sincronizarFotosLiga(manual){
   // En paralelo — antes era un await secuencial por jugador, que con ~30
   // jugadores hacía sentir lenta la primera entrada a Enriquecer (varios
   // segundos solo esperando escrituras una por una).
@@ -1149,11 +1154,12 @@ async function sincronizarFotosLiga(){
     const match=matchJugadorPropio(j.nombre,j.apellido)
     return match&&match.foto_url?{j,url:match.foto_url}:null
   }).filter(Boolean)
-  if(!pendientes.length)return
+  if(!pendientes.length){if(manual)toast('Ya está todo sincronizado ✓');return}
   const resultados=await Promise.all(pendientes.map(({j,url})=>patch('liga_jugadores',{foto_url:url},`?id=eq.${j.id}`).then(r=>({j,url,ok:!(r&&r.code)}))))
   let sincronizadas=0
   resultados.forEach(({j,url,ok})=>{if(ok){j.foto_url=url;sincronizadas++}})
   if(sincronizadas>0){render();toast(`${sincronizadas} foto${sincronizadas>1?'s':''} sincronizada${sincronizadas>1?'s':''} desde Plantilla`)}
+  else if(manual)toast('Error al sincronizar',true)
 }
 
 async function guardarGolDetalle(id,campo,val){
@@ -1263,14 +1269,27 @@ function renderEnriquecer(){
     (<code style="color:var(--am)">scraper/sql/liga_enriquecimiento.sql</code>). Cópialo y pégalo en el SQL Editor de Supabase, corre una vez, y vuelve a entrar acá.</div>
   </div></div>`
   const pendientes=E.golesPendientes=E.goles.filter(g=>!g.subtipo).length
+  const sinFoto=E.jugadores.filter(j=>!j.foto_url).length
   return`<div>
-    <div class="panel" style="margin-bottom:20px;background:rgba(200,21,39,.04)">
-      <div class="pb" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-          <div style="font-weight:800;font-size:12.5px;margin-bottom:2px">🔄 Recuperar del registro antiguo</div>
-          <div style="font-size:11px;color:var(--gris)">Busca coincidencias en el registro manual viejo (Primera B, tabla "Registro") y completa acá lo que ya se había cargado — mismo partido, jugador y minuto. No pisa nada que ya esté cargado.</div>
+    <div class="ph" style="background:none;border:none;padding:0 0 8px"><span class="pt">⚡ Acciones rápidas</span></div>
+    <div class="g2" style="margin-bottom:22px">
+      <div class="panel" style="background:rgba(200,21,39,.04)">
+        <div class="pb" style="display:flex;flex-direction:column;gap:10px;height:100%">
+          <div style="flex:1">
+            <div style="font-weight:800;font-size:12.5px;margin-bottom:2px">🔄 Recuperar del registro antiguo</div>
+            <div style="font-size:11px;color:var(--gris)">Busca coincidencias en el registro manual viejo (Primera B, tabla "Registro") y completa acá lo que ya se había cargado — mismo partido, jugador y minuto. No pisa nada que ya esté cargado.</div>
+          </div>
+          <button class="btn" style="width:100%" onclick="migrarDatosAntiguos()">Buscar y completar</button>
         </div>
-        <button class="btn" onclick="migrarDatosAntiguos()">Buscar y completar</button>
+      </div>
+      <div class="panel" style="background:rgba(200,21,39,.04)">
+        <div class="pb" style="display:flex;flex-direction:column;gap:10px;height:100%">
+          <div style="flex:1">
+            <div style="font-weight:800;font-size:12.5px;margin-bottom:2px">📸 Sincronizar fotos desde Plantilla</div>
+            <div style="font-size:11px;color:var(--gris)">Copia la foto de cada jugador desde Plantilla (donde ya están cargadas) hacia acá, matcheando por nombre. Ya corre solo al entrar — este botón es para repetirlo cuando agregues fotos nuevas.${sinFoto?` <strong style="color:var(--am)">${sinFoto} sin foto todavía.</strong>`:''}</div>
+          </div>
+          <button class="btn" style="width:100%" onclick="sincronizarFotosLiga(true)">Sincronizar ahora</button>
+        </div>
       </div>
     </div>
     <div class="ph" style="background:none;border:none;padding:0 0 8px"><span class="pt">📸 Fotos de jugadores</span></div>
@@ -2159,30 +2178,13 @@ function renderConfig(){
     </div>
     <div class="config-section">
       <div class="config-title">📋 Resumen del sistema</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
         <div class="mc"><div class="mc-l">Jugadores</div><div class="mc-v">${S.jugadores.length}</div></div>
         <div class="mc"><div class="mc-l">Partidos</div><div class="mc-v">${S.partidos.length}</div></div>
         <div class="mc"><div class="mc-l">Eventos</div><div class="mc-v">${S.eventos.length}</div></div>
         <div class="mc"><div class="mc-l">Lesiones</div><div class="mc-v ro">${S.lesiones.length}</div></div>
       </div>
-    </div>
-    <div class="config-section">
-      <div class="config-title">🗄 Columnas nuevas en Supabase</div>
-      <p style="font-size:11px;color:var(--gris);line-height:1.7">
-        Agrega en la tabla <strong style="color:var(--vc)">jugadores</strong>:<br>
-        · <code style="color:var(--am)">posicion_especifica</code> (text)<br>
-        · <code style="color:var(--am)">altura</code> (int4)<br>
-        · <code style="color:var(--am)">club_origen</code> (text)<br>
-        · <code style="color:var(--am)">contrato_hasta</code> (date)<br>
-        · <code style="color:var(--am)">foto_url</code> (text)<br>
-        · <code style="color:var(--am)">valor</code> (numeric)<br>
-        · <code style="color:var(--am)">nacionalidad</code> (text)<br>
-        · <code style="color:var(--am)">notas</code> (text)<br><br>
-        Agrega en la tabla <strong style="color:var(--vc)">partidos</strong>:<br>
-        · <code style="color:var(--am)">formacion</code> (text)<br>
-        · <code style="color:var(--am)">titulares</code> (text)
-      </p>
-      <button class="bsm" style="margin-top:8px" onclick="testConnection()">Probar conexión</button>
+      <button class="bsm" onclick="testConnection()">Probar conexión</button>
     </div>
     <div class="config-section">
       <div class="config-title">⚙️ Tipos de gol</div>
@@ -3626,10 +3628,20 @@ function renderSanciones(){
   }).join(''):'<div class="empty">Sin sanciones registradas.</div>'}`
 }
 
+// Agrupado por frecuencia de uso real: primero lo que se usa cada fecha
+// (Enriquecer, Sanciones — datos de la Liga scrapeada), después lo que es
+// por jugador y cambia poco (Registro viejo de Primera B, Médico), al
+// final lo técnico (Config, Debug) que casi no se toca.
 function renderAdmin(){
   if(!S.isAdmin)return renderLogin()
-  const subs=[{id:'registro',l:'Registro'},{id:'enriquecer',l:'✏️ Enriquecer'},{id:'medico',l:'Médico'},{id:'sanciones',l:'⚖ Sanciones'},{id:'config',l:'⚙ Config'},{id:'debug',l:'🛠 Debug'}]
-  return`<div class="tabs">${subs.map(t=>`<button class="tab ${S.adminSub===t.id?'on':''}" onclick="S.adminSub='${t.id}';if(t.id==='enriquecer'&&!S.enriq.loaded)cargarEnriquecimiento();render()">${t.l}</button>`).join('')}</div>
+  const subs=[
+    {id:'enriquecer',l:'✏️ Enriquecer'},{id:'sanciones',l:'⚖ Sanciones'},
+    {sep:true},
+    {id:'registro',l:'📝 Registro (Primera B)'},{id:'medico',l:'🩹 Médico'},
+    {sep:true},
+    {id:'config',l:'⚙ Config'},{id:'debug',l:'🛠 Debug'},
+  ]
+  return`<div class="tabs">${subs.map(t=>t.sep?`<span class="tab-sep"></span>`:`<button class="tab ${S.adminSub===t.id?'on':''}" onclick="S.adminSub='${t.id}';if(t.id==='enriquecer'&&!S.enriq.loaded)cargarEnriquecimiento();render()">${t.l}</button>`).join('')}</div>
   ${
     S.adminSub==='registro'?renderRegistro():
     S.adminSub==='enriquecer'?renderEnriquecer():

@@ -429,7 +429,7 @@ function navTo(p){
   S.pag=p;render()
   if((p==='inicio'||p==='tabla'||p==='consultas')&&!S.liga.loaded)cargarLiga()
   if((p==='inicio'||p==='partidos'||p==='estadisticas')&&!S.partidosLiga.loaded)cargarPartidosLiga()
-  if((p==='inicio'||p==='rivales')&&!S.rivales.loaded)cargarRivales()
+  if(p==='inicio'&&!S.rivales.loaded)cargarRivales()
   if(p==='analisis'&&!S.analisis.loaded)cargarAnalisis()
 }
 
@@ -460,7 +460,7 @@ function renderNav(){
     {id:'inicio',l:'🏆 Liga'},{id:'tabla',l:'📋 Tabla'},
     {id:'plantilla',l:'Plantilla'},{id:'partidos',l:'Partidos'},
     {id:'estadisticas',l:'Estadísticas'},{id:'consultas',l:'🔍 Consultas'},
-    {id:'rivales',l:'📅 Rivales'},{id:'analisis',l:'📊 Análisis'},
+    {id:'analisis',l:'📊 Análisis'},
     {id:'admin',l:S.isAdmin?'🔓 Admin':'🔒 Admin'},
   ]
   return`<nav>${tabs.map(t=>`<button class="nb ${S.pag===t.id?'on':''}" onclick="navTo('${t.id}')">${t.l}</button>`).join('')}</nav>`
@@ -2731,6 +2731,20 @@ function renderInicio(){
       ${L.rivalPartidos===null?'<div class="empty">Cargando…</div>':(L.rivalPartidos.map(p=>`
         <div class="rival-row" onclick="verPartidoLiga(${p.id},'inicio')" style="cursor:pointer"><div style="color:var(--gris);width:80px">F${p.jornada||'-'}</div><div style="flex:1;text-align:right;font-weight:700">${p.local.nombre}</div><div class="disp" style="width:44px;text-align:center">${p.goles_local}-${p.goles_visita}</div><div style="flex:1;font-weight:700">${p.visita.nombre}</div></div>
       `).join('')||'<div class="empty">Sin partidos registrados.</div>')}
+      <div style="font-size:11px;font-weight:800;color:var(--gris);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px;border-top:1px solid var(--borde);padding-top:12px">Puntos a tener en cuenta</div>
+      ${!S.rivales.loaded?'<div class="empty">Cargando notas…</div>':`
+        ${S.rivales.notas.filter(n=>n.equipo_id===L.rivalSel).map(n=>`<div style="background:rgba(16,24,32,0.028);border:1px solid var(--borde);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+          <div style="font-size:12.5px;white-space:pre-wrap">${n.texto}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+            <span style="font-size:10px;color:var(--muted)">${n.autor||''} · ${new Date(n.created_at).toLocaleDateString('es-CL')}</span>
+            ${S.isAdmin?`<span class="bsm" style="padding:2px 8px" onclick="borrarNotaRival(${n.id})">Borrar</span>`:''}
+          </div>
+        </div>`).join('')||'<div class="empty">Sin notas todavía.</div>'}
+        ${S.isAdmin?`<div style="margin-top:10px">
+          <textarea id="nota-rival-txt" placeholder="Ej: presionan alto los primeros 15', su lateral derecho sube mucho..." style="width:100%;min-height:70px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:8px;padding:8px 10px;color:var(--blanco);font-size:12px;font-family:var(--font)"></textarea>
+          <button class="btn" style="margin-top:6px" onclick="guardarNotaRival(${L.rivalSel})">+ Agregar nota</button>
+        </div>`:''}
+      `}
     </div></div>`:''}
   </div>`
 }
@@ -2891,7 +2905,7 @@ async function cargarRivales(){
     const rivalId=p.equipo_local_id===S.liga.temucoId?p.visita.id:p.local.id
     const[statsTemuco,statsRival]=await Promise.all([statsEquipoLiga(S.liga.temucoId),statsEquipoLiga(rivalId)])
     S.rivales.comparacion={temuco:statsTemuco,rival:statsRival}
-    if(S.pag==='rivales'||S.pag==='inicio')render()
+    if(S.pag==='inicio')render()
   }
 }
 
@@ -2979,41 +2993,6 @@ function renderProximoRival(){
   </div>`
 }
 
-function renderRivales(){
-  if(!S.liga.loaded||!S.rivales.loaded)return`<div class="pb"><div class="empty">Cargando rivales…</div></div>`
-  const equipos=S.liga.equipos.filter(e=>e.id!==S.liga.temucoId).sort((a,b)=>a.nombre.localeCompare(b.nombre))
-  const sel=S.rivales.rivalSel
-  const notasSel=sel?S.rivales.notas.filter(n=>n.equipo_id===sel):[]
-  return`<div class="pb">
-    ${renderProximoRival()}
-    <div class="pt disp" style="font-size:18px;margin-bottom:4px">Rivales de la Liga de Ascenso</div>
-    <div style="color:var(--gris);font-size:12px;margin-bottom:14px">Selecciona un equipo para ver el historial de enfrentamientos y dejar puntos a tener en cuenta antes del próximo cruce.</div>
-    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px">
-      ${equipos.map(e=>`<div class="team-chip ${sel===e.id?'on':''}" onclick="S.rivales.rivalSel=${e.id};render()"><img src="${crestUrl(e.nombre)}">${e.nombre}</div>`).join('')}
-    </div>
-    ${sel?(()=>{
-      const eq=equipos.find(e=>e.id===sel)
-      return`<div class="panel"><div class="pb">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-          <img src="${crestUrl(eq.nombre)}" style="width:28px;height:28px;object-fit:contain">
-          <div class="pt disp" style="font-size:17px">${eq.nombre}</div>
-        </div>
-        <div style="font-size:11px;font-weight:800;color:var(--gris);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Puntos a tener en cuenta</div>
-        ${notasSel.map(n=>`<div style="background:rgba(16,24,32,0.028);border:1px solid var(--borde);border-radius:10px;padding:10px 12px;margin-bottom:8px">
-          <div style="font-size:12.5px;white-space:pre-wrap">${n.texto}</div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
-            <span style="font-size:10px;color:var(--muted)">${n.autor||''} · ${new Date(n.created_at).toLocaleDateString('es-CL')}</span>
-            ${S.isAdmin?`<span class="bsm" style="padding:2px 8px" onclick="borrarNotaRival(${n.id})">Borrar</span>`:''}
-          </div>
-        </div>`).join('')||'<div class="empty">Sin notas todavía.</div>'}
-        ${S.isAdmin?`<div style="margin-top:10px">
-          <textarea id="nota-rival-txt" placeholder="Ej: presionan alto los primeros 15', su lateral derecho sube mucho..." style="width:100%;min-height:70px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:8px;padding:8px 10px;color:var(--blanco);font-size:12px;font-family:var(--font)"></textarea>
-          <button class="btn" style="margin-top:6px" onclick="guardarNotaRival(${sel})">+ Agregar nota</button>
-        </div>`:''}
-      </div></div>`
-    })():''}
-  </div>`
-}
 
 // ===== ANÁLISIS (comparativa liga con gráficos) =====
 async function cargarAnalisis(){
@@ -3385,7 +3364,6 @@ function render(){
     S.pag==='partidos'?renderPartidos():
     S.pag==='estadisticas'?renderEstadisticas():
     S.pag==='consultas'?renderConsultas():
-    S.pag==='rivales'?renderRivales():
     S.pag==='tabla'?renderTablaGeneral():
     S.pag==='partido'?renderPartidoLiga():
     S.pag==='analisis'?renderAnalisis():

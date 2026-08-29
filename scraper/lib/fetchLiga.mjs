@@ -90,7 +90,11 @@ export async function fetchMatch(matchUrl) {
     else oficiales[job] = name;
   });
 
-  if (!equipoLocal || !equipoVisita || !pdfUrl || !finalizado) return null;
+  // Si todavía no hay equipos (ni siquiera la ficha básica del partido
+  // cargó) no hay nada rescatable. Un partido programado pero no jugado SÍ
+  // nos interesa (fecha + rival, sin resultado), para el calendario de
+  // próximos rivales.
+  if (!equipoLocal || !equipoVisita) return null;
 
   return {
     matchUrl,
@@ -98,13 +102,14 @@ export async function fetchMatch(matchUrl) {
     equipoVisita,
     slugLocal,
     slugVisita,
-    golesLocal: Number(golesLocal),
-    golesVisita: Number(golesVisita),
+    golesLocal: finalizado ? Number(golesLocal) : null,
+    golesVisita: finalizado ? Number(golesVisita) : null,
+    finalizado: finalizado && !!pdfUrl,
     fechaHoraIso: datetimeIso,
     competencia,
     jornada: jornada ? Number(jornada) : null,
     estadio,
-    pdfUrl,
+    pdfUrl: pdfUrl || null,
     arbitro: oficiales['Árbitro'] || null,
     arbitroAsistente1: asistentes[0] || null,
     arbitroAsistente2: asistentes[1] || null,

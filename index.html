@@ -24,7 +24,7 @@ body.has-bg #root{position:relative;z-index:1}
 body.has-bg #app{background:rgba(8,15,9,0.88)}
 .hdr{background:var(--vo);border-bottom:1px solid var(--borde2);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:50}
 .logo{display:flex;align-items:center;gap:10px}
-.esc{width:40px;height:40px;background:var(--v);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;border:2px solid var(--vc);overflow:hidden}
+.esc{width:44px;height:44px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;border:2px solid var(--vc);overflow:hidden;padding:4px}
 .esc img{width:100%;height:100%;object-fit:cover}
 .lt h1{font-family:var(--font-disp);font-size:19px;font-weight:800;line-height:1;color:#fff;letter-spacing:.01em}.lt p{font-size:10px;color:rgba(255,255,255,.6)}
 .hstats{display:flex;gap:14px}
@@ -339,7 +339,7 @@ let S={
   visitante:false,
   bgImage:localStorage.getItem('dt-bg')||'',
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false},
-  rivales:{loaded:false,proximos:[],notas:[],rivalSel:null,notaTexto:''},
+  rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:''},
   analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],jugadores:[],seleccion:new Set()},
 }
 
@@ -426,7 +426,7 @@ function navTo(p){
 function renderHdr(){
   const s=calcHdr()
   return`<div class="hdr">
-    <div class="logo"><div class="esc">DT</div><div class="lt"><h1>Deportes Temuco</h1><p>Temporada 2026</p></div></div>
+    <div class="logo"><div class="esc"><img src="https://www.campeonatochileno.cl/wp-content/uploads/2025/01/Temuco-1.svg" style="width:100%;height:100%;object-fit:contain"></div><div class="lt"><h1>Deportes Temuco</h1><p>Temporada 2026</p></div></div>
     <div class="hstats">
       <div class="hs"><div class="hs-v">${s.pts}</div><div class="hs-l">Pts</div></div>
       <div class="hs"><div class="hs-v">${s.pg}</div><div class="hs-l">V</div></div>
@@ -2776,12 +2776,56 @@ function renderInicio(){
 }
 
 // ===== RIVALES (calendario + notas de scouting) =====
+async function statsEquipoLiga(equipoId){
+  const[partidos,goles,tarjetas,jugadores]=await Promise.all([
+    ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${equipoId},equipo_visita_id.eq.${equipoId})&select=equipo_local_id,equipo_visita_id,goles_local,goles_visita&goles_local=not.is.null`),
+    ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=minuto,minuto_extra`),
+    ligaGet('liga_tarjetas',`?equipo_id=eq.${equipoId}&select=tipo`),
+    ligaGet('liga_jugadores',`?equipo_id=eq.${equipoId}&sub21=eq.true&select=minutos_oficial_temporada`),
+  ])
+  const s={pj:0,gf:0,gc:0,am:0,rj:0,pjLocal:0,ptsLocal:0,pjVisita:0,ptsVisita:0,golesDescuento:0}
+  ;(Array.isArray(partidos)?partidos:[]).forEach(p=>{
+    const esLocal=p.equipo_local_id===equipoId
+    s.pj++
+    s.gf+=esLocal?p.goles_local:p.goles_visita
+    s.gc+=esLocal?p.goles_visita:p.goles_local
+    if(esLocal){s.pjLocal++;s.ptsLocal+=p.goles_local>p.goles_visita?3:p.goles_local===p.goles_visita?1:0}
+    else{s.pjVisita++;s.ptsVisita+=p.goles_visita>p.goles_local?3:p.goles_local===p.goles_visita?1:0}
+  })
+  ;(Array.isArray(goles)?goles:[]).forEach(g=>{if(g.minuto_extra>0&&(g.minuto===45||g.minuto===90))s.golesDescuento++})
+  const golesTotal=Array.isArray(goles)?goles.length:0
+  ;(Array.isArray(tarjetas)?tarjetas:[]).forEach(t=>{if(t.tipo==='amarilla')s.am++;else if(t.tipo==='roja')s.rj++})
+  const sub21Min=(Array.isArray(jugadores)?jugadores:[]).reduce((a,j)=>a+(j.minutos_oficial_temporada||0),0)
+  return{
+    pj:s.pj,
+    gfPP:s.pj?+(s.gf/s.pj).toFixed(2):0,
+    gcPP:s.pj?+(s.gc/s.pj).toFixed(2):0,
+    amPP:s.pj?+(s.am/s.pj).toFixed(2):0,
+    rjPP:s.pj?+(s.rj/s.pj).toFixed(2):0,
+    pppLocal:s.pjLocal?+(s.ptsLocal/s.pjLocal).toFixed(2):0,
+    pppVisita:s.pjVisita?+(s.ptsVisita/s.pjVisita).toFixed(2):0,
+    pctDescuento:golesTotal?+((s.golesDescuento/golesTotal)*100).toFixed(1):0,
+    sub21Min,
+  }
+}
+
 async function cargarRivales(){
   if(!S.liga.loaded)await cargarLiga()
-  const notas=await ligaGet('liga_notas_rivales','?select=id,equipo_id,texto,autor,created_at&order=created_at.desc&limit=500')
+  const[notas,proximo]=await Promise.all([
+    ligaGet('liga_notas_rivales','?select=id,equipo_id,texto,autor,created_at&order=created_at.desc&limit=500'),
+    S.liga.temucoId?ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${S.liga.temucoId},equipo_visita_id.eq.${S.liga.temucoId})&goles_local=is.null&select=id,jornada,fecha_hora,estadio,equipo_local_id,local:liga_equipos!liga_partidos_equipo_local_id_fkey(id,nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(id,nombre)&order=fecha_hora.asc&limit=1`):Promise.resolve([]),
+  ])
   S.rivales.notas=Array.isArray(notas)?notas:[]
+  S.rivales.proximo=Array.isArray(proximo)&&proximo[0]?proximo[0]:null
   S.rivales.loaded=true
-  if(S.pag==='rivales')render()
+  render()
+  if(S.rivales.proximo){
+    const p=S.rivales.proximo
+    const rivalId=p.equipo_local_id===S.liga.temucoId?p.visita.id:p.local.id
+    const[statsTemuco,statsRival]=await Promise.all([statsEquipoLiga(S.liga.temucoId),statsEquipoLiga(rivalId)])
+    S.rivales.comparacion={temuco:statsTemuco,rival:statsRival}
+    if(S.pag==='rivales')render()
+  }
 }
 
 async function guardarNotaRival(equipoId){
@@ -2798,12 +2842,67 @@ async function borrarNotaRival(id){
   render()
 }
 
+function filaComparacion(label,vT,vR,fmt,masEsMejor=true){
+  fmt=fmt||(v=>v)
+  const mejor=vT===vR?null:(masEsMejor?(vT>vR?'t':'r'):(vT<vR?'t':'r'))
+  const total=Math.max(vT+vR,0.01)
+  return`<div style="display:grid;grid-template-columns:52px 1fr 52px;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--borde)">
+    <div style="text-align:right;font-weight:800;font-size:13px;color:${mejor==='t'?'var(--v)':'var(--blanco)'}">${fmt(vT)}</div>
+    <div>
+      <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;text-align:center;margin-bottom:3px">${label}</div>
+      <div style="display:flex;height:6px;border-radius:999px;overflow:hidden;background:var(--borde)">
+        <div style="width:${(vT/total)*100}%;background:${mejor==='t'?'var(--v)':'var(--borde2)'}"></div>
+        <div style="width:${(vR/total)*100}%;background:${mejor==='r'?'var(--az)':'var(--borde2)'}"></div>
+      </div>
+    </div>
+    <div style="text-align:left;font-weight:800;font-size:13px;color:${mejor==='r'?'var(--az)':'var(--blanco)'}">${fmt(vR)}</div>
+  </div>`
+}
+
+function renderProximoRival(){
+  const p=S.rivales.proximo
+  if(!p)return''
+  const esLocal=p.equipo_local_id===S.liga.temucoId
+  const rival=esLocal?p.visita:p.local
+  const c=S.rivales.comparacion
+  return`<div class="panel" style="margin-bottom:22px;overflow:visible">
+    <div class="ph"><div class="pt disp" style="font-size:16px">🔜 Próximo rival</div></div>
+    <div class="pb">
+      <div style="display:flex;align-items:center;justify-content:center;gap:26px;margin-bottom:4px;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+          <img src="${crestUrl('Deportes Temuco')}" style="width:44px;height:44px;object-fit:contain">
+          <div style="font-weight:800;font-size:12px">Deportes Temuco</div>
+        </div>
+        <div style="text-align:center">
+          <div class="disp" style="font-size:20px;color:var(--gris)">VS</div>
+          <div style="font-size:10.5px;color:var(--gris);white-space:nowrap">${esLocal?'Local':'Visita'} · Fecha ${p.jornada||'?'}</div>
+          <div style="font-size:10px;color:var(--muted)">${fmtFechaLarga(p.fecha_hora)}${p.estadio?' · '+p.estadio:''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+          <img src="${crestUrl(rival.nombre)}" style="width:44px;height:44px;object-fit:contain">
+          <div style="font-weight:800;font-size:12px">${rival.nombre}</div>
+        </div>
+      </div>
+      ${c?`<div style="margin-top:14px">
+        ${filaComparacion('Goles a favor / PJ',c.temuco.gfPP,c.rival.gfPP,v=>v.toFixed(2))}
+        ${filaComparacion('Goles en contra / PJ',c.temuco.gcPP,c.rival.gcPP,v=>v.toFixed(2),false)}
+        ${filaComparacion('Amarillas / PJ',c.temuco.amPP,c.rival.amPP,v=>v.toFixed(2),false)}
+        ${filaComparacion('Rojas / PJ',c.temuco.rjPP,c.rival.rjPP,v=>v.toFixed(2),false)}
+        ${filaComparacion(esLocal?'Pts/PJ Local':'Pts/PJ Visita',esLocal?c.temuco.pppLocal:c.temuco.pppVisita,esLocal?c.rival.pppVisita:c.rival.pppLocal,v=>v.toFixed(2))}
+        ${filaComparacion('% goles en descuento',c.temuco.pctDescuento,c.rival.pctDescuento,v=>v.toFixed(1)+'%')}
+        ${filaComparacion('Minutos sub-21',c.temuco.sub21Min,c.rival.sub21Min,v=>v.toLocaleString('es-CL'))}
+      </div>`:`<div class="empty">Calculando comparación…</div>`}
+    </div>
+  </div>`
+}
+
 function renderRivales(){
   if(!S.liga.loaded||!S.rivales.loaded)return`<div class="pb"><div class="empty">Cargando rivales…</div></div>`
   const equipos=S.liga.equipos.filter(e=>e.id!==S.liga.temucoId).sort((a,b)=>a.nombre.localeCompare(b.nombre))
   const sel=S.rivales.rivalSel
   const notasSel=sel?S.rivales.notas.filter(n=>n.equipo_id===sel):[]
   return`<div class="pb">
+    ${renderProximoRival()}
     <div class="pt disp" style="font-size:18px;margin-bottom:4px">Rivales de la Liga de Ascenso</div>
     <div style="color:var(--gris);font-size:12px;margin-bottom:14px">Selecciona un equipo para ver el historial de enfrentamientos y dejar puntos a tener en cuenta antes del próximo cruce.</div>
     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px">

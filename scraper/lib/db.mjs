@@ -133,7 +133,12 @@ export async function actualizarDatosU21(jugadorId, { fecha_nacimiento, minutos_
   });
 }
 
+// Devuelve el id si el partido ya está completo (informe procesado, con
+// resultado). Una fila "programada" (sin resultado aún, guardada solo para
+// el calendario de próximos rivales) no cuenta como completa: se debe poder
+// reprocesar en cuanto el informe se publique.
 export async function partidoYaExiste(matchUrl) {
-  const rows = await get('liga_partidos', `?match_url=eq.${encodeURIComponent(matchUrl)}&select=id`);
-  return Array.isArray(rows) && rows[0] ? rows[0].id : null;
+  const rows = await get('liga_partidos', `?match_url=eq.${encodeURIComponent(matchUrl)}&select=id,goles_local`);
+  const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
+  return row && row.goles_local !== null ? row.id : null;
 }

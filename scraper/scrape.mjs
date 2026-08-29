@@ -17,8 +17,34 @@ const db = dryRun ? null : await import('./lib/db.mjs');
 async function procesarPartido(matchUrl) {
   const meta = await fetchMatch(matchUrl);
   if (!meta) {
-    console.log(`  · sin informe publicado todavía, se salta`);
+    console.log(`  · sin datos todavía, se salta`);
     return 'skipped';
+  }
+
+  if (!meta.finalizado) {
+    console.log(`  · ${meta.equipoLocal} vs ${meta.equipoVisita} · programado, sin informe todavía (fecha ${meta.jornada || '?'})`);
+    if (dryRun) return 'dry-run';
+    const equipoLocal = await db.upsertEquipo(meta.equipoLocal, meta.slugLocal);
+    const equipoVisita = await db.upsertEquipo(meta.equipoVisita, meta.slugVisita);
+    await db.upsertPartido({
+      match_url: meta.matchUrl,
+      pdf_url: meta.pdfUrl,
+      competencia: meta.competencia,
+      jornada: meta.jornada,
+      fecha_hora: meta.fechaHoraIso,
+      estadio: meta.estadio,
+      equipo_local_id: equipoLocal.id,
+      equipo_visita_id: equipoVisita.id,
+      goles_local: null,
+      goles_visita: null,
+      arbitro: meta.arbitro,
+      arbitro_asistente1: meta.arbitroAsistente1,
+      arbitro_asistente2: meta.arbitroAsistente2,
+      cuarto_arbitro: meta.cuartoArbitro,
+      var: meta.var,
+      avar1: meta.avar1,
+    });
+    return 'programado';
   }
 
   const pdfBuf = await downloadPdf(meta.pdfUrl);

@@ -3641,7 +3641,7 @@ function renderAdmin(){
     {sep:true},
     {id:'config',l:'⚙ Config'},{id:'debug',l:'🛠 Debug'},
   ]
-  return`<div class="tabs">${subs.map(t=>t.sep?`<span class="tab-sep"></span>`:`<button class="tab ${S.adminSub===t.id?'on':''}" onclick="S.adminSub='${t.id}';if(t.id==='enriquecer'&&!S.enriq.loaded)cargarEnriquecimiento();render()">${t.l}</button>`).join('')}</div>
+  return`<div class="tabs">${subs.map(t=>t.sep?`<span class="tab-sep"></span>`:`<button class="tab ${S.adminSub===t.id?'on':''}" onclick="S.adminSub='${t.id}';${t.id==='enriquecer'?'if(!S.enriq.loaded)cargarEnriquecimiento();':''}render()">${t.l}</button>`).join('')}</div>
   ${
     S.adminSub==='registro'?renderRegistro():
     S.adminSub==='enriquecer'?renderEnriquecer():

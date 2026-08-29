@@ -353,7 +353,7 @@ let S={
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   visitante:false,
   bgImage:localStorage.getItem('dt-bg')||'',
-  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false},
+  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false,tabla:[]},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[]},
   rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:''},
   analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],jugadores:[],seleccion:new Set()},
@@ -2694,14 +2694,29 @@ function pageHero(titulo,sub){return`<div class="pagehero">
 async function ligaGet(table,params){return get(table,params)}
 
 async function cargarLiga(){
-  const[equipos,goles,jugadores]=await Promise.all([
+  const[equipos,goles,jugadores,partidosAll]=await Promise.all([
     ligaGet('liga_equipos','?select=id,nombre&order=nombre'),
     ligaGet('liga_goles','?select=jugador_id,autogol&autogol=eq.false&limit=1000'),
     ligaGet('liga_jugadores','?select=id,apellido,nombre,equipo_id,sub21,minutos_oficial_temporada,fecha_nacimiento&limit=1000'),
+    ligaGetAll('liga_partidos','id,equipo_local_id,equipo_visita_id,goles_local,goles_visita'),
   ])
   S.liga.equipos=Array.isArray(equipos)?equipos:[]
   const temuco=S.liga.equipos.find(e=>e.nombre==='Deportes Temuco')
   S.liga.temucoId=temuco?temuco.id:null
+
+  const st={}
+  S.liga.equipos.forEach(e=>{st[e.id]={id:e.id,nombre:e.nombre,pj:0,pg:0,pe:0,pp:0,gf:0,gc:0,pts:0}})
+  ;(Array.isArray(partidosAll)?partidosAll:[]).filter(p=>p.goles_local!=null&&p.goles_visita!=null).forEach(p=>{
+    const l=st[p.equipo_local_id],v=st[p.equipo_visita_id]
+    if(!l||!v)return
+    l.pj++;v.pj++
+    l.gf+=p.goles_local;l.gc+=p.goles_visita
+    v.gf+=p.goles_visita;v.gc+=p.goles_local
+    if(p.goles_local>p.goles_visita){l.pg++;l.pts+=3;v.pp++}
+    else if(p.goles_local<p.goles_visita){v.pg++;v.pts+=3;l.pp++}
+    else{l.pe++;v.pe++;l.pts++;v.pts++}
+  })
+  S.liga.tabla=Object.values(st).sort((a,b)=>b.pts-a.pts||(b.gf-b.gc)-(a.gf-a.gc))
 
   const jugArr=Array.isArray(jugadores)?jugadores:[]
   const jugMap={};jugArr.forEach(j=>{jugMap[j.id]=j})
@@ -2739,6 +2754,8 @@ function renderInicio(){
   const goleadores=L.golExpand?L.goleadores:L.goleadores.slice(0,5)
   const sub21Total=L.sub21.reduce((a,j)=>a+(j.minutos_oficial_temporada||0),0)
   const equiposOrdenados=[...L.equipos].sort((a,b)=>a.id===L.temucoId?-1:b.id===L.temucoId?1:a.nombre.localeCompare(b.nombre))
+  const posTemuco=L.tabla.findIndex(e=>e.id===L.temucoId)
+  const stTemuco=posTemuco>=0?L.tabla[posTemuco]:null
 
   return`<div class="pb">
     ${u?`<div class="hero2" onclick="verPartidoLiga(${u.id},'inicio')" style="cursor:pointer">
@@ -2758,6 +2775,13 @@ function renderInicio(){
         </div>
         <div style="display:flex;justify-content:center;gap:8px"><div class="hero2-meta">Tiempo completo</div><div class="hero2-meta">Ver minutaje →</div></div>
       </div>
+    </div>`:''}
+
+    ${stTemuco?`<div class="g4" style="margin-top:16px">
+      <div class="mc verde"><div class="mc-l">Posición</div><div class="mc-v">${posTemuco+1}°<span style="font-size:11px;color:var(--muted);font-weight:600"> / ${L.tabla.length}</span></div></div>
+      <div class="mc"><div class="mc-l">Puntos</div><div class="mc-v">${stTemuco.pts}</div><div class="mc-s">${stTemuco.pj} PJ</div></div>
+      <div class="mc"><div class="mc-l">P / E / D</div><div class="mc-v" style="font-size:20px">${stTemuco.pg}-${stTemuco.pe}-${stTemuco.pp}</div></div>
+      <div class="mc"><div class="mc-l">Goles F/C</div><div class="mc-v" style="font-size:20px">${stTemuco.gf}/${stTemuco.gc}</div><div class="mc-s">${stTemuco.gf-stTemuco.gc>=0?'+':''}${stTemuco.gf-stTemuco.gc} dif.</div></div>
     </div>`:''}
 
     <div class="ph" style="background:none;border:none;padding:0 0 12px">
@@ -3111,6 +3135,8 @@ function statsAnalisis(){
     pppLocal:e.pjLocal?+(e.ptsLocal/e.pjLocal).toFixed(2):0,
     pppVisita:e.pjVisita?+(e.ptsVisita/e.pjVisita).toFixed(2):0,
     pctDescuento:e.golesTotal?+((e.golesDescuento/e.golesTotal)*100).toFixed(1):0,
+    pts:e.ptsLocal+e.ptsVisita,
+    ptsPP:e.pj?+((e.ptsLocal+e.ptsVisita)/e.pj).toFixed(2):0,
     isTemuco:temuco&&e.id===temuco.id,
   })).filter(e=>S.analisis.seleccion.has(e.id))
 }
@@ -3200,39 +3226,60 @@ function svgGroupedChart(rows,segs,opts){
 }
 
 // ---- Cuadrante ataque vs defensa (scatter) ----
-function svgScatter(rows){
-  const pad={l:44,r:20,t:14,b:34},w=560,h=420
+// ---- Cuadrante genérico X/Y (scatter), puntos = escudo del equipo ----
+function svgScatterXY(rows,cfg){
+  const pad={l:46,r:24,t:20,b:34},w=560,h=420
   const plotW=w-pad.l-pad.r,plotH=h-pad.t-pad.b
   if(!rows.length)return`<div class="empty">Selecciona al menos un equipo.</div>`
-  const maxGC=Math.max(2.2,...rows.map(r=>r.gcPP))
-  const maxGF=Math.max(2.2,...rows.map(r=>r.gfPP))
-  const x=v=>pad.l+(v/maxGC)*plotW
-  const y=v=>pad.t+plotH-(v/maxGF)*plotH
-  const avgGC=rows.reduce((a,r)=>a+r.gcPP,0)/rows.length
-  const avgGF=rows.reduce((a,r)=>a+r.gfPP,0)/rows.length
+  const maxX=Math.max(cfg.xMaxHint||0.01,...rows.map(cfg.xFn))
+  const maxY=Math.max(cfg.yMaxHint||0.01,...rows.map(cfg.yFn))
+  const x=v=>pad.l+(v/maxX)*plotW
+  const y=v=>pad.t+plotH-(v/maxY)*plotH
+  const avgX=rows.reduce((a,r)=>a+cfg.xFn(r),0)/rows.length
+  const avgY=rows.reduce((a,r)=>a+cfg.yFn(r),0)/rows.length
   let svg=`<svg class="chart-svg" width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px">`
   for(let i=0;i<=4;i++){
     const gx=pad.l+plotW*i/4
     svg+=`<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t+plotH}" class="chart-grid"/>`
-    svg+=`<text x="${gx}" y="${pad.t+plotH+16}" text-anchor="middle" class="chart-axis">${(maxGC*i/4).toFixed(1)}</text>`
+    svg+=`<text x="${gx}" y="${pad.t+plotH+16}" text-anchor="middle" class="chart-axis">${cfg.xFmt(maxX*i/4)}</text>`
     const gy=pad.t+plotH-plotH*i/4
     svg+=`<line x1="${pad.l}" y1="${gy}" x2="${pad.l+plotW}" y2="${gy}" class="chart-grid"/>`
-    svg+=`<text x="${pad.l-6}" y="${gy+4}" text-anchor="end" class="chart-axis">${(maxGF*i/4).toFixed(1)}</text>`
+    svg+=`<text x="${pad.l-6}" y="${gy+4}" text-anchor="end" class="chart-axis">${cfg.yFmt(maxY*i/4)}</text>`
   }
-  svg+=`<text x="${pad.l+plotW/2}" y="${h-2}" text-anchor="middle" class="chart-axis">Goles en contra por partido →</text>`
-  svg+=`<text x="12" y="${pad.t+plotH/2}" text-anchor="middle" class="chart-axis" transform="rotate(-90 12 ${pad.t+plotH/2})">Goles a favor por partido →</text>`
-  svg+=`<line x1="${x(avgGC)}" y1="${pad.t}" x2="${x(avgGC)}" y2="${pad.t+plotH}" stroke="var(--borde2)" stroke-width="1.5"/>`
-  svg+=`<line x1="${pad.l}" y1="${y(avgGF)}" x2="${pad.l+plotW}" y2="${y(avgGF)}" stroke="var(--borde2)" stroke-width="1.5"/>`
+  svg+=`<text x="${pad.l+plotW/2}" y="${h-2}" text-anchor="middle" class="chart-axis">${cfg.xLabel} →</text>`
+  svg+=`<text x="12" y="${pad.t+plotH/2}" text-anchor="middle" class="chart-axis" transform="rotate(-90 12 ${pad.t+plotH/2})">${cfg.yLabel} →</text>`
+  svg+=`<line x1="${x(avgX)}" y1="${pad.t}" x2="${x(avgX)}" y2="${pad.t+plotH}" stroke="var(--borde2)" stroke-width="1.5" stroke-dasharray="3 3"/>`
+  svg+=`<line x1="${pad.l}" y1="${y(avgY)}" x2="${pad.l+plotW}" y2="${y(avgY)}" stroke="var(--borde2)" stroke-width="1.5" stroke-dasharray="3 3"/>`
   rows.forEach(r=>{
-    const cx=x(r.gcPP),cy=y(r.gfPP)
-    const rad=r.isTemuco?8:6
-    const fill=r.isTemuco?'var(--v)':'var(--borde2)'
-    const stroke=r.isTemuco?'var(--v)':'var(--gris)'
-    svg+=`<circle cx="${cx}" cy="${cy}" r="${rad}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"><title>${r.nombre}\nGF/PJ: ${r.gfPP}  GC/PJ: ${r.gcPP}</title></circle>`
-    if(r.isTemuco)svg+=`<text x="${cx}" y="${cy-13}" text-anchor="middle" font-size="11" font-weight="800" fill="var(--v)">${r.nombre}</text>`
+    const cx=x(cfg.xFn(r)),cy=y(cfg.yFn(r))
+    const rad=r.isTemuco?16:12
+    const crest=crestUrl(r.nombre)
+    const tip=`${r.nombre}\n${cfg.xLabel}: ${cfg.xFmt(cfg.xFn(r))}\n${cfg.yLabel}: ${cfg.yFmt(cfg.yFn(r))}`
+    svg+=`<circle cx="${cx}" cy="${cy}" r="${rad+3}" fill="#fff" stroke="${r.isTemuco?'var(--v)':'var(--borde2)'}" stroke-width="${r.isTemuco?2.5:1.5}"/>`
+    if(crest)svg+=`<image href="${crest}" x="${cx-rad}" y="${cy-rad}" width="${rad*2}" height="${rad*2}" preserveAspectRatio="xMidYMid meet"><title>${tip}</title></image>`
+    else svg+=`<circle cx="${cx}" cy="${cy}" r="${rad}" fill="var(--borde2)"><title>${tip}</title></circle>`
+    if(r.isTemuco)svg+=`<text x="${cx}" y="${cy-rad-8}" text-anchor="middle" font-size="11" font-weight="800" fill="var(--v)">${r.nombre}</text>`
   })
   svg+=`</svg>`
   return svg
+}
+
+// ---- Coeficiente de correlación de Pearson (dependencia estadística) ----
+function pearsonR(rows,xFn,yFn){
+  const n=rows.length
+  if(n<2)return 0
+  const xs=rows.map(xFn),ys=rows.map(yFn)
+  const mx=xs.reduce((a,b)=>a+b,0)/n,my=ys.reduce((a,b)=>a+b,0)/n
+  let sxy=0,sxx=0,syy=0
+  for(let i=0;i<n;i++){const dx=xs[i]-mx,dy=ys[i]-my;sxy+=dx*dy;sxx+=dx*dx;syy+=dy*dy}
+  const denom=Math.sqrt(sxx*syy)
+  return denom?sxy/denom:0
+}
+function interpretaR(r){
+  const a=Math.abs(r)
+  const fuerza=a>=0.7?'fuerte':a>=0.4?'moderada':a>=0.2?'débil':'muy débil o nula'
+  const signo=a<0.05?'':r>0?', positiva':', negativa'
+  return`r = ${r.toFixed(2)} — correlación ${fuerza}${signo}`
 }
 
 function renderFiltroEquipos(){
@@ -3252,6 +3299,7 @@ const ANALISIS_CATS=[
   {id:'rendimiento',l:'🏠 Local / Visita'},
   {id:'descuento',l:'⏱ Descuento'},
   {id:'sub21',l:'🌱 Sub-21'},
+  {id:'correlaciones',l:'📈 Dependencia estadística'},
 ]
 
 function renderAnalisis(){
@@ -3261,8 +3309,8 @@ function renderAnalisis(){
 
   const contenido=
     cat==='ataque'?`
-      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Cada punto es un equipo. Arriba a la izquierda = ataca mucho y recibe poco. Las líneas marcan el promedio de los equipos filtrados.</div>
-      ${svgScatter(rows)}
+      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Cada escudo es un equipo. Arriba a la izquierda = ataca mucho y recibe poco. Las líneas punteadas marcan el promedio de los equipos filtrados.</div>
+      ${svgScatterXY(rows,{xFn:r=>r.gcPP,yFn:r=>r.gfPP,xFmt:v=>v.toFixed(1),yFmt:v=>v.toFixed(1),xLabel:'Goles en contra por partido',yLabel:'Goles a favor por partido',xMaxHint:2.2,yMaxHint:2.2})}
     `:
     cat==='disciplina'?`
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Tarjetas recibidas por partido jugado.</div>
@@ -3284,10 +3332,26 @@ function renderAnalisis(){
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">% de los goles del equipo marcados en el 45'+ o el 90'+.</div>
       ${svgBarChart(rows,{val:r=>r.pctDescuento,fmt:v=>v.toFixed(1)+'%',maxHint:20})}
     `:
-    `
+    cat==='sub21'?`
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Suma de minutos oficiales de todos los jugadores sub-21 usados en la temporada (dato ANFP).</div>
       ${svgBarChart(rows,{val:r=>r.sub21Min,fmt:v=>v.toLocaleString('es-CL'),maxHint:1000})}
-    `
+    `:
+    (()=>{
+      const rDisc=pearsonR(rows,r=>r.amPP+r.rjPP,r=>r.ptsPP)
+      const rSub21=pearsonR(rows,r=>r.sub21Min,r=>r.ptsPP)
+      const chip=r=>`<div style="display:inline-block;font-size:12.5px;font-weight:800;color:${Math.abs(r)>=0.4?'var(--v)':'var(--gris)'};background:rgba(16,24,32,.04);border:1px solid var(--borde);border-radius:999px;padding:4px 12px;margin-bottom:10px">${interpretaR(r)}</div>`
+      return`
+        <div style="color:var(--gris);font-size:12px;margin-bottom:18px">Análisis de dependencia estadística: qué tan relacionadas están dos variables entre los 16 equipos. El coeficiente de correlación de Pearson (r) va de -1 (relación inversa perfecta) a +1 (relación directa perfecta); cerca de 0 significa que no hay relación real entre ambas.</div>
+        <div class="pt disp" style="font-size:15px;margin-bottom:2px">Disciplina vs Rendimiento</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Tarjetas por partido (eje X) vs puntos por partido (eje Y)</div>
+        ${chip(rDisc)}
+        ${svgScatterXY(rows,{xFn:r=>r.amPP+r.rjPP,yFn:r=>r.ptsPP,xFmt:v=>v.toFixed(2),yFmt:v=>v.toFixed(2),xLabel:'Tarjetas por partido',yLabel:'Puntos por partido',xMaxHint:3.5,yMaxHint:2.5})}
+        <div class="pt disp" style="font-size:15px;margin:26px 0 2px">Minutos Sub-21 vs Rendimiento</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Minutos oficiales sub-21 en la temporada (eje X) vs puntos por partido (eje Y)</div>
+        ${chip(rSub21)}
+        ${svgScatterXY(rows,{xFn:r=>r.sub21Min,yFn:r=>r.ptsPP,xFmt:v=>Math.round(v).toLocaleString('es-CL'),yFmt:v=>v.toFixed(2),xLabel:'Minutos Sub-21',yLabel:'Puntos por partido',xMaxHint:1000,yMaxHint:2.5})}
+      `
+    })()
 
   return`<div class="pb">
     <div class="pt disp" style="font-size:18px;margin-bottom:4px">Análisis de datos · Liga de Ascenso</div>

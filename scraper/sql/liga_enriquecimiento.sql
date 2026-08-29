@@ -10,7 +10,7 @@ alter table liga_goles add column if not exists subtipo text
   check (subtipo in ('Pie Derecho','Pie Izquierdo','Cabeza','Tiro Libre','Otro'));
 alter table liga_goles add column if not exists asistidor_id bigint references liga_jugadores(id) on delete set null;
 alter table liga_goles add column if not exists asist_subtipo text
-  check (asist_subtipo in ('Pase','Centro','Córner','Rebote','Individual','Tiro Libre','Penal Cedido','Otro'));
+  check (asist_subtipo in ('Pase','Pase Filtrado','Centro','Cutback','Córner','Rebote','Individual','Tiro Libre','Penal Cedido','Otro'));
 
 drop policy if exists liga_goles_write on liga_goles;
 create policy liga_goles_write on liga_goles for update

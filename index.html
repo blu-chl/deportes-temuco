@@ -31,6 +31,7 @@ html,body{min-height:100vh;background:var(--fondo);color:var(--blanco);font-fami
 nav{background:var(--vo);border-bottom:1px solid rgba(255,255,255,.1);display:flex;overflow-x:auto;padding:0 18px;gap:4px}
 .nb{padding:11px 4px;margin-bottom:0;font-size:11.5px;font-weight:600;letter-spacing:.3px;border:none;background:none;color:rgba(255,255,255,.5);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-family:var(--font);transition:color .15s}
 .nb:hover{color:rgba(255,255,255,.85)}.nb.on{color:#fff;font-weight:700;border-bottom-color:var(--goldbr)}
+.nb-sep{width:1px;flex-shrink:0;background:rgba(255,255,255,.15);margin:9px 6px}
 .content{padding:14px 16px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
@@ -456,15 +457,21 @@ function renderHdr(){
   </div>`
 }
 
+// Agrupado por audiencia: Liga (home) suelto, luego "Nuestro club" (datos
+// propios de Temuco) y "Liga" (datos de los 16 equipos), separados por una
+// línea vertical para que se lea de un vistazo qué es cada bloque. Tabla
+// ya no es tab propio — vive dentro de Liga con un link directo.
 function renderNav(){
   const tabs=[
-    {id:'inicio',l:'🏆 Liga'},{id:'tabla',l:'📋 Tabla'},
-    {id:'plantilla',l:'Plantilla'},{id:'partidos',l:'Partidos'},
-    {id:'estadisticas',l:'Estadísticas'},{id:'consultas',l:'🔍 Jugadores clave'},
-    {id:'analisis',l:'📊 Análisis'},
+    {id:'inicio',l:'🏆 Liga'},
+    {sep:true},
+    {id:'plantilla',l:'Plantilla'},{id:'partidos',l:'Partidos'},{id:'estadisticas',l:'Estadísticas'},
+    {sep:true},
+    {id:'consultas',l:'🔍 Jugadores clave'},{id:'analisis',l:'📊 Análisis'},
+    {sep:true},
     {id:'admin',l:S.isAdmin?'🔓 Admin':'🔒 Admin'},
   ]
-  return`<nav>${tabs.map(t=>`<button class="nb ${S.pag===t.id?'on':''}" onclick="navTo('${t.id}')">${t.l}</button>`).join('')}</nav>`
+  return`<nav>${tabs.map(t=>t.sep?`<span class="nb-sep"></span>`:`<button class="nb ${S.pag===t.id?'on':''}" onclick="navTo('${t.id}')">${t.l}</button>`).join('')}</nav>`
 }
 
 // ===== MODALES =====
@@ -1126,6 +1133,23 @@ async function cargarEnriquecimiento(){
   S.enriq.jugadores=Array.isArray(jugadores)?jugadores:[]
   S.enriq.loaded=true
   render()
+  if(!S.enriq.sqlPendiente)await sincronizarFotosLiga()
+}
+
+// Copia foto_url desde el plantel propio (Plantilla, donde ya se cargan
+// fotos hace rato) hacia liga_jugadores, matcheando por nombre — así no
+// hay que volver a pegar las mismas URLs a mano. Solo completa lo que
+// esté vacío, nunca pisa una foto ya cargada acá.
+async function sincronizarFotosLiga(){
+  let sincronizadas=0
+  for(const j of S.enriq.jugadores){
+    if(j.foto_url)continue
+    const match=matchJugadorPropio(j.nombre,j.apellido)
+    if(!match||!match.foto_url)continue
+    const r=await patch('liga_jugadores',{foto_url:match.foto_url},`?id=eq.${j.id}`)
+    if(!(r&&r.code)){j.foto_url=match.foto_url;sincronizadas++}
+  }
+  if(sincronizadas>0){render();toast(`${sincronizadas} foto${sincronizadas>1?'s':''} sincronizada${sincronizadas>1?'s':''} desde Plantilla`)}
 }
 
 async function guardarGolDetalle(id,campo,val){
@@ -1143,8 +1167,88 @@ async function guardarFotoJugadorLiga(id,url){
   toast('Foto guardada')
 }
 
+// Recupera goles/asistencias que ya estaban cargados a mano en el registro
+// viejo (tablas "partidos"/"eventos", Primera B, hasta que se dejó de
+// mantener) y los cruza con los datos scrapeados: mismo partido (por rival
+// + fecha + condición), mismo jugador (por nombre), mismo minuto. Es
+// conservador — si algo no calza con confianza, lo salta en vez de
+// arriesgar un dato mal atribuido.
+async function migrarDatosAntiguos(){
+  const tid=S.liga.temucoId
+  if(!tid){toast('Falta cargar la liga',true);return}
+  toast('Buscando coincidencias con el registro antiguo…')
+  const[partidosPropios,eventosPropios]=await Promise.all([
+    get('partidos','?competencia=eq.Primera B&select=id,rival,fecha,condicion'),
+    get('eventos','?tipo=in.(Gol,Asistencia)&select=id,tipo,partido_id,jugador_id,minuto,subtipo'),
+  ])
+  if(!Array.isArray(partidosPropios)||!Array.isArray(eventosPropios)){toast('Error leyendo el registro antiguo',true);return}
+  if(!S.partidosLiga.loaded)await cargarPartidosLiga()
+  const ligaPartidos=S.partidosLiga.partidos
+
+  const nombreRivalParecido=(a,b)=>{
+    const na=normalizarNombreCmp(a),nb=normalizarNombreCmp(b)
+    return na.includes(nb)||nb.includes(na)||scoreNombreCmp(a,b)>=0.5
+  }
+  const mapaPartidos={}
+  partidosPropios.forEach(pp=>{
+    const candidato=ligaPartidos.find(lp=>lp.resultado&&lp.condicion===pp.condicion&&nombreRivalParecido(pp.rival,lp.rival)&&Math.abs(new Date(lp.fecha_hora)-new Date(pp.fecha+'T12:00:00'))<=1000*60*60*24*3)
+    if(candidato)mapaPartidos[pp.id]=candidato
+  })
+
+  const ligaJugadores=S.enriq.jugadores.length?S.enriq.jugadores:await ligaGet('liga_jugadores',`?equipo_id=eq.${tid}&select=id,nombre,apellido`)
+  const matchLiga=nombrePropio=>{
+    let mejor=null,mejorScore=0
+    ligaJugadores.forEach(lj=>{
+      const s=scoreNombreCmp(nombrePropio,`${lj.nombre} ${lj.apellido}`)
+      if(s>mejorScore){mejorScore=s;mejor=lj}
+    })
+    return mejorScore>=0.9?mejor:null
+  }
+  const jugPropioMap={};S.jugadores.forEach(j=>{jugPropioMap[j.id]=j})
+
+  let golesActualizados=0,asistActualizados=0
+  for(const pp of partidosPropios){
+    const lp=mapaPartidos[pp.id]
+    if(!lp)continue
+    const evsPartido=eventosPropios.filter(e=>e.partido_id===pp.id)
+    const goles=evsPartido.filter(e=>e.tipo==='Gol')
+    const asistencias=evsPartido.filter(e=>e.tipo==='Asistencia')
+    if(!goles.length)continue
+    const ligaGolesPartido=await ligaGet('liga_goles',`?partido_id=eq.${lp.id}&equipo_id=eq.${tid}&select=id,minuto,jugador_id`)
+    if(!Array.isArray(ligaGolesPartido))continue
+    for(const g of goles){
+      const propio=jugPropioMap[g.jugador_id]
+      if(!propio)continue
+      const ligaJ=matchLiga(propio.nombre)
+      if(!ligaJ)continue
+      const golLiga=ligaGolesPartido.find(lg=>lg.minuto===g.minuto&&lg.jugador_id===ligaJ.id)
+      if(!golLiga)continue
+      const body={}
+      if(g.subtipo&&SUBTIPOS_GOL.includes(g.subtipo))body.subtipo=g.subtipo
+      const asist=asistencias.find(a=>a.minuto===g.minuto)
+      if(asist){
+        const propioAsist=jugPropioMap[asist.jugador_id]
+        const ligaAsist=propioAsist?matchLiga(propioAsist.nombre):null
+        if(ligaAsist){
+          body.asistidor_id=ligaAsist.id
+          if(asist.subtipo&&SUBTIPOS_ASIST.includes(asist.subtipo))body.asist_subtipo=asist.subtipo
+        }
+      }
+      if(Object.keys(body).length){
+        const r=await patch('liga_goles',body,`?id=eq.${golLiga.id}`)
+        if(!(r&&r.code)){
+          if(body.subtipo)golesActualizados++
+          if(body.asistidor_id)asistActualizados++
+        }
+      }
+    }
+  }
+  toast(`Listo: ${golesActualizados} goles con detalle, ${asistActualizados} asistencias recuperadas del registro antiguo`)
+  await cargarEnriquecimiento()
+}
+
 const SUBTIPOS_GOL=['Pie Derecho','Pie Izquierdo','Cabeza','Tiro Libre','Otro']
-const SUBTIPOS_ASIST=['Pase','Centro','Córner','Rebote','Individual','Tiro Libre','Penal Cedido','Otro']
+const SUBTIPOS_ASIST=['Pase','Pase Filtrado','Centro','Cutback','Córner','Rebote','Individual','Tiro Libre','Penal Cedido','Otro']
 
 function renderEnriquecer(){
   const E=S.enriq
@@ -1156,15 +1260,24 @@ function renderEnriquecer(){
   </div></div>`
   const pendientes=E.golesPendientes=E.goles.filter(g=>!g.subtipo).length
   return`<div>
+    <div class="panel" style="margin-bottom:20px;background:rgba(200,21,39,.04)">
+      <div class="pb" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-weight:800;font-size:12.5px;margin-bottom:2px">🔄 Recuperar del registro antiguo</div>
+          <div style="font-size:11px;color:var(--gris)">Busca coincidencias en el registro manual viejo (Primera B, tabla "Registro") y completa acá lo que ya se había cargado — mismo partido, jugador y minuto. No pisa nada que ya esté cargado.</div>
+        </div>
+        <button class="btn" onclick="migrarDatosAntiguos()">Buscar y completar</button>
+      </div>
+    </div>
     <div class="ph" style="background:none;border:none;padding:0 0 8px"><span class="pt">📸 Fotos de jugadores</span></div>
     <div style="color:var(--gris);font-size:11px;margin-bottom:10px">Pega la URL de una foto para cada jugador. Se muestra en Plantilla, Jugadores Clave y goleadores.</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:22px">
       ${E.jugadores.map(j=>`<div class="pcard" style="cursor:default;display:flex;align-items:center;gap:8px;padding:8px 10px">
         <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;background:rgba(16,24,32,0.08);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">
-          ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:iniciales(`${j.nombre} ${j.apellido}`)}
+          ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:iniciales(nombreCompacto(j.nombre,j.apellido))}
         </div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${j.nombre} ${j.apellido}</div>
+          <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreCompacto(j.nombre,j.apellido)}</div>
           <input type="url" placeholder="URL de la foto…" value="${j.foto_url||''}"
             style="width:100%;font-size:9px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;padding:3px 6px;color:var(--blanco);font-family:var(--font);margin-top:3px"
             onchange="guardarFotoJugadorLiga(${j.id},this.value)">
@@ -1183,7 +1296,7 @@ function renderEnriquecer(){
       return`<div class="pcard" style="cursor:default;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           <span style="font-weight:800;font-family:var(--font-disp);color:var(--gris)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
-          <span style="font-weight:700;font-size:12.5px">${g.jugador?`${g.jugador.nombre} ${g.jugador.apellido}`:'?'}</span>
+          <span style="font-weight:700;font-size:12.5px">${g.jugador?nombreCompacto(g.jugador.nombre,g.jugador.apellido):'?'}</span>
           <span style="font-size:10px;color:var(--muted)">vs ${rival||'?'} · F${g.partido?.jornada||'?'}</span>
           ${g.penal?'<span class="badge bg" style="font-size:8px">Penal</span>':''}
         </div>
@@ -1197,7 +1310,7 @@ function renderEnriquecer(){
           <div class="fg" style="margin-bottom:0"><label>Quién dio el pase</label>
             <select onchange="guardarGolDetalle(${g.id},'asistidor_id',this.value?+this.value:'')">
               <option value="">Sin asistencia</option>
-              ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${j.nombre} ${j.apellido}</option>`).join('')}
+              ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${nombreCompacto(j.nombre,j.apellido)}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -1677,7 +1790,7 @@ function renderEstadisticas(){
   const PL=S.partidosLiga
   if(!PL.loaded)return`<div class="content">${pageHero('ESTADÍSTICAS')}<div class="empty">Cargando estadísticas…</div></div>`
   const jugados=PL.partidos.filter(p=>p.resultado)
-  const nombreJ=j=>j?`${j.nombre} ${j.apellido}`:'?'
+  const nombreJ=j=>j?nombreCompacto(j.nombre,j.apellido):'?'
   const inicialesJ=j=>iniciales(nombreJ(j))
   const avatarJ=(j,size)=>j?.foto_url
     ?`<img src="${j.foto_url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0">`
@@ -2344,8 +2457,8 @@ function renderConsultas(){
         <thead><tr><th></th><th>Jugador</th><th class="center">Pos</th><th class="num">⚽</th><th class="num">🅰️</th><th class="num">🟨</th><th class="num">🟥</th><th class="num">Min</th>${S.isAdmin?'<th></th>':''}</tr></thead>
         <tbody>
         ${filtrados.length?filtrados.map(j=>`<tr>
-          <td>${j.foto_url?`<img src="${j.foto_url}" style="width:22px;height:22px;border-radius:50%;object-fit:cover">`:`<div style="width:22px;height:22px;border-radius:50%;background:rgba(16,24,32,0.05);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800">${iniciales(j.nombre+' '+j.apellido)}</div>`}</td>
-          <td>${j.nombre} ${j.apellido}</td>
+          <td>${j.foto_url?`<img src="${j.foto_url}" style="width:22px;height:22px;border-radius:50%;object-fit:cover">`:`<div style="width:22px;height:22px;border-radius:50%;background:rgba(16,24,32,0.05);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800">${iniciales(nombreCompacto(j.nombre,j.apellido))}</div>`}</td>
+          <td>${nombreCompacto(j.nombre,j.apellido)}</td>
           <td class="center">${j.posicion?`<span class="pos-${j.posicion}">${j.posicion}</span>`:'—'}</td>
           <td class="num" style="color:var(--vc);font-weight:800">${j.goles||'—'}</td>
           <td class="num" style="color:var(--az);font-weight:800">${j.asistencias||'—'}</td>
@@ -2377,6 +2490,55 @@ const CRESTS={
 }
 function crestUrl(n){return CRESTS[n]||''}
 function iniciales(n){return (n||'').trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase()}
+// Primer nombre + primer apellido, para listas compactas (liga_jugadores
+// trae nombre/apellido completos, ej. "Diego Mario" "Buonanotte Rende").
+function nombreCompacto(nombre,apellido){
+  const n=(nombre||'').trim().split(/\s+/)[0]||''
+  const a=(apellido||'').trim().split(/\s+/)[0]||''
+  return`${n} ${a}`.trim()
+}
+
+// ---- Matcher por similitud de nombre (mismo criterio que el scraper en
+// nameMatch.mjs) para cruzar jugadores propios (tabla "jugadores") contra
+// liga_jugadores sin depender de liga_jugador_id — útil para sincronizar
+// datos manuales (foto, asistencias del registro viejo) con lo scrapeado. ----
+function normalizarNombreCmp(s){
+  return(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()
+}
+function levenshteinCmp(a,b){
+  if(a===b)return 0
+  const m=a.length,n=b.length
+  if(!m)return n
+  if(!n)return m
+  const dp=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)])
+  for(let j=0;j<=n;j++)dp[0][j]=j
+  for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1])
+  return dp[m][n]
+}
+function tokensParecidosCmp(a,b){
+  if(a===b)return true
+  if(Math.min(a.length,b.length)<4)return false
+  return levenshteinCmp(a,b)<=1
+}
+function scoreNombreCmp(nombreCorto,candidatoCompleto){
+  const docTokens=normalizarNombreCmp(nombreCorto).split(' ').filter(Boolean)
+  const candTokens=normalizarNombreCmp(candidatoCompleto).split(' ').filter(Boolean)
+  if(!docTokens.length||!candTokens.length)return 0
+  let matches=0
+  docTokens.forEach(dt=>{if(candTokens.some(ct=>tokensParecidosCmp(dt,ct)))matches++})
+  return matches/docTokens.length
+}
+// Busca en S.jugadores (plantel propio) el que mejor calza con un nombre
+// completo de liga_jugadores. Umbral alto: preferimos no matchear antes
+// que matchear mal.
+function matchJugadorPropio(nombreLiga,apellidoLiga){
+  let mejor=null,mejorScore=0
+  S.jugadores.forEach(j=>{
+    const s=scoreNombreCmp(j.nombre,`${nombreLiga} ${apellidoLiga}`)
+    if(s>mejorScore){mejorScore=s;mejor=j}
+  })
+  return mejorScore>=0.9?mejor:null
+}
 function fmtFechaLarga(iso){return iso?new Date(iso).toLocaleDateString('es-CL',{day:'numeric',month:'long'}):''}
 function pageHero(titulo,sub){return`<div class="pagehero">
     <div class="pagehero-split"></div><div class="pagehero-stripes"></div>
@@ -2445,7 +2607,7 @@ async function cargarLiga(){
   ;(Array.isArray(goles)?goles:[]).forEach(g=>{conteo[g.jugador_id]=(conteo[g.jugador_id]||0)+1})
   S.liga.goleadores=Object.entries(conteo).map(([jid,n])=>{
     const j=jugMap[jid];const eq=j?S.liga.equipos.find(e=>e.id===j.equipo_id):null
-    return{goles:n,nombre:j?`${j.nombre} ${j.apellido}`:'?',equipo:eq?eq.nombre:'?',crest:eq?crestUrl(eq.nombre):''}
+    return{goles:n,nombre:j?nombreCompacto(j.nombre,j.apellido):'?',equipo:eq?eq.nombre:'?',crest:eq?crestUrl(eq.nombre):''}
   }).sort((a,b)=>b.goles-a.goles).slice(0,12)
 
   S.liga.sub21=jugArr.filter(j=>j.equipo_id===S.liga.temucoId&&j.sub21)
@@ -2475,7 +2637,7 @@ async function cargarLiga(){
       const j=jugMap[d.jugador_id]
       if(!eq||!j)return
       if(!porEquipo[eq.id])porEquipo[eq.id]={equipoId:eq.id,equipo:eq.nombre,jugadores:[]}
-      porEquipo[eq.id].jugadores.push({nombre:`${j.nombre} ${j.apellido}`,jornada:d.jornada,fecha_hora:d.fecha_hora})
+      porEquipo[eq.id].jugadores.push({nombre:nombreCompacto(j.nombre,j.apellido),jornada:d.jornada,fecha_hora:d.fecha_hora})
     })
     Object.values(porEquipo).forEach(g=>g.jugadores.sort((a,b)=>b.fecha_hora.localeCompare(a.fecha_hora)))
     S.liga.debutsPorEquipo=Object.values(porEquipo).sort((a,b)=>
@@ -2707,7 +2869,8 @@ function renderInicio(){
       <div class="mc"><div class="mc-l">Puntos</div><div class="mc-v">${stTemuco.pts}</div><div class="mc-s">${stTemuco.pj} PJ</div></div>
       <div class="mc"><div class="mc-l">G / E / P</div><div class="mc-v" style="font-size:20px">${stTemuco.pg}-${stTemuco.pe}-${stTemuco.pp}</div></div>
       <div class="mc"><div class="mc-l">Goles F/C</div><div class="mc-v" style="font-size:20px">${stTemuco.gf}/${stTemuco.gc}</div><div class="mc-s">${stTemuco.gf-stTemuco.gc>=0?'+':''}${stTemuco.gf-stTemuco.gc} dif.</div></div>
-    </div>`:''}
+    </div>
+    <div style="text-align:right;margin-top:6px"><a href="javascript:void(0)" onclick="navTo('tabla')" style="font-size:12px;font-weight:700;color:var(--v)">Ver tabla completa →</a></div>`:''}
 
     <div class="ph" style="background:none;border:none;padding:24px 0 12px">
       <div class="pt disp" style="font-size:18px">Goleadores de la temporada</div>
@@ -2733,7 +2896,7 @@ function renderInicio(){
       <div style="flex:1;min-width:240px">
         <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:8px">Jugadores con más minutos</div>
         <div class="sub21-cards">
-          ${L.sub21.slice(0,4).map(j=>`<div class="sub21-card"><div style="color:#fff;font-weight:800;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${j.nombre} ${j.apellido}</div><div style="color:rgba(255,255,255,.55);font-size:10px">Nacido ${(j.fecha_nacimiento||'').slice(0,4)||'—'}</div><div class="disp sub21-card-m">${j.minutos_oficial_temporada||0}'</div></div>`).join('')||'<div style="color:rgba(255,255,255,.6);font-size:12px">Sin datos.</div>'}
+          ${L.sub21.slice(0,4).map(j=>`<div class="sub21-card"><div style="color:#fff;font-weight:800;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreCompacto(j.nombre,j.apellido)}</div><div style="color:rgba(255,255,255,.55);font-size:10px">Nacido ${(j.fecha_nacimiento||'').slice(0,4)||'—'}</div><div class="disp sub21-card-m">${j.minutos_oficial_temporada||0}'</div></div>`).join('')||'<div style="color:rgba(255,255,255,.6);font-size:12px">Sin datos.</div>'}
         </div>
       </div>
     </div>
@@ -2799,9 +2962,9 @@ async function verPartidoLiga(id,volverA){
   ])
   if(S.partidoLiga.id!==id)return // el usuario ya navegó a otro partido
   S.partidoLiga.data=Array.isArray(partidos)&&partidos[0]?partidos[0]:null
-  const evGoles=(Array.isArray(goles)?goles:[]).map(g=>({tipo:g.autogol?'autogol':'gol',minuto:g.minuto,minuto_extra:g.minuto_extra||0,equipo_id:g.equipo_id,jugador:g.jugador?`${g.jugador.nombre} ${g.jugador.apellido}`:'—',penal:g.penal}))
-  const evTarjetas=(Array.isArray(tarjetas)?tarjetas:[]).map(t=>({tipo:t.tipo==='roja'?'roja':(t.segunda_amarilla?'segunda':'amarilla'),minuto:t.minuto,minuto_extra:t.minuto_extra||0,equipo_id:t.equipo_id,jugador:t.jugador?`${t.jugador.nombre} ${t.jugador.apellido}`:'—',motivo:t.motivo}))
-  const evSubs=(Array.isArray(sustituciones)?sustituciones:[]).map(s=>({tipo:'cambio',minuto:s.minuto,minuto_extra:s.minuto_extra||0,equipo_id:s.equipo_id,entra:s.entra?`${s.entra.nombre} ${s.entra.apellido}`:'—',sale:s.sale?`${s.sale.nombre} ${s.sale.apellido}`:'—'}))
+  const evGoles=(Array.isArray(goles)?goles:[]).map(g=>({tipo:g.autogol?'autogol':'gol',minuto:g.minuto,minuto_extra:g.minuto_extra||0,equipo_id:g.equipo_id,jugador:g.jugador?nombreCompacto(g.jugador.nombre,g.jugador.apellido):'—',penal:g.penal}))
+  const evTarjetas=(Array.isArray(tarjetas)?tarjetas:[]).map(t=>({tipo:t.tipo==='roja'?'roja':(t.segunda_amarilla?'segunda':'amarilla'),minuto:t.minuto,minuto_extra:t.minuto_extra||0,equipo_id:t.equipo_id,jugador:t.jugador?nombreCompacto(t.jugador.nombre,t.jugador.apellido):'—',motivo:t.motivo}))
+  const evSubs=(Array.isArray(sustituciones)?sustituciones:[]).map(s=>({tipo:'cambio',minuto:s.minuto,minuto_extra:s.minuto_extra||0,equipo_id:s.equipo_id,entra:s.entra?nombreCompacto(s.entra.nombre,s.entra.apellido):'—',sale:s.sale?nombreCompacto(s.sale.nombre,s.sale.apellido):'—'}))
   S.partidoLiga.eventos=[...evGoles,...evTarjetas,...evSubs].sort((a,b)=>(a.minuto+a.minuto_extra*0.01)-(b.minuto+b.minuto_extra*0.01))
   S.partidoLiga.loaded=true
   if(S.pag==='partido')render()

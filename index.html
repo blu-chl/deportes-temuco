@@ -17,11 +17,7 @@
   --font:'Manrope',system-ui,sans-serif;--font-disp:'Barlow Condensed',var(--font);
 }
 html,body{min-height:100vh;background:var(--fondo);color:var(--blanco);font-family:var(--font);font-size:13px}
-body.has-bg{background-size:cover;background-position:center;background-attachment:fixed}
-body.has-bg::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:0;pointer-events:none}
-body.has-bg #root{position:relative;z-index:1}
 #app{max-width:1100px;margin:0 auto;background:var(--fondo);border-radius:12px;border:1px solid var(--borde2);overflow:hidden;min-height:100vh}
-body.has-bg #app{background:rgba(8,15,9,0.88)}
 .hdrwrap{position:sticky;top:0;z-index:50}
 .hdr{background:var(--vo);padding:12px 18px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .logo{display:flex;align-items:center;gap:10px}
@@ -121,7 +117,6 @@ tr:hover td{background:rgba(200,21,39,0.05)}
 .form-dot.L{background:rgba(204,68,68,.3);color:#b3261e}
 .config-section{background:rgba(16,24,32,0.028);border:1px solid var(--borde);border-radius:8px;padding:16px;margin-bottom:12px}
 .config-title{font-size:11px;font-weight:700;color:var(--vc);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
-.bg-preview{width:100%;height:80px;border-radius:6px;border:1px solid var(--borde2);background-size:cover;background-position:center;margin-bottom:8px;display:flex;align-items:center;justify-content:center;color:var(--gris);font-size:11px}
 .sort-toggle{background:rgba(200,21,39,0.08);border:1px solid var(--borde2);border-radius:5px;padding:3px 8px;color:var(--gris);font-size:9px;font-weight:700;cursor:pointer;font-family:var(--font);text-transform:uppercase}
 .sort-toggle.on{background:rgba(200,21,39,0.2);color:var(--vc)}
 
@@ -352,7 +347,6 @@ let S={
   consulta:{tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   visitante:false,
-  bgImage:localStorage.getItem('dt-bg')||'',
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
@@ -383,7 +377,7 @@ async function cargarDatos(){
     S.ev.jugador_sale_id=S.jugadores[0].id
     S.addLes.jugador_id=S.jugadores[0].id
   }
-  applyBg();render()
+  render()
 }
 
 function getStats(jugId){
@@ -398,12 +392,6 @@ function calcHdr(){
   const t=S.liga.tabla.find(e=>e.id===S.liga.temucoId)
   if(!t)return{pg:0,pe:0,pp:0,pts:0,gf:0,gc:0}
   return{pg:t.pg,pe:t.pe,pp:t.pp,pts:t.pts,gf:t.gf,gc:t.gc}
-}
-
-function applyBg(){
-  const b=S.bgImage
-  if(b){document.body.style.backgroundImage=`url('${b}')`;document.body.classList.add('has-bg')}
-  else{document.body.style.backgroundImage='';document.body.classList.remove('has-bg')}
 }
 
 // ===== LOGIN =====
@@ -1870,24 +1858,7 @@ function borrarStaff(idx){
 
 // ===== CONFIGURACIÓN =====
 function renderConfig(){
-  const bg=S.bgImage
   return`<div class="content">
-    <div class="config-section">
-      <div class="config-title">🖼 Fondo de pantalla</div>
-      <div class="bg-preview" style="${bg?`background-image:url('${bg}');`:''}">
-        ${!bg?'Sin fondo configurado':''}
-      </div>
-      <div class="fg"><label>URL de imagen</label>
-        <input type="url" id="bg-url-inp" placeholder="https://ejemplo.com/imagen.jpg" value="${bg||''}">
-      </div>
-      <div class="fg"><label>O sube una imagen local</label>
-        <input type="file" accept="image/*" onchange="handleBgFile(this)" style="color:var(--gris);cursor:pointer;font-size:11px">
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" onclick="guardarBg()">Aplicar fondo</button>
-        <button class="bsm" onclick="quitarBg()">Quitar fondo</button>
-      </div>
-    </div>
     <div class="config-section">
       <div class="config-title">💱 Moneda para valores de jugadores</div>
       <div class="fg" style="margin-bottom:8px"><label>Moneda por defecto</label>
@@ -1941,18 +1912,6 @@ function renderConfig(){
   </div>`
 }
 
-function handleBgFile(input){
-  const file=input.files[0];if(!file)return
-  const reader=new FileReader()
-  reader.onload=e=>{S.bgImage=e.target.result;localStorage.setItem('dt-bg',S.bgImage);applyBg();render();toast('Fondo aplicado ✓')}
-  reader.readAsDataURL(file)
-}
-function guardarBg(){
-  const url=document.getElementById('bg-url-inp')?.value.trim()
-  if(!url){toast('Ingresa una URL',true);return}
-  S.bgImage=url;localStorage.setItem('dt-bg',url);applyBg();render();toast('Fondo aplicado ✓')
-}
-function quitarBg(){S.bgImage='';localStorage.removeItem('dt-bg');applyBg();render();toast('Fondo quitado')}
 async function testConnection(){
   try{const r=await get('jugadores','?limit=1');if(Array.isArray(r))toast('Conexión OK ✓');else toast('Error',true)}
   catch(e){toast('Sin conexión',true)}
@@ -3215,6 +3174,11 @@ function render(){
     if(el)el.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'})
   }
 }
+
+// Limpieza del fondo de pantalla personalizado (feature retirada — no
+// combina con la estética clara actual). Por si quedó guardado en el
+// navegador de alguien de una versión anterior.
+localStorage.removeItem('dt-bg')
 
 render()
 cargarDatos()

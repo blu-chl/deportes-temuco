@@ -2594,7 +2594,7 @@ function svgRachaPuntos(partidos){
   if(!jugados.length)return`<div class="empty">Sin partidos jugados todavía.</div>`
   let acc=0
   const pts=jugados.map(p=>{acc+=p.resultado==='G'?3:p.resultado==='E'?1:0;return{...p,acumulado:acc}})
-  const pad={l:30,r:14,t:14,b:24},w=680,h=150
+  const pad={l:30,r:14,t:14,b:34},w=680,h=160
   const plotW=w-pad.l-pad.r,plotH=h-pad.t-pad.b
   const maxY=Math.max(1,...pts.map(p=>p.acumulado))
   const n=pts.length
@@ -2607,6 +2607,13 @@ function svgRachaPuntos(partidos){
     svg+=`<line x1="${pad.l}" y1="${gy}" x2="${pad.l+plotW}" y2="${gy}" class="chart-grid"/>`
     svg+=`<text x="${pad.l-6}" y="${gy+3}" text-anchor="end" class="chart-axis">${Math.round(maxY*i/3)}</text>`
   }
+  // Eje X: número de fecha (jornada) bajo cada partido — si hay muchas, se
+  // etiqueta cada N para que no se amontonen, siempre mostrando la primera y la última.
+  const step=Math.max(1,Math.ceil(n/9))
+  pts.forEach((p,i)=>{
+    if(i%step!==0&&i!==n-1)return
+    svg+=`<text x="${x(i)}" y="${h-6}" text-anchor="middle" class="chart-axis">F${p.jornada??'?'}</text>`
+  })
   svg+=`<path d="${path}" fill="none" stroke="var(--v)" stroke-width="2.5"/>`
   pts.forEach((p,i)=>{
     const col=p.resultado==='G'?'var(--vc)':p.resultado==='E'?'var(--am)':'var(--ro)'

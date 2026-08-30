@@ -590,7 +590,7 @@ function abrirPerfilJugador(id){
           ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}
         </div>
         <div>
-          <div style="font-size:18px;font-weight:800">${j.nombre}</div>
+          <div style="font-size:18px;font-weight:800"><span title="${j.nacionalidad||'Chilena'}">${banderaNac(j.nacionalidad||'Chilena')}</span> ${j.nombre}</div>
           <div style="font-size:12px;color:var(--gris);margin-top:2px">#${j.numero} · <span class="pos-${j.posicion}">${j.posicion_especifica||j.posicion}</span></div>
           ${j.club_origen?`<div style="font-size:11px;color:var(--muted);margin-top:2px">Origen: ${j.club_origen}</div>`:''}
         </div>
@@ -1692,7 +1692,7 @@ function renderPlantilla(){
     return`<tr>
       <td><div class="jav" style="width:32px;height:32px;font-size:10px">${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:`${ini}`}</div></td>
       <td style="font-weight:800;color:var(--vc)">${j.numero}</td>
-      <td style="font-weight:700;cursor:pointer;color:var(--blanco)" onclick="abrirPerfilJugador(${j.id})">${j.nombre}</td>
+      <td style="font-weight:700;cursor:pointer;color:var(--blanco)" onclick="abrirPerfilJugador(${j.id})"><span title="${j.nacionalidad||'Chilena'}">${banderaNac(j.nacionalidad||'Chilena')}</span> ${j.nombre}</td>
       <td><span class="pos-${j.posicion}" style="font-size:9px">${j.posicion_especifica?.split(' ')[0]||j.posicion}</span></td>
       <td class="center">${j.edad||'-'}</td>
       <td class="center">${j.altura?j.altura+'cm':'-'}</td>
@@ -2506,6 +2506,26 @@ const CRESTS={
 }
 function crestUrl(n){return CRESTS[n]||''}
 function iniciales(n){return (n||'').trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase()}
+// Bandera junto al nombre en Plantilla, para ver de un vistazo de dónde
+// viene cada jugador (dato manual, campo "nacionalidad" — solo existe
+// para el plantel propio, no para liga_jugadores). Bandera blanca si la
+// nacionalidad cargada no está en el mapa, para no romper con datos nuevos.
+const BANDERA_NACIONALIDAD={
+  'Chilena':'🇨🇱','Chile':'🇨🇱',
+  'Argentina':'🇦🇷','Argentino':'🇦🇷',
+  'Uruguaya':'🇺🇾','Uruguayo':'🇺🇾','Uruguay':'🇺🇾',
+  'Brasileña':'🇧🇷','Brasileño':'🇧🇷','Brasilera':'🇧🇷','Brasil':'🇧🇷',
+  'Paraguaya':'🇵🇾','Paraguayo':'🇵🇾','Paraguay':'🇵🇾',
+  'Boliviana':'🇧🇴','Boliviano':'🇧🇴','Bolivia':'🇧🇴',
+  'Peruana':'🇵🇪','Peruano':'🇵🇪','Perú':'🇵🇪','Peru':'🇵🇪',
+  'Colombiana':'🇨🇴','Colombiano':'🇨🇴','Colombia':'🇨🇴',
+  'Venezolana':'🇻🇪','Venezolano':'🇻🇪','Venezuela':'🇻🇪',
+  'Ecuatoriana':'🇪🇨','Ecuatoriano':'🇪🇨','Ecuador':'🇪🇨',
+  'Española':'🇪🇸','Español':'🇪🇸','España':'🇪🇸',
+  'Mexicana':'🇲🇽','Mexicano':'🇲🇽','México':'🇲🇽','Mexico':'🇲🇽',
+  'Estadounidense':'🇺🇸','Paraguaia':'🇵🇾',
+}
+function banderaNac(nac){return BANDERA_NACIONALIDAD[(nac||'').trim()]||'🏳️'}
 // Primer nombre + primer apellido, para listas compactas (liga_jugadores
 // trae nombre/apellido completos, ej. "Diego Mario" "Buonanotte Rende").
 function nombreCompacto(nombre,apellido){

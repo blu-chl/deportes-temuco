@@ -331,7 +331,7 @@ let S={
   ordenJug:'apellido',
   filtPos:'todos',filtComp:'Primera B',filtCompEst:'Primera B',
   npShow:false,addJugShow:false,lesShow:false,
-  editTiposGol:false,nuevoTipoGol:'',editEv:null,
+  editTiposGol:false,nuevoTipoGol:'',nuevoTipoAsist:'',editEv:null,
   np:{rival:'',competencia:'Primera B',condicion:'Local',fecha:hoy(),goles_favor:0,goles_contra:0},
   ev:{minuto:1,tipo:'Gol',subtipo:'Pie Derecho',jugador_id:'',jugador_sale_id:'',asistidor_id:'',asist_subtipo:'Pase'},
   addJug:{numero:'',nombre:'',posicion:'MED',posicion_especifica:'',edad:22,pie:'Derecho',altura:'',club_origen:'',contrato_hasta:'',valor:'',nacionalidad:'Chilena',notas:''},
@@ -353,7 +353,7 @@ let S={
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
-  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,verCompletos:false},
+  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,filtroGoles:'sinTipo'},
   partidosLiga:{loaded:false,partidos:[],goles:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[]},
@@ -1282,8 +1282,24 @@ function renderEnriquecer(){
     <div style="font-size:12px;color:var(--gris);line-height:1.6">Esta sección necesita columnas que todavía no existen en la base
     (<code style="color:var(--am)">scraper/sql/liga_enriquecimiento.sql</code>). Cópialo y pégalo en el SQL Editor de Supabase, corre una vez, y vuelve a entrar acá.</div>
   </div></div>`
-  const pendientes=E.golesPendientes=E.goles.filter(g=>!g.subtipo).length
+  const sinTipo=E.goles.filter(g=>!g.subtipo).length
+  const sinAsist=E.goles.filter(g=>!g.asistidor_id).length
   const sinFoto=E.jugadores.filter(j=>!j.foto_url).length
+  // Header colapsable reutilizable — arranca cerrado para no mostrar todo
+  // junto; el aviso (n faltan) ya dice si vale la pena abrirlo.
+  const seccion=(key,titulo,aviso,avisoOk,contenidoFn)=>{
+    const abierto=!!E[key]
+    return`<div class="panel" style="margin-bottom:14px">
+      <div class="ph" style="cursor:pointer" onclick="S.enriq.${key}=!S.enriq.${key};render()">
+        <span class="pt">${titulo}</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:10.5px;font-weight:700;color:${aviso?'var(--am)':'var(--gris)'}">${aviso||avisoOk}</span>
+          <span style="font-size:11px;color:var(--gris)">${abierto?'▲':'▼'}</span>
+        </span>
+      </div>
+      ${abierto?`<div class="pb">${contenidoFn()}</div>`:''}
+    </div>`
+  }
   return`<div>
     <div class="ph" style="background:none;border:none;padding:0 0 8px"><span class="pt">⚡ Acciones rápidas</span></div>
     <div class="g2" style="margin-bottom:22px">
@@ -1306,33 +1322,33 @@ function renderEnriquecer(){
         </div>
       </div>
     </div>
-    <div class="ph" style="background:none;border:none;padding:0 0 8px"><span class="pt">📸 Fotos de jugadores</span></div>
-    <div style="color:var(--gris);font-size:11px;margin-bottom:10px">Pega la URL de una foto para cada jugador. Se muestra en Plantilla, Jugadores Clave y goleadores.</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:22px">
-      ${E.jugadores.map(j=>`<div class="pcard" style="cursor:default;display:flex;align-items:center;gap:8px;padding:8px 10px">
-        <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;background:rgba(16,24,32,0.08);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">
-          ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:iniciales(nombreCompacto(j.nombre,j.apellido))}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreCompacto(j.nombre,j.apellido)}</div>
-          <input type="url" placeholder="URL de la foto…" value="${j.foto_url||''}"
-            style="width:100%;font-size:9px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;padding:3px 6px;color:var(--blanco);font-family:var(--font);margin-top:3px"
-            onchange="guardarFotoJugadorLiga(${j.id},this.value)">
-        </div>
-      </div>`).join('')}
-    </div>
 
-    <div class="ph" style="background:none;border:none;padding:0 0 8px">
-      <span class="pt">⚽ Detalle de goles</span>
-      <span style="font-size:10px;color:${pendientes?'var(--am)':'var(--gris)'}">${pendientes?`${pendientes} sin detalle`:'todos completos ✓'}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-      <div style="color:var(--gris);font-size:11px">El scraper detecta el gol y el minuto solo — cómo fue y quién dio el pase se carga acá. Al completar un gol, sale de esta lista.</div>
-      ${E.goles.length-pendientes>0?`<button class="bsm" onclick="S.enriq.verCompletos=!S.enriq.verCompletos;render()">${E.verCompletos?'Ver solo pendientes':`Ver completos (${E.goles.length-pendientes})`}</button>`:''}
-    </div>
-    ${(()=>{
-      const visibles=(E.verCompletos?E.goles:E.goles.filter(g=>!g.subtipo)).slice().sort((a,b)=>(b.partido?.jornada||0)-(a.partido?.jornada||0)||a.minuto-b.minuto)
-      if(!visibles.length)return`<div class="empty">${E.goles.length?'Sin goles pendientes — todo al día ✓':'Sin goles registrados todavía.'}</div>`
+    ${seccion('expandFotos','📸 Fotos de jugadores',sinFoto?`⚠ faltan ${sinFoto}`:'','todas cargadas ✓',()=>`
+      <div style="color:var(--gris);font-size:11px;margin-bottom:10px">Pega la URL de una foto para cada jugador. Se muestra en Plantilla, Jugadores Clave y goleadores. Los que faltan quedan primero y resaltados.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
+        ${[...E.jugadores].sort((a,b)=>(a.foto_url?1:0)-(b.foto_url?1:0)).map(j=>`<div class="pcard" style="cursor:default;display:flex;align-items:center;gap:8px;padding:8px 10px;${j.foto_url?'':'background:rgba(201,138,18,.06);border-color:rgba(201,138,18,.35)'}">
+          <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;background:rgba(16,24,32,0.08);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">
+            ${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:iniciales(nombreCompacto(j.nombre,j.apellido))}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreCompacto(j.nombre,j.apellido)}</div>
+            <input type="url" placeholder="URL de la foto…" value="${j.foto_url||''}"
+              style="width:100%;font-size:9px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;padding:3px 6px;color:var(--blanco);font-family:var(--font);margin-top:3px"
+              onchange="guardarFotoJugadorLiga(${j.id},this.value)">
+          </div>
+        </div>`).join('')}
+      </div>
+    `)}
+
+    ${seccion('expandGoles','⚽ Goles y asistencias',(sinTipo||sinAsist)?`⚠ ${sinTipo} sin tipo · ${sinAsist} sin asistidor`:'','todo al día ✓',()=>{
+      const FILTROS=[
+        {id:'sinTipo',l:'Falta tipo de gol',n:sinTipo},
+        {id:'sinAsist',l:'Falta asistidor',n:sinAsist},
+        {id:'todos',l:'Todos',n:E.goles.length},
+      ]
+      const filtro=E.filtroGoles
+      const visibles=(filtro==='sinTipo'?E.goles.filter(g=>!g.subtipo):filtro==='sinAsist'?E.goles.filter(g=>!g.asistidor_id):E.goles)
+        .slice().sort((a,b)=>(b.partido?.jornada||0)-(a.partido?.jornada||0)||a.minuto-b.minuto)
       const grupos=[]
       visibles.forEach(g=>{
         const jornada=g.partido?.jornada??'?'
@@ -1344,41 +1360,46 @@ function renderEnriquecer(){
         }
         grp.goles.push(g)
       })
-      return grupos.map(grp=>`
-        <div style="font-size:11px;font-weight:800;color:var(--gris);margin:14px 0 6px">F${grp.jornada} · vs ${grp.rival}</div>
-        ${grp.goles.map(g=>{
-          const otros=E.jugadores.filter(j=>j.id!==g.jugador?.id)
-          return`<div class="pcard" style="cursor:default;margin-bottom:8px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-              <span style="font-weight:800;font-family:var(--font-disp);color:var(--gris)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
-              <span style="font-weight:700;font-size:12.5px">${g.jugador?nombreCompacto(g.jugador.nombre,g.jugador.apellido):'?'}</span>
-              ${g.penal?'<span class="badge bg" style="font-size:8px">Penal</span>':''}
-              ${g.subtipo?'<span class="badge bv" style="font-size:8px">✓ completo</span>':''}
-            </div>
-            <div class="fr2">
-              <div class="fg" style="margin-bottom:0"><label>Cómo fue el gol</label>
-                <select onchange="guardarGolDetalle(${g.id},'subtipo',this.value)">
+      return`
+        <div style="color:var(--gris);font-size:11px;margin-bottom:10px">El scraper detecta el gol y el minuto solo — cómo fue y quién dio el pase se carga acá.</div>
+        <div class="tabs" style="margin-bottom:14px">${FILTROS.map(f=>`<button class="tab ${filtro===f.id?'on':''}" onclick="S.enriq.filtroGoles='${f.id}';render()">${f.l}${f.n?` (${f.n})`:''}</button>`).join('')}</div>
+        ${!visibles.length?`<div class="empty">${filtro==='todos'?'Sin goles registrados todavía.':'Nada pendiente en este filtro ✓'}</div>`:grupos.map(grp=>`
+          <div style="font-size:11px;font-weight:800;color:var(--gris);margin:14px 0 6px">F${grp.jornada} · vs ${grp.rival}</div>
+          ${grp.goles.map(g=>{
+            const otros=E.jugadores.filter(j=>j.id!==g.jugador?.id)
+            return`<div class="pcard" style="cursor:default;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+                <span style="font-weight:800;font-family:var(--font-disp);color:var(--gris)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
+                <span style="font-weight:700;font-size:12.5px">${g.jugador?nombreCompacto(g.jugador.nombre,g.jugador.apellido):'?'}</span>
+                ${g.penal?'<span class="badge bg" style="font-size:8px">Penal</span>':''}
+                ${g.subtipo?'<span class="badge bv" style="font-size:8px">✓ tipo</span>':'<span class="badge ba" style="font-size:8px">falta tipo</span>'}
+                ${g.asistidor_id?'<span class="badge bv" style="font-size:8px">✓ asistidor</span>':'<span class="badge ba" style="font-size:8px">falta asistidor</span>'}
+              </div>
+              <div class="fr2">
+                <div class="fg" style="margin-bottom:0"><label>Cómo fue el gol</label>
+                  <select onchange="guardarGolDetalle(${g.id},'subtipo',this.value)">
+                    <option value="">Sin definir</option>
+                    ${SUBTIPOS_GOL.map(t=>`<option value="${t}" ${g.subtipo===t?'selected':''}>${t}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="fg" style="margin-bottom:0"><label>Quién dio el pase</label>
+                  <select onchange="guardarGolDetalle(${g.id},'asistidor_id',this.value?+this.value:'')">
+                    <option value="">Sin asistencia</option>
+                    ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${nombreCompacto(j.nombre,j.apellido)}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+              ${g.asistidor_id?`<div class="fg" style="margin-top:8px;margin-bottom:0"><label>Cómo fue la asistencia</label>
+                <select onchange="guardarGolDetalle(${g.id},'asist_subtipo',this.value)">
                   <option value="">Sin definir</option>
-                  ${SUBTIPOS_GOL.map(t=>`<option value="${t}" ${g.subtipo===t?'selected':''}>${t}</option>`).join('')}
+                  ${SUBTIPOS_ASIST.map(t=>`<option value="${t}" ${g.asist_subtipo===t?'selected':''}>${t}</option>`).join('')}
                 </select>
-              </div>
-              <div class="fg" style="margin-bottom:0"><label>Quién dio el pase</label>
-                <select onchange="guardarGolDetalle(${g.id},'asistidor_id',this.value?+this.value:'')">
-                  <option value="">Sin asistencia</option>
-                  ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${nombreCompacto(j.nombre,j.apellido)}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-            ${g.asistidor_id?`<div class="fg" style="margin-top:8px;margin-bottom:0"><label>Cómo fue la asistencia</label>
-              <select onchange="guardarGolDetalle(${g.id},'asist_subtipo',this.value)">
-                <option value="">Sin definir</option>
-                ${SUBTIPOS_ASIST.map(t=>`<option value="${t}" ${g.asist_subtipo===t?'selected':''}>${t}</option>`).join('')}
-              </select>
-            </div>`:''}
-          </div>`
-        }).join('')}
-      `).join('')
-    })()}
+              </div>`:''}
+            </div>`
+          }).join('')}
+        `).join('')}
+      `
+    })}
   </div>`
 }
 
@@ -2078,6 +2099,17 @@ function eliminarTipoGol(i){
   if(S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Gol')){toast('No se puede eliminar — hay goles con este tipo',true);return}
   TIPOS_GOL.splice(i,1);render();toast('Tipo eliminado')
 }
+function agregarTipoAsist(){
+  const val=S.nuevoTipoAsist.trim()
+  if(!val){toast('Escribe un nombre',true);return}
+  if(TIPOS_ASIST.includes(val)){toast('Ese tipo ya existe',true);return}
+  TIPOS_ASIST.push(val);S.nuevoTipoAsist='';render();toast('Tipo "'+val+'" agregado')
+}
+function eliminarTipoAsist(i){
+  const tipo=TIPOS_ASIST[i]
+  if(S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Asistencia')){toast('No se puede eliminar — hay asistencias con este tipo',true);return}
+  TIPOS_ASIST.splice(i,1);render();toast('Tipo eliminado')
+}
 
 // ===== MÉDICO =====
 function renderMedico(){
@@ -2213,6 +2245,19 @@ function renderConfig(){
         <button class="btn" onclick="agregarTipoGol()">+ Agregar</button>
       </div>
     </div>
+    <div class="config-section">
+      <div class="config-title">🅰️ Tipos de asistencia</div>
+      ${TIPOS_ASIST.map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--borde)">
+        <span style="flex:1;font-size:12px">${t}</span>
+        <button class="bdel" style="padding:3px 8px;font-size:10px" onclick="eliminarTipoAsist(${i})">✕</button>
+      </div>`).join('')}
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <input id="inp-tipo-asist" placeholder="Nuevo tipo..." value="${S.nuevoTipoAsist}"
+          style="flex:1;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:6px;padding:7px 10px;color:var(--blanco);font-size:12px;font-family:var(--font)"
+          oninput="S.nuevoTipoAsist=this.value" onkeydown="if(event.key==='Enter')agregarTipoAsist()">
+        <button class="btn" onclick="agregarTipoAsist()">+ Agregar</button>
+      </div>
+    </div>
   </div>`
 }
 
@@ -2222,75 +2267,6 @@ async function testConnection(){
 }
 
 // ===== RENDER =====
-async function testMinutaje(){
-  const raw=await get('minutaje','?limit=5')
-  const el=document.getElementById('debug-raw')
-  if(el)el.textContent=JSON.stringify(raw,null,2)
-}
-
-function renderDebug(){
-  const partidos=[...S.partidos].sort((a,b)=>b.fecha.localeCompare(a.fecha))
-  return`<div class="content">
-    <div style="margin-bottom:14px">
-      <div style="font-size:15px;font-weight:800;color:var(--blanco)">🛠 Debug — Minutaje por partido</div>
-      <div style="font-size:10px;color:var(--gris);margin-top:2px">${S.minutaje.length} registros cargados en S.minutaje · ${S.partidos.length} partidos · ${S.jugadores.length} jugadores</div>
-    </div>
-    <div class="panel" style="margin-bottom:12px">
-      <div class="ph"><span class="pt">Diagnóstico</span><button class="bsm" onclick="testMinutaje()">🔍 Fetch directo</button></div>
-      <div class="pb" style="display:flex;flex-direction:column;gap:8px">
-        <div style="font-size:11px">
-          <span style="color:var(--gris)">S.minutaje contiene:</span>
-          <span style="color:${S.minutaje.length>0?'var(--vc)':'var(--ro)'}"> ${S.minutaje.length} filas</span>
-          ${S.minutaje.length>0?`· primera: partido_id=${S.minutaje[0].partido_id}, jugador_id=${S.minutaje[0].jugador_id}, minutos=${S.minutaje[0].minutos}`:''}
-        </div>
-        <div style="font-size:10px;color:var(--gris)">Respuesta cruda del fetch directo (primeras 5 filas):</div>
-        <pre id="debug-raw" style="font-size:10px;color:var(--am);background:rgba(0,0,0,.4);border-radius:6px;padding:8px;overflow-x:auto;white-space:pre-wrap">— presiona Fetch directo —</pre>
-        <div style="font-size:10px;color:var(--muted);line-height:1.6">
-          ⚠ Si ves <code style="color:var(--ro)">[]</code> → la tabla está vacía o la política RLS bloquea la lectura.<br>
-          ⚠ Si ves un objeto con <code style="color:var(--ro)">"code"</code> → error de Supabase (ver message).<br>
-          ✅ Si ves un array con objetos → los datos existen pero algo falla al cargar.<br>
-          ℹ El minutaje se genera al hacer clic en <strong>Guardar formación</strong> en Registro.
-        </div>
-      </div>
-    </div>
-    ${partidos.length===0?`<div style="text-align:center;padding:40px;color:var(--gris)">Sin partidos</div>`:
-    partidos.map(p=>{
-      const regs=S.minutaje.filter(m=>m.partido_id===p.id).sort((a,b)=>b.minutos-a.minutos)
-      const totalMin=regs.reduce((a,m)=>a+m.minutos,0)
-      return`<div class="panel" style="margin-bottom:10px">
-        <div class="ph" style="cursor:default">
-          <div>
-            <span class="pt">${p.fecha} · ${p.rival}</span>
-            <span style="font-size:10px;color:var(--gris);margin-left:8px">${p.condicion} · ${p.goles_favor}-${p.goles_contra}</span>
-          </div>
-          <span style="font-size:10px;color:var(--gris)">${regs.length} jugadores · ${totalMin} min total</span>
-        </div>
-        <div class="pb" style="padding:8px 14px">
-          ${regs.length===0
-            ?`<div style="color:var(--muted);font-size:11px;padding:6px 0">Sin registros de minutaje para este partido — ¿se guardó la formación?</div>`
-            :`<div style="display:flex;flex-wrap:wrap;gap:6px">
-              ${regs.map(m=>{
-                const j=S.jugadores.find(x=>x.id===m.jugador_id)
-                const ap=j?(j.nombre.trim().split(' ').slice(1).join(' ')||j.nombre):'#'+m.jugador_id
-                const num=j?j.numero:'?'
-                const pct=Math.round(m.minutos/90*100)
-                return`<div style="background:rgba(16,24,32,0.045);border:1px solid var(--borde);border-radius:7px;padding:6px 10px;min-width:110px">
-                  <div style="font-size:10px;font-weight:700;color:var(--blanco)">${num} ${ap}</div>
-                  <div style="font-size:9px;color:var(--gris);margin-top:1px">${j?.posicion_especifica||j?.posicion||'?'}</div>
-                  <div style="display:flex;align-items:center;gap:6px;margin-top:5px">
-                    <div style="flex:1;height:3px;background:rgba(16,24,32,0.06);border-radius:2px"><div style="height:100%;width:${Math.min(pct,100)}%;background:var(--vc);border-radius:2px"></div></div>
-                    <span style="font-size:11px;font-weight:800;color:var(--vc)">${m.minutos}'</span>
-                  </div>
-                </div>`
-              }).join('')}
-            </div>`
-          }
-        </div>
-      </div>`
-    }).join('')}
-  </div>`
-}
-
 async function guardarNota(){
   const f=S.notaForm
   if(!f.texto.trim()){toast('Escribe algo antes de guardar',true);return}
@@ -3668,7 +3644,8 @@ function renderSanciones(){
 // Agrupado por frecuencia de uso real: primero lo que se usa cada fecha
 // (Enriquecer, Sanciones — datos de la Liga scrapeada), después lo que es
 // por jugador y cambia poco (Registro viejo de Primera B, Médico), al
-// final lo técnico (Config, Debug) que casi no se toca.
+// final lo técnico (Config). Debug se sacó — era una herramienta de
+// diagnóstico del minutaje viejo que ya no se usa.
 function renderAdmin(){
   if(!S.isAdmin)return renderLogin()
   const subs=[
@@ -3676,7 +3653,7 @@ function renderAdmin(){
     {sep:true},
     {id:'registro',l:'📝 Registro (Primera B)'},{id:'medico',l:'🩹 Médico'},
     {sep:true},
-    {id:'config',l:'⚙ Config'},{id:'debug',l:'🛠 Debug'},
+    {id:'config',l:'⚙ Config'},
   ]
   return`<div class="tabs">${subs.map(t=>t.sep?`<span class="tab-sep"></span>`:`<button class="tab ${S.adminSub===t.id?'on':''}" onclick="S.adminSub='${t.id}';${t.id==='enriquecer'?'if(!S.enriq.loaded)cargarEnriquecimiento();':''}render()">${t.l}</button>`).join('')}</div>
   ${
@@ -3684,8 +3661,7 @@ function renderAdmin(){
     S.adminSub==='enriquecer'?renderEnriquecer():
     S.adminSub==='medico'?renderMedico():
     S.adminSub==='sanciones'?renderSanciones():
-    S.adminSub==='config'?renderConfig():
-    renderDebug()
+    renderConfig()
   }`
 }
 

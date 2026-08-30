@@ -1,4 +1,4 @@
-name: Scrapear liga
+name: Web Scraper
 
 on:
   workflow_dispatch:

@@ -1216,6 +1216,13 @@ async function migrarDatosAntiguos(){
   }
   const jugPropioMap={};S.jugadores.forEach(j=>{jugPropioMap[j.id]=j})
 
+  // El minuto del registro manual viejo casi nunca calza EXACTO con el
+  // minuto oficial scrapeado (off-by-one es lo normal, y en descuento el
+  // registro viejo anotaba el minuto real p.ej. 94' mientras ANFP lo separa
+  // en minuto=90 + minuto_extra=4) — por eso se busca el gol del MISMO
+  // jugador con el minuto efectivo (minuto+minuto_extra) más cercano,
+  // dentro de una tolerancia, en vez de exigir coincidencia exacta.
+  const TOLERANCIA_MIN=3
   let golesActualizados=0,asistActualizados=0
   for(const pp of partidosPropios){
     const lp=mapaPartidos[pp.id]
@@ -1224,19 +1231,26 @@ async function migrarDatosAntiguos(){
     const goles=evsPartido.filter(e=>e.tipo==='Gol')
     const asistencias=evsPartido.filter(e=>e.tipo==='Asistencia')
     if(!goles.length)continue
-    const ligaGolesPartido=await ligaGet('liga_goles',`?partido_id=eq.${lp.id}&equipo_id=eq.${tid}&select=id,minuto,jugador_id`)
+    const ligaGolesPartido=await ligaGet('liga_goles',`?partido_id=eq.${lp.id}&equipo_id=eq.${tid}&select=id,minuto,minuto_extra,jugador_id,subtipo,asistidor_id`)
     if(!Array.isArray(ligaGolesPartido))continue
+    const usados=new Set()
     for(const g of goles){
       const propio=jugPropioMap[g.jugador_id]
       if(!propio)continue
       const ligaJ=matchLiga(propio.nombre)
       if(!ligaJ)continue
-      const golLiga=ligaGolesPartido.find(lg=>lg.minuto===g.minuto&&lg.jugador_id===ligaJ.id)
+      let golLiga=null,mejorDist=Infinity
+      ligaGolesPartido.forEach(lg=>{
+        if(lg.jugador_id!==ligaJ.id||usados.has(lg.id))return
+        const dist=Math.abs((lg.minuto+(lg.minuto_extra||0))-g.minuto)
+        if(dist<=TOLERANCIA_MIN&&dist<mejorDist){mejorDist=dist;golLiga=lg}
+      })
       if(!golLiga)continue
+      usados.add(golLiga.id)
       const body={}
-      if(g.subtipo&&SUBTIPOS_GOL.includes(g.subtipo))body.subtipo=g.subtipo
+      if(!golLiga.subtipo&&g.subtipo&&SUBTIPOS_GOL.includes(g.subtipo))body.subtipo=g.subtipo
       const asist=asistencias.find(a=>a.minuto===g.minuto)
-      if(asist){
+      if(!golLiga.asistidor_id&&asist){
         const propioAsist=jugPropioMap[asist.jugador_id]
         const ligaAsist=propioAsist?matchLiga(propioAsist.nombre):null
         if(ligaAsist){
@@ -3412,6 +3426,7 @@ function svgGroupedChart(rows,segs,opts){
 
 // ---- Cuadrante ataque vs defensa (scatter) ----
 // ---- Cuadrante genérico X/Y (scatter), puntos = escudo del equipo ----
+let _scatterClipSeq=0
 function svgScatterXY(rows,cfg){
   const pad={l:46,r:24,t:20,b:34},w=560,h=420
   const plotW=w-pad.l-pad.r,plotH=h-pad.t-pad.b
@@ -3422,7 +3437,9 @@ function svgScatterXY(rows,cfg){
   const y=v=>pad.t+plotH-(v/maxY)*plotH
   const avgX=rows.reduce((a,r)=>a+cfg.xFn(r),0)/rows.length
   const avgY=rows.reduce((a,r)=>a+cfg.yFn(r),0)/rows.length
+  const clipId=`sc-clip-${_scatterClipSeq++}`
   let svg=`<svg class="chart-svg" width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px">`
+  svg+=`<defs><clipPath id="${clipId}"><rect x="${pad.l}" y="${pad.t}" width="${plotW}" height="${plotH}"/></clipPath></defs>`
   for(let i=0;i<=4;i++){
     const gx=pad.l+plotW*i/4
     svg+=`<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t+plotH}" class="chart-grid"/>`
@@ -3435,6 +3452,15 @@ function svgScatterXY(rows,cfg){
   svg+=`<text x="12" y="${pad.t+plotH/2}" text-anchor="middle" class="chart-axis" transform="rotate(-90 12 ${pad.t+plotH/2})">${cfg.yLabel} →</text>`
   svg+=`<line x1="${x(avgX)}" y1="${pad.t}" x2="${x(avgX)}" y2="${pad.t+plotH}" stroke="var(--borde2)" stroke-width="1.5" stroke-dasharray="3 3"/>`
   svg+=`<line x1="${pad.l}" y1="${y(avgY)}" x2="${pad.l+plotW}" y2="${y(avgY)}" stroke="var(--borde2)" stroke-width="1.5" stroke-dasharray="3 3"/>`
+  // Línea de tendencia (regresión lineal simple) — la "norma" esperada entre
+  // ambas variables. Quien queda arriba rinde mejor de lo que esa relación
+  // predice; quien queda abajo, peor. Se dibuja bien larga y se recorta con
+  // el clipPath del área del gráfico, así no importa la pendiente.
+  if(cfg.showTrend&&rows.length>=2){
+    const{slope,intercept}=linearRegression(rows,cfg.xFn,cfg.yFn)
+    const xA=-maxX*4,xB=maxX*5
+    svg+=`<line x1="${x(xA)}" y1="${y(slope*xA+intercept)}" x2="${x(xB)}" y2="${y(slope*xB+intercept)}" stroke="var(--v)" stroke-width="1.5" stroke-dasharray="7 4" opacity="0.5" clip-path="url(#${clipId})"><title>Tendencia general — arriba de la línea rinde mejor de lo esperado, abajo rinde peor</title></line>`
+  }
   rows.forEach(r=>{
     const cx=x(cfg.xFn(r)),cy=y(cfg.yFn(r))
     const rad=r.isTemuco?16:12
@@ -3449,6 +3475,17 @@ function svgScatterXY(rows,cfg){
   return svg
 }
 
+// ---- Regresión lineal simple (mínimos cuadrados) — la línea de tendencia
+// que se dibuja en los gráficos de dispersión de Análisis. ----
+function linearRegression(rows,xFn,yFn){
+  const n=rows.length
+  const xs=rows.map(xFn),ys=rows.map(yFn)
+  const mx=xs.reduce((a,b)=>a+b,0)/n,my=ys.reduce((a,b)=>a+b,0)/n
+  let num=0,den=0
+  for(let i=0;i<n;i++){num+=(xs[i]-mx)*(ys[i]-my);den+=(xs[i]-mx)**2}
+  const slope=den?num/den:0
+  return{slope,intercept:my-slope*mx}
+}
 // ---- Coeficiente de correlación de Pearson (dependencia estadística) ----
 function pearsonR(rows,xFn,yFn){
   const n=rows.length
@@ -3523,8 +3560,8 @@ function renderAnalisis(){
       `
     })():
     cat==='ataque'?`
-      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Cada escudo es un equipo. Arriba a la izquierda = ataca mucho y recibe poco. Las líneas punteadas marcan el promedio de los equipos filtrados.</div>
-      ${svgScatterXY(rows,{xFn:r=>r.gcPP,yFn:r=>r.gfPP,xFmt:v=>v.toFixed(1),yFmt:v=>v.toFixed(1),xLabel:'Goles en contra por partido',yLabel:'Goles a favor por partido',xMaxHint:2.2,yMaxHint:2.2})}
+      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Cada escudo es un equipo. Arriba a la izquierda = ataca mucho y recibe poco. Las líneas punteadas marcan el promedio de los equipos filtrados; la diagonal roja marca la tendencia general — quien queda arriba rinde mejor de lo esperado, quien queda abajo, peor.</div>
+      ${svgScatterXY(rows,{xFn:r=>r.gcPP,yFn:r=>r.gfPP,xFmt:v=>v.toFixed(1),yFmt:v=>v.toFixed(1),xLabel:'Goles en contra por partido',yLabel:'Goles a favor por partido',xMaxHint:2.2,yMaxHint:2.2,showTrend:true})}
     `:
     cat==='disciplina'?`
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Tarjetas recibidas por partido jugado.</div>
@@ -3555,15 +3592,15 @@ function renderAnalisis(){
       const rSub21=pearsonR(rows,r=>r.sub21Min,r=>r.ptsPP)
       const chip=r=>`<div style="display:inline-block;font-size:12.5px;font-weight:800;color:${Math.abs(r)>=0.4?'var(--v)':'var(--gris)'};background:rgba(16,24,32,.04);border:1px solid var(--borde);border-radius:999px;padding:4px 12px;margin-bottom:10px">${interpretaR(r)}</div>`
       return`
-        <div style="color:var(--gris);font-size:12px;margin-bottom:18px">Análisis de dependencia estadística: qué tan relacionadas están dos variables entre los 16 equipos. El coeficiente de correlación de Pearson (r) va de -1 (relación inversa perfecta) a +1 (relación directa perfecta); cerca de 0 significa que no hay relación real entre ambas.</div>
+        <div style="color:var(--gris);font-size:12px;margin-bottom:18px">Análisis de dependencia estadística: qué tan relacionadas están dos variables entre los 16 equipos. El coeficiente de correlación de Pearson (r) va de -1 (relación inversa perfecta) a +1 (relación directa perfecta); cerca de 0 significa que no hay relación real entre ambas. La diagonal en cada gráfico es la línea de tendencia (regresión lineal) — quien queda arriba rinde mejor de lo que esa relación predice, quien queda abajo, peor.</div>
         <div class="pt disp" style="font-size:15px;margin-bottom:2px">Disciplina vs Rendimiento</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Tarjetas por partido (eje X) vs puntos por partido (eje Y)</div>
         ${chip(rDisc)}
-        ${svgScatterXY(rows,{xFn:r=>r.amPP+r.rjPP,yFn:r=>r.ptsPP,xFmt:v=>v.toFixed(2),yFmt:v=>v.toFixed(2),xLabel:'Tarjetas por partido',yLabel:'Puntos por partido',xMaxHint:3.5,yMaxHint:2.5})}
+        ${svgScatterXY(rows,{xFn:r=>r.amPP+r.rjPP,yFn:r=>r.ptsPP,xFmt:v=>v.toFixed(2),yFmt:v=>v.toFixed(2),xLabel:'Tarjetas por partido',yLabel:'Puntos por partido',xMaxHint:3.5,yMaxHint:2.5,showTrend:true})}
         <div class="pt disp" style="font-size:15px;margin:26px 0 2px">Minutos Sub-21 vs Rendimiento</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Minutos oficiales sub-21 en la temporada (eje X) vs puntos por partido (eje Y)</div>
         ${chip(rSub21)}
-        ${svgScatterXY(rows,{xFn:r=>r.sub21Min,yFn:r=>r.ptsPP,xFmt:v=>Math.round(v).toLocaleString('es-CL'),yFmt:v=>v.toFixed(2),xLabel:'Minutos Sub-21',yLabel:'Puntos por partido',xMaxHint:1000,yMaxHint:2.5})}
+        ${svgScatterXY(rows,{xFn:r=>r.sub21Min,yFn:r=>r.ptsPP,xFmt:v=>Math.round(v).toLocaleString('es-CL'),yFmt:v=>v.toFixed(2),xLabel:'Minutos Sub-21',yLabel:'Puntos por partido',xMaxHint:1000,yMaxHint:2.5,showTrend:true})}
       `
     })()
 

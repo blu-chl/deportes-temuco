@@ -1,0 +1,12 @@
+name = "temuco-scraper-trigger"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+SUPABASE_URL = "https://vskhzbstwadaabzyhzwh.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_Xpm4vH8few7gjsDcIM_2qA_3rjYFHeu"
+GITHUB_REPO = "blu-chl/deportes-temuco"
+GITHUB_WORKFLOW = "scrape-liga.yml"
+
+# GITHUB_TOKEN NO va acá — es secreto, se configura con
+# `wrangler secret put GITHUB_TOKEN` (ver README.md).

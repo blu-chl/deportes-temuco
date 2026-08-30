@@ -5,3 +5,5 @@ telegram-bot/node_modules/
 telegram-bot/.dev.vars
 telegram-bot/.wrangler/
 telegram-bot/PENDIENTE.txt
+scraper-trigger/node_modules/
+scraper-trigger/.wrangler/

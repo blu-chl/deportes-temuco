@@ -177,6 +177,21 @@ tr:hover td{background:rgba(200,21,39,0.05)}
 const SB_URL='https://vskhzbstwadaabzyhzwh.supabase.co'
 const SB_KEY='sb_publishable_Xpm4vH8few7gjsDcIM_2qA_3rjYFHeu'
 let AUTH_TOKEN=SB_KEY
+// Worker de Cloudflare que dispara el scraper de GitHub Actions — el
+// token de GitHub no puede vivir acá (sería público), así que este Worker
+// lo guarda como secreto y solo lo usa si recibe una sesión de admin
+// válida. Se completa después de desplegarlo (ver scraper-trigger/README.md).
+const SCRAPER_TRIGGER_URL=''
+async function dispararScraper(){
+  if(!SCRAPER_TRIGGER_URL){toast('Falta desplegar el Worker — ver scraper-trigger/README.md',true);return}
+  toast('Lanzando el scraper…')
+  try{
+    const r=await fetch(SCRAPER_TRIGGER_URL,{method:'POST',headers:{Authorization:'Bearer '+AUTH_TOKEN}})
+    const d=await r.json()
+    if(d.ok)toast('Scraper lanzado ✓ — tarda unos minutos, revisá GitHub Actions')
+    else toast('Error: '+(d.error||'desconocido'),true)
+  }catch(e){toast('No se pudo contactar al Worker',true)}
+}
 const hdrs=()=>({'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+AUTH_TOKEN,'Prefer':'return=representation'})
 
 async function sb(method,table,body,params=''){
@@ -1302,7 +1317,16 @@ function renderEnriquecer(){
   }
   return`<div>
     <div class="ph" style="background:none;border:none;padding:0 0 8px"><span class="pt">⚡ Acciones rápidas</span></div>
-    <div class="g2" style="margin-bottom:22px">
+    <div class="g3" style="margin-bottom:22px">
+      <div class="panel" style="background:rgba(200,21,39,.04)">
+        <div class="pb" style="display:flex;flex-direction:column;gap:10px;height:100%">
+          <div style="flex:1">
+            <div style="font-weight:800;font-size:12.5px;margin-bottom:2px">🌐 Lanzar el scraper</div>
+            <div style="font-size:11px;color:var(--gris)">Corre el scraper de la liga ahora mismo (revisa el fixture completo, solo procesa lo nuevo). Tarda unos minutos — el resultado se ve en GitHub Actions.</div>
+          </div>
+          <button class="btn" style="width:100%" onclick="dispararScraper()">Sincronizar liga ahora</button>
+        </div>
+      </div>
       <div class="panel" style="background:rgba(200,21,39,.04)">
         <div class="pb" style="display:flex;flex-direction:column;gap:10px;height:100%">
           <div style="flex:1">

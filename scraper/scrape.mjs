@@ -127,8 +127,13 @@ async function procesarPartido(matchUrl) {
   ];
 
   const golesRows = informe.goles.map((g) => {
-    const lado = g.equipo; // 'A' | 'B'  (viene de la columna del PDF, ya resuelto)
-    const equipoId = lado === 'A' ? equipoLocal.id : equipoVisita.id;
+    const lado = g.equipo; // 'A' | 'B' — columna del PDF donde aparece el dorsal (el equipo DEL JUGADOR, no necesariamente el que suma en el marcador)
+    const equipoJugador = lado === 'A' ? equipoLocal.id : equipoVisita.id;
+    // Un autogol lo mete un jugador de un equipo, pero el gol cuenta en el
+    // marcador para el RIVAL — el dorsal/jugador se busca en el equipo del
+    // lado (correcto), pero equipo_id (a quién le suma el gol) debe ser el
+    // contrario cuando autogol=true.
+    const equipoId = g.autogol ? (lado === 'A' ? equipoVisita.id : equipoLocal.id) : equipoJugador;
     const jugadorId = lado === 'A' ? dorsalToJugadorA[g.dorsal] : dorsalToJugadorB[g.dorsal];
     return {
       partido_id: partido.id,

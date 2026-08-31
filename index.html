@@ -376,7 +376,7 @@ let S={
   consulta:{tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   visitante:false,
-  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosLista:[]},
+  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosLista:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
   enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,filtroGoles:'sinTipo',golesSnapshot:null},
@@ -3023,9 +3023,17 @@ function renderTablaGeneral(){
 
 async function verRival(id){
   if(S.liga.rivalSel===id){S.liga.rivalSel=null;render();return}
-  S.liga.rivalSel=id;S.liga.rivalPartidos=null;render()
-  const partidos=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${id},equipo_visita_id.eq.${id})&goles_local=not.is.null&select=id,jornada,fecha_hora,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=5`)
+  S.liga.rivalSel=id;S.liga.rivalPartidos=null;S.liga.rivalStats=null;render()
+  const esTemuco=id===S.liga.temucoId
+  const[partidos,stats,destacado,suspendidos]=await Promise.all([
+    ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${id},equipo_visita_id.eq.${id})&goles_local=not.is.null&select=id,jornada,fecha_hora,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=5`),
+    statsEquipoLiga(id),
+    cargarGoleadorEquipo(id,esTemuco),
+    calcularSuspendidosEquipo(id),
+  ])
+  if(S.liga.rivalSel!==id)return // cambió de equipo mientras cargaba
   S.liga.rivalPartidos=Array.isArray(partidos)?partidos:[]
+  S.liga.rivalStats={stats,destacado,suspendidos}
   render()
 }
 function toggleGoleadores(){S.liga.golExpand=!S.liga.golExpand;render()}
@@ -3093,12 +3101,40 @@ function renderLigaDestacados(){
 }
 function renderLigaExplorar(){
   const L=S.liga
+  const nomJ=j=>j?nombreCompacto(j.nombre,j.apellido):'?'
   const equiposOrdenados=[...L.equipos].sort((a,b)=>a.id===L.temucoId?-1:b.id===L.temucoId?1:a.nombre.localeCompare(b.nombre))
   return`
     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:8px">
       ${equiposOrdenados.map(e=>`<div class="team-chip ${L.rivalSel===e.id?'on':''}" onclick="verRival(${e.id})"><img src="${crestUrl(e.nombre)}">${e.nombre}</div>`).join('')}
     </div>
-    ${L.rivalSel?`<div class="panel" style="margin-top:14px"><div class="pb">
+    ${L.rivalSel?(()=>{
+      const nombreSel=(L.equipos.find(e=>e.id===L.rivalSel)||{}).nombre||''
+      const RS=L.rivalStats
+      return`${!RS?'<div class="empty" style="margin-top:14px">Cargando datos del equipo…</div>':`
+        <div class="ph" style="background:none;border:none;padding:14px 0 8px"><span class="pt disp" style="font-size:16px">${nombreSel}</span></div>
+        <div class="g4" style="margin-bottom:10px">
+          <div class="mc"><div class="mc-l">Puntos / PJ</div><div class="mc-v">${RS.stats.ptsPP}</div></div>
+          <div class="mc"><div class="mc-l">Goles a favor / PJ</div><div class="mc-v">${RS.stats.gfPP}</div></div>
+          <div class="mc"><div class="mc-l">Goles en contra / PJ</div><div class="mc-v">${RS.stats.gcPP}</div></div>
+          <div class="mc"><div class="mc-l">% Goles en descuento</div><div class="mc-v">${RS.stats.pctDescuento}%</div></div>
+        </div>
+        <div class="g4" style="margin-bottom:14px">
+          <div class="mc"><div class="mc-l">Amarillas / PJ</div><div class="mc-v">${RS.stats.amPP}</div></div>
+          <div class="mc"><div class="mc-l">Rojas / PJ</div><div class="mc-v">${RS.stats.rjPP}</div></div>
+          <div class="mc"><div class="mc-l">GF/PJ Local</div><div class="mc-v">${RS.stats.gfPPLocal}</div></div>
+          <div class="mc"><div class="mc-l">GF/PJ Visita</div><div class="mc-v">${RS.stats.gfPPVisita}</div></div>
+        </div>
+        ${RS.destacado&&(RS.destacado.goleador||RS.destacado.asistidor)?`<div class="panel" style="margin-bottom:14px"><div class="ph"><span class="pt">⭐ Destacados</span></div><div class="pb">
+          ${RS.destacado.goleador?`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0"><div><div style="font-size:9.5px;color:var(--gris);text-transform:uppercase">Máximo goleador</div><div style="font-weight:700;font-size:13px">${nomJ(RS.destacado.goleador.jugador)}</div><div style="font-size:10px;color:var(--muted)">${RS.destacado.goleador.minutos}' jugados · ${RS.destacado.goleador.golesPor90} goles/90 · ${RS.destacado.goleador.fechasSinMarcar} fecha${RS.destacado.goleador.fechasSinMarcar===1?'':'s'} sin marcar</div></div><div class="disp" style="font-size:18px;color:var(--vc)">${RS.destacado.goleador.goles}⚽</div></div>`:''}
+          ${RS.destacado.asistidor?`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-top:1px solid var(--borde)"><div><div style="font-size:9.5px;color:var(--gris);text-transform:uppercase">Máximo asistidor</div><div style="font-weight:700;font-size:13px">${nomJ(RS.destacado.asistidor.jugador)}</div></div><div class="disp" style="font-size:18px;color:var(--az)">${RS.destacado.asistidor.asist}🅰️</div></div>`:''}
+        </div></div>`:''}
+        ${RS.suspendidos&&RS.suspendidos.length?`<div class="panel" style="margin-bottom:14px;background:rgba(200,21,39,.04)"><div class="ph"><span class="pt">🚫 Posibles suspendidos</span></div><div class="pb">
+          <div style="font-size:10px;color:var(--gris);margin-bottom:8px">Estimado, no es dato oficial de ANFP.</div>
+          ${RS.suspendidos.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><span style="font-size:12.5px;font-weight:600">${nomJ(s.jugador)}</span><span class="badge br" style="font-size:9px">${s.rojaUltimo?'Roja':`${s.amarillas}ª amarilla`}</span></div>`).join('')}
+        </div></div>`:''}
+      `}`
+    })():''}
+    ${L.rivalSel?`<div class="panel" style="margin-top:0"><div class="pb">
       <div class="pt disp" style="font-size:15px;margin-bottom:8px">${(L.equipos.find(e=>e.id===L.rivalSel)||{}).nombre||''} · últimos partidos</div>
       ${L.rivalPartidos===null?'<div class="empty">Cargando…</div>':(L.rivalPartidos.map(p=>`
         <div class="rival-row" onclick="verPartidoLiga(${p.id},'liga')" style="cursor:pointer"><div style="color:var(--gris);width:80px">F${p.jornada||'-'}</div><div style="flex:1;text-align:right;font-weight:700">${p.local.nombre}</div><div class="disp" style="width:44px;text-align:center">${p.goles_local}-${p.goles_visita}</div><div style="flex:1;font-weight:700">${p.visita.nombre}</div></div>

@@ -376,10 +376,10 @@ let S={
   consulta:{tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   visitante:false,
-  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[]},
+  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosLista:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
-  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,filtroGoles:'sinTipo',golesSnapshot:null},
+  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,filtroGoles:'sinTipo',golesSnapshot:null},
   partidosLiga:{loaded:false,partidos:[],goles:[],golesAmbos:[],autogolesPropios:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[],previo:null},
@@ -1222,6 +1222,19 @@ async function guardarFotoJugadorLiga(id,url){
   if(j)j.foto_url=url||null
   toast('Foto guardada')
 }
+// Upsert por nombre (clave primaria de liga_estadios) — sin on_conflict
+// explícito PostgREST usa la primary key por defecto para merge-duplicates.
+async function guardarFotoEstadio(nombre,url){
+  const r=await fetch(`${SB_URL}/rest/v1/liga_estadios`,{
+    method:'POST',
+    headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
+    body:JSON.stringify({nombre,foto_url:url||null})
+  })
+  const d=await r.json().catch(()=>null)
+  if(!Array.isArray(d)){toast('Error al guardar — ¿corriste sql/liga_estadios.sql?',true);return}
+  S.liga.estadiosFoto[nombre]=url||null
+  toast('Foto guardada')
+}
 
 // Recupera goles/asistencias que ya estaban cargados a mano en el registro
 // viejo (tablas "partidos"/"eventos", Primera B, hasta que se dejó de
@@ -1331,6 +1344,7 @@ function renderEnriquecer(){
   const sinTipo=E.goles.filter(g=>!g.subtipo).length
   const sinAsist=E.goles.filter(g=>!g.asistidor_id).length
   const sinFoto=E.jugadores.filter(j=>!j.foto_url).length
+  const sinEstadioFoto=S.liga.estadiosLista.filter(n=>!S.liga.estadiosFoto[n]).length
   // Header colapsable reutilizable — arranca cerrado para no mostrar todo
   // junto; el aviso (n faltan) ya dice si vale la pena abrirlo.
   const seccion=(key,titulo,aviso,avisoOk,contenidoFn,extraToggle)=>{
@@ -1393,6 +1407,25 @@ function renderEnriquecer(){
           </div>
         </div>`).join('')}
       </div>
+    `)}
+
+    ${seccion('expandEstadios','🏟️ Fotos de estadios',sinEstadioFoto?`⚠ faltan ${sinEstadioFoto}`:'','todas cargadas ✓',()=>`
+      <div style="color:var(--gris);font-size:11px;margin-bottom:10px">Pega la URL de una foto por estadio (nombre exacto tal cual lo trae el scraper). Se muestra chica en la hero card de Próxima fecha y en el detalle de cada partido jugado ahí.</div>
+      ${S.liga.estadiosLista.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
+        ${[...S.liga.estadiosLista].sort((a,b)=>(S.liga.estadiosFoto[a]?1:0)-(S.liga.estadiosFoto[b]?1:0)).map(nombre=>{
+          const url=S.liga.estadiosFoto[nombre]
+          return`<div class="pcard" style="cursor:default;display:flex;align-items:center;gap:8px;padding:8px 10px;${url?'':'background:rgba(201,138,18,.06);border-color:rgba(201,138,18,.35)'}">
+          <div style="width:32px;height:32px;border-radius:6px;overflow:hidden;background:rgba(16,24,32,0.08);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">
+            ${url?`<img src="${url}" style="width:100%;height:100%;object-fit:cover">`:'🏟️'}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombre}</div>
+            <input type="url" placeholder="URL de la foto…" value="${url||''}"
+              style="width:100%;font-size:9px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;padding:3px 6px;color:var(--blanco);font-family:var(--font);margin-top:3px"
+              onchange="guardarFotoEstadio('${nombre.replace(/'/g,"\\'")}',this.value)">
+          </div>
+        </div>`}).join('')}
+      </div>`:`<div class="empty">Todavía no hay estadios en la base (aparecen solos a medida que el scraper procesa partidos).</div>`}
     `)}
 
     ${seccion('expandGoles','⚽ Goles y asistencias',(sinTipo||sinAsist)?`⚠ ${sinTipo} sin tipo · ${sinAsist} sin asistidor`:'','todo al día ✓',()=>{
@@ -2686,6 +2719,10 @@ const CRESTS={
   'Unión Española':CREST_BASE+'2025/01/union-espanola.png','Santiago Wanderers':CREST_BASE+'2025/01/Santiago-Wanderers-2.svg',
 }
 function crestUrl(n){return CRESTS[n]||''}
+function estadioFotoTag(nombre){
+  const url=nombre&&S.liga.estadiosFoto&&S.liga.estadiosFoto[nombre]
+  return url?`<img src="${url}" title="${nombre}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid rgba(255,255,255,.3);margin-top:6px">`:''
+}
 function iniciales(n){return (n||'').trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase()}
 // Bandera junto al nombre en Plantilla, para ver de un vistazo de dónde
 // viene cada jugador (dato manual, campo "nacionalidad" — solo existe
@@ -2768,14 +2805,19 @@ function pageHero(titulo,sub){return`<div class="pagehero">
 async function ligaGet(table,params){return get(table,params)}
 
 async function cargarLiga(){
-  let[equipos,goles,jugadores,partidosAll,sanciones,alineacionesAll]=await Promise.all([
+  let[equipos,goles,jugadores,partidosAll,sanciones,alineacionesAll,estadios]=await Promise.all([
     ligaGet('liga_equipos','?select=id,nombre,sub21_minutos_contable&order=nombre'),
     ligaGet('liga_goles','?select=jugador_id,autogol&autogol=eq.false&limit=1000'),
     ligaGet('liga_jugadores','?select=id,apellido,nombre,equipo_id,sub21,minutos_oficial_temporada,fecha_nacimiento,numero&limit=1000'),
-    ligaGetAll('liga_partidos','id,jornada,fecha_hora,equipo_local_id,equipo_visita_id,goles_local,goles_visita'),
+    ligaGetAll('liga_partidos','id,jornada,fecha_hora,estadio,equipo_local_id,equipo_visita_id,goles_local,goles_visita'),
     ligaGet('liga_sanciones','?select=id,equipo_id,puntos,motivo,fecha&order=fecha.desc'),
     ligaGetAll('liga_alineaciones','partido_id,equipo_id,jugador_id'),
+    ligaGet('liga_estadios','?select=nombre,foto_url'),
   ])
+  // liga_estadios es una tabla nueva (scraper/sql/liga_estadios.sql) — si
+  // todavía no se corrió esa migración, queda como mapa vacío sin romper nada.
+  S.liga.estadiosFoto={}
+  if(Array.isArray(estadios))estadios.forEach(e=>{S.liga.estadiosFoto[e.nombre]=e.foto_url})
   // sub21_minutos_contable es una columna nueva (scraper/sql/liga_equipos_sub21_contable.sql)
   if(!Array.isArray(equipos))equipos=await ligaGet('liga_equipos','?select=id,nombre&order=nombre')
   // numero es una columna nueva (scraper/sql/liga_jugadores_numero.sql) — si
@@ -2785,6 +2827,7 @@ async function cargarLiga(){
   const temuco=S.liga.equipos.find(e=>e.nombre==='Deportes Temuco')
   S.liga.temucoId=temuco?temuco.id:null
   S.liga.sanciones=Array.isArray(sanciones)?sanciones:[]
+  S.liga.estadiosLista=[...new Set((Array.isArray(partidosAll)?partidosAll:[]).map(p=>p.estadio).filter(Boolean))].sort()
 
   const jugadas=(Array.isArray(partidosAll)?partidosAll:[]).filter(p=>p.goles_local!=null&&p.goles_visita!=null)
   // Partidos pospuestos sin fecha reagendada quedan con fecha_hora null y
@@ -3284,7 +3327,10 @@ function renderPartidoLiga(){
             <div style="font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.85)">Liga de Ascenso Caixun 2026</div>
             <div class="disp" style="color:#fff;font-size:28px;margin-top:4px">FECHA ${d.jornada||''}</div>
           </div>
-          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(d.fecha_hora)}${d.estadio?'<br>'+d.estadio:''}${d.arbitro?'<br>Árbitro: '+d.arbitro:''}</div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end">
+            <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(d.fecha_hora)}${d.estadio?'<br>'+d.estadio:''}${d.arbitro?'<br>Árbitro: '+d.arbitro:''}</div>
+            ${estadioFotoTag(d.estadio)}
+          </div>
         </div>
         <div class="hero2-mid">
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(d.local.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.local.nombre.toUpperCase()}</div></div>
@@ -3553,7 +3599,10 @@ function renderProximoRival(){
             <div style="font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.85)">Liga de Ascenso Caixun 2026</div>
             <div class="disp" style="color:#fff;font-size:28px;margin-top:4px">FECHA ${p.jornada||''}</div>
           </div>
-          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(p.fecha_hora)}${p.estadio?'<br>'+p.estadio:''}</div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end">
+            <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(p.fecha_hora)}${p.estadio?'<br>'+p.estadio:''}</div>
+            ${estadioFotoTag(p.estadio)}
+          </div>
         </div>
         <div class="hero2-mid">
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl('Deportes Temuco')}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">DEPORTES TEMUCO</div>${posBadge(posTemuco)}</div>

@@ -3271,12 +3271,14 @@ async function verPartidoLiga(id,volverA){
   S.partidoLiga={loaded:false,id,volverA:volverA||S.pag,data:null,eventos:[],previo:null}
   S.pag='partido'
   render()
-  const[partidos,goles,tarjetas,sustituciones]=await Promise.all([
-    ligaGet('liga_partidos',`?id=eq.${id}&select=id,jornada,fecha_hora,estadio,arbitro,equipo_local_id,equipo_visita_id,goles_local,goles_visita,local:liga_equipos!liga_partidos_equipo_local_id_fkey(id,nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(id,nombre)`),
+  let[partidos,goles,tarjetas,sustituciones]=await Promise.all([
+    ligaGet('liga_partidos',`?id=eq.${id}&select=id,jornada,fecha_hora,estadio,arbitro,resumen_youtube_url,equipo_local_id,equipo_visita_id,goles_local,goles_visita,local:liga_equipos!liga_partidos_equipo_local_id_fkey(id,nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(id,nombre)`),
     ligaGet('liga_goles',`?partido_id=eq.${id}&select=equipo_id,minuto,minuto_extra,penal,autogol,jugador:liga_jugadores!liga_goles_jugador_id_fkey(nombre,apellido)`),
     ligaGet('liga_tarjetas',`?partido_id=eq.${id}&select=equipo_id,tipo,minuto,minuto_extra,motivo,segunda_amarilla,jugador:liga_jugadores!liga_tarjetas_jugador_id_fkey(nombre,apellido)`),
     ligaGet('liga_sustituciones',`?partido_id=eq.${id}&select=equipo_id,minuto,minuto_extra,entra:liga_jugadores!liga_sustituciones_entra_jugador_id_fkey(nombre,apellido),sale:liga_jugadores!liga_sustituciones_sale_jugador_id_fkey(nombre,apellido)`),
   ])
+  // resumen_youtube_url es una columna nueva (scraper/sql/liga_partidos_resumen_youtube.sql)
+  if(!Array.isArray(partidos))partidos=await ligaGet('liga_partidos',`?id=eq.${id}&select=id,jornada,fecha_hora,estadio,arbitro,equipo_local_id,equipo_visita_id,goles_local,goles_visita,local:liga_equipos!liga_partidos_equipo_local_id_fkey(id,nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(id,nombre)`)
   if(S.partidoLiga.id!==id)return // el usuario ya navegó a otro partido
   S.partidoLiga.data=Array.isArray(partidos)&&partidos[0]?partidos[0]:null
   const evGoles=(Array.isArray(goles)?goles:[]).map(g=>({tipo:g.autogol?'autogol':'gol',minuto:g.minuto,minuto_extra:g.minuto_extra||0,equipo_id:g.equipo_id,jugador:g.jugador?nombreCompacto(g.jugador.nombre,g.jugador.apellido):'—',penal:g.penal}))
@@ -3287,6 +3289,20 @@ async function verPartidoLiga(id,volverA){
   if(S.pag==='partido')render()
   const d=S.partidoLiga.data
   if(d&&d.goles_local!=null&&d.jornada>1)cargarPrevioPartido(id,d.jornada,d.equipo_local_id,d.equipo_visita_id)
+}
+async function guardarResumenYoutube(id,url){
+  const r=await patch('liga_partidos',{resumen_youtube_url:url||null},`?id=eq.${id}`)
+  if(r&&r.code){toast('Error al guardar — ¿corriste sql/liga_partidos_resumen_youtube.sql?',true);return}
+  if(S.partidoLiga.data&&S.partidoLiga.data.id===id)S.partidoLiga.data.resumen_youtube_url=url||null
+  render()
+  toast('Link guardado')
+}
+// Acepta watch?v=, youtu.be/, /embed/ y le agrega el trailing slash que
+// falte para armar el src del iframe.
+function youtubeEmbedUrl(url){
+  if(!url)return null
+  const m=url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{6,})/)
+  return m?`https://www.youtube.com/embed/${m[1]}`:null
 }
 
 const EV_ICONS={gol:'⚽',autogol:'⚽ (p.p.)',amarilla:'🟨',segunda:'🟨🟥',roja:'🟥',cambio:'🔄'}
@@ -3339,6 +3355,22 @@ function renderPartidoLiga(){
         </div>
       </div>
     </div>
+
+    ${(()=>{
+      const embed=youtubeEmbedUrl(d.resumen_youtube_url)
+      if(!embed&&!S.isAdmin)return''
+      return`<div class="panel" style="margin-top:16px">
+        <div class="ph"><div class="pt disp" style="font-size:15px">📺 Resumen</div></div>
+        <div class="pb">
+          ${embed?`<div style="position:relative;padding-bottom:56.25%;height:0;border-radius:8px;overflow:hidden">
+            <iframe src="${embed}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe>
+          </div>`:''}
+          ${S.isAdmin?`<input type="url" placeholder="Link de YouTube del resumen…" value="${d.resumen_youtube_url||''}"
+            style="width:100%;font-size:11px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;padding:6px 8px;color:var(--blanco);font-family:var(--font);${embed?'margin-top:10px':''}"
+            onchange="guardarResumenYoutube(${d.id},this.value)">`:''}
+        </div>
+      </div>`
+    })()}
 
     ${P.previo?`<div class="panel" style="margin-top:16px">
       <div class="ph"><div class="pt disp" style="font-size:15px">📊 Cómo llegaban las estadísticas</div></div>

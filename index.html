@@ -393,6 +393,7 @@ let S={
   rachasExpand:null,
   golesSubtipoExpand:null,
   asistSubtipoExpand:null,
+  carga:{ventana:3},
 }
 
 async function cargarDatos(){
@@ -1684,8 +1685,150 @@ function renderDeportesTemuco(){
   const tabBar=`<div class="content" style="padding-bottom:0"><div class="tabs">
     <button class="tab ${vista==='estadisticas'?'on':''}" onclick="S.temucoVista='estadisticas';render()">📊 Estadísticas</button>
     <button class="tab ${vista==='plantilla'?'on':''}" onclick="S.temucoVista='plantilla';render()">👥 Plantilla</button>
+    <button class="tab ${vista==='carga'?'on':''}" onclick="S.temucoVista='carga';render()">🏃 Carga física</button>
   </div></div>`
-  return tabBar+(vista==='estadisticas'?renderEstadisticas():renderPlantilla())
+  return tabBar+(vista==='estadisticas'?renderEstadisticas():vista==='carga'?renderCargaFisica():renderPlantilla())
+}
+
+// ===== CARGA FÍSICA (preparador físico) =====
+// Fase 3. Usa datos que ya se cargan para Estadísticas (S.partidosLiga:
+// partidos oficiales + liga_alineaciones con minutos_jugados) — no agrega
+// ninguna tabla ni columna nueva a Supabase. La idea: los mismos minutos
+// que ya sirven para "goleadores" o "sub-21" son la materia prima para ver
+// a quién se le está pidiendo más de lo que puede dar ahora mismo.
+//
+// "Ventana" = los últimos N partidos OFICIALES que jugó el equipo (no del
+// jugador) — si no fue citado o no sumó minutos en alguno, cuenta como 0'
+// para él en esa ventana, que es justamente la señal de sobrecarga: 3
+// partidos de 90' seguidos sin que nadie lo reemplace.
+function calcularCargaFisica(ventana){
+  const PL=S.partidosLiga
+  const jugados=PL.partidos.filter(p=>p.resultado).sort((a,b)=>new Date(a.fecha_hora)-new Date(b.fecha_hora))
+  if(!jugados.length)return{jugados:[],filas:[]}
+  const ventanaPartidos=jugados.slice(-ventana)
+  const idsVentana=new Set(ventanaPartidos.map(p=>p.id))
+  const hoy=new Date()
+
+  // liga_jugador_id → jugador propio (para cruzar con Lesiones, que vive
+  // en la tabla "jugadores" del plantel propio, no en liga_jugadores).
+  const lesionPorLigaId={}
+  S.jugadores.forEach(j=>{
+    if(!j.liga_jugador_id)return
+    const les=S.lesiones.find(l=>l.jugador_id===j.id)
+    if(les)lesionPorLigaId[j.liga_jugador_id]=les
+  })
+
+  const porJugador={}
+  PL.alineaciones.forEach(a=>{
+    const j=a.jugador;if(!j)return
+    if(!porJugador[j.id])porJugador[j.id]={jugador:j,partidos:[]}
+    porJugador[j.id].partidos.push({partido_id:a.partido_id,minutos:a.minutos_jugados||0})
+  })
+
+  const filas=Object.values(porJugador).map(({jugador,partidos})=>{
+    // Solo contra partidos que el equipo efectivamente jugó (jugados), en
+    // orden cronológico — así "racha" y "último partido" tienen sentido.
+    const registrosOrdenados=jugados.map(p=>{
+      const reg=partidos.find(r=>r.partido_id===p.id)
+      return{partido:p,minutos:reg?reg.minutos:0}
+    })
+    const pj=registrosOrdenados.filter(r=>r.minutos>0).length
+    if(!pj)return null // nunca sumó minutos oficiales — no aporta nada a la vista
+
+    const minVentana=registrosOrdenados.filter(r=>idsVentana.has(r.partido.id)).reduce((a,r)=>a+r.minutos,0)
+    const pctCarga=Math.round(minVentana/(ventana*90)*100)
+
+    // Racha de partidos consecutivos jugando ~completo (85'+), contando
+    // desde el más reciente hacia atrás — se corta en el primer partido
+    // donde no llegó a esos minutos (rotó, entró de cambio, no jugó).
+    let racha90=0
+    for(let i=registrosOrdenados.length-1;i>=0;i--){
+      if(registrosOrdenados[i].minutos>=85)racha90++
+      else break
+    }
+
+    const ultimoConMinutos=[...registrosOrdenados].reverse().find(r=>r.minutos>0)
+    const diasDescanso=ultimoConMinutos?Math.floor((hoy-new Date(ultimoConMinutos.partido.fecha_hora))/86400000):null
+
+    const lesion=lesionPorLigaId[jugador.id]
+    let estado='normal'
+    if(!lesion){
+      if(racha90>=3||pctCarga>=90)estado='riesgo'
+      else if(racha90===2||pctCarga>=70)estado='vigilar'
+    }
+
+    return{jugador,pj,minVentana,pctCarga,racha90,diasDescanso,lesion,estado}
+  }).filter(Boolean)
+
+  // Riesgo primero (lo que de verdad hay que mirar), después por carga desc.
+  const ordenEstado={riesgo:0,vigilar:1,normal:2}
+  filas.sort((a,b)=>(ordenEstado[a.estado]-ordenEstado[b.estado])||(b.pctCarga-a.pctCarga))
+  return{jugados,ventanaPartidos,filas}
+}
+
+function renderCargaFisica(){
+  const PL=S.partidosLiga
+  if(!PL.loaded)return`<div class="content"><div class="empty">Cargando carga física…</div></div>`
+  const ventana=S.carga?.ventana||3
+  const{jugados,ventanaPartidos,filas}=calcularCargaFisica(ventana)
+  if(!jugados.length)return`<div class="content">${pageHero('CARGA FÍSICA')}<div class="empty">Todavía no hay partidos oficiales jugados para calcular carga.</div></div>`
+
+  const nRiesgo=filas.filter(f=>f.estado==='riesgo').length
+  const nVigilar=filas.filter(f=>f.estado==='vigilar').length
+  const conDescanso=filas.filter(f=>f.diasDescanso!=null)
+  const descansoProm=conDescanso.length?Math.round(conDescanso.reduce((a,f)=>a+f.diasDescanso,0)/conDescanso.length):0
+  const nRachaLarga=filas.filter(f=>f.racha90>=3).length
+
+  const estadoChip={
+    riesgo:'<span class="badge br">Riesgo</span>',
+    vigilar:'<span class="badge ba">Vigilar</span>',
+    normal:'<span class="badge bv">Normal</span>',
+  }
+
+  return`<div class="content">
+    ${pageHero('CARGA FÍSICA',`Ventana: últimos ${ventana} partidos oficiales (F${ventanaPartidos[0].jornada} a F${ventanaPartidos[ventanaPartidos.length-1].jornada})`)}
+    <div style="font-size:11.5px;color:var(--gris);margin-bottom:12px;line-height:1.6">
+      Calculado sobre los minutos oficiales (<code style="color:var(--am)">liga_alineaciones</code>) de los partidos que ya jugó el equipo — no incluye entrenamientos.
+      Si un jugador no sumó minutos en un partido de la ventana, cuenta como 0' (eso es justamente la señal cuando el resto de la ventana está completa).
+      <strong style="color:var(--vc)">Estimado, no un reemplazo del criterio del cuerpo médico.</strong>
+    </div>
+    <div class="tabs">
+      ${[3,5].map(n=>`<button class="tab ${ventana===n?'on':''}" onclick="S.carga={...S.carga,ventana:${n}};render()">Últimos ${n}</button>`).join('')}
+    </div>
+    <div class="g4">
+      <div class="mc ro"><div class="mc-l">En riesgo</div><div class="mc-v">${nRiesgo}</div></div>
+      <div class="mc am"><div class="mc-l">A vigilar</div><div class="mc-v">${nVigilar}</div></div>
+      <div class="mc"><div class="mc-l">Racha 90'+ (3 o más)</div><div class="mc-v">${nRachaLarga}</div></div>
+      <div class="mc verde"><div class="mc-l">Descanso promedio</div><div class="mc-v">${descansoProm}<span style="font-size:13px;font-weight:400;color:var(--gris)"> días</span></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">Carga por jugador</span><span style="font-size:10px;color:var(--gris)">${filas.length} jugadores con minutos oficiales</span></div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr>
+          <th>Jugador</th><th class="center">PJ</th>
+          <th class="num">Min. últimos ${ventana}</th><th class="num">% de carga</th>
+          <th class="center">Racha 90'+</th><th class="center">Descanso</th><th class="center">Estado</th>
+        </tr></thead>
+        <tbody>
+          ${filas.map(f=>{
+            const nombre=nombreCompacto(f.jugador.nombre,f.jugador.apellido)
+            const barColor=f.estado==='riesgo'?'var(--ro)':f.estado==='vigilar'?'var(--am)':'var(--vc)'
+            return`<tr>
+              <td style="font-weight:700">${nombre}${f.jugador.sub21?`<span style="font-size:9px;background:rgba(232,184,75,0.25);color:var(--am);border-radius:3px;padding:0 3px;font-weight:700;margin-left:4px">S21</span>`:''}</td>
+              <td class="center">${f.pj}</td>
+              <td class="num" style="font-weight:700">${f.minVentana}'
+                <div class="bar-w" style="width:70px;margin-left:auto"><div class="bar-f" style="width:${Math.min(100,f.pctCarga)}%;background:${barColor}"></div></div>
+              </td>
+              <td class="num" style="font-weight:800;color:${barColor}">${f.pctCarga}%</td>
+              <td class="center">${f.racha90>=2?f.racha90:'—'}</td>
+              <td class="center" style="color:var(--gris)">${f.diasDescanso!=null?f.diasDescanso+' d':'—'}</td>
+              <td class="center">${f.lesion?'<span class="badge br">Lesionado</span>':estadoChip[f.estado]}</td>
+            </tr>`
+          }).join('')}
+        </tbody>
+      </table></div>
+    </div>
+  </div>`
 }
 
 // ===== PLANTILLA =====

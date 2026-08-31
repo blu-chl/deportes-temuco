@@ -16,6 +16,13 @@
   --gris:#5f6b78;--muted:#8a94a0;--blanco:#16202b;
   --font:'Manrope',system-ui,sans-serif;--font-disp:'Barlow Condensed',var(--font);
 }
+/* Tema alternativo "Verde Temuco" — solo recolorea la marca (fondo de
+   header/nav/hero), nunca la simbología (--vc ganado, --am amarillas,
+   --ro perdido/rojas, --az azul de comparación quedan igual). Se activa
+   con data-tema="verde" en <html>, guardado en localStorage. */
+:root[data-tema="verde"]{
+  --v:#0f8a44;--vo:#0b3d24;
+}
 html,body{min-height:100vh;background:var(--fondo);color:var(--blanco);font-family:var(--font);font-size:13px}
 #app{max-width:1100px;margin:0 auto;background:var(--fondo);border-radius:12px;border:1px solid var(--borde2);overflow:hidden;min-height:100vh}
 .hdrwrap{position:sticky;top:0;z-index:50}
@@ -212,8 +219,11 @@ function toast(msg,err=false){
 function hoy(){return new Date().toISOString().split('T')[0]}
 
 const ICONOS={Gol:'⚽',Asistencia:'🅰️',Amarilla:'🟡',Roja:'🔴','Sustitución':'🔄'}
-const TIPOS_ASIST=['Pase','Pase Filtrado','Centro','Cutback','Córner','Tiro Libre']
-let TIPOS_GOL=['Pie Derecho','Pie Izquierdo','Cabeza','Tiro Libre','Penal']
+// SUBTIPOS_GOL/SUBTIPOS_ASIST (declaradas más abajo) son la ÚNICA lista de
+// tipos de gol/asistencia — antes existían dos listas separadas
+// (TIPOS_GOL/TIPOS_ASIST acá y SUBTIPOS_GOL/SUBTIPOS_ASIST en Enriquecer)
+// y agregar un tipo en Config no aparecía en Enriquecer porque eran
+// variables distintas. Se unificaron en una sola.
 
 // Posiciones específicas agrupadas por zona
 const POS_GRUPOS={
@@ -353,6 +363,7 @@ let S={
   ordenPlantilla:'dorsal',filtEstadoPlantilla:'todos',
   plantillaVista:'jugadores',
   moneda:localStorage.getItem('dt-moneda')||'€',
+  tema:localStorage.getItem('dt-tema')||'rojo',
   staff:JSON.parse(localStorage.getItem('dt-staff')||'[]'),
   addStaff:{nombre:'',rol:'DT',foto_url:'',foto_link:'',nacionalidad:'Chilena',notas:''},
   addStaffShow:false,
@@ -368,18 +379,20 @@ let S={
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
-  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,filtroGoles:'sinTipo'},
-  partidosLiga:{loaded:false,partidos:[],goles:[],golesAmbos:[],tarjetas:[],sustituciones:[],alineaciones:[]},
+  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,filtroGoles:'sinTipo',golesSnapshot:null},
+  partidosLiga:{loaded:false,partidos:[],goles:[],golesAmbos:[],autogolesPropios:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[],previo:null},
   rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:''},
-  analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],seleccion:new Set()},
+  analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],seleccion:new Set(),descuentoFiltro:'90',evolucionRango:'todas'},
   // Reorganización de navegación pública: sub-vistas dentro de cada pestaña
   // de primer nivel (en vez de más pestañas de primer nivel).
   inicioVista:'proxima',
   temucoVista:'estadisticas',
   ligaVista:'tabla',
   rachasExpand:null,
+  golesSubtipoExpand:null,
+  asistSubtipoExpand:null,
 }
 
 async function cargarDatos(){
@@ -464,6 +477,15 @@ function navTo(p){
   if(pag==='analisis'&&!S.analisis.loaded)cargarAnalisis()
 }
 
+// Paleta "Verde Temuco" — guardada por navegador, no toca la simbología
+// (ganó/empató/perdió/amarillas siguen igual), solo el color de marca del
+// header/nav/hero. La paleta roja original queda como default de respaldo.
+function toggleTema(){
+  S.tema=S.tema==='verde'?'rojo':'verde'
+  localStorage.setItem('dt-tema',S.tema)
+  document.documentElement.dataset.tema=S.tema
+  render()
+}
 function renderHdr(){
   const s=calcHdr()
   return`<div class="hdr">
@@ -477,6 +499,7 @@ function renderHdr(){
       <div class="hs"><div class="hs-v">${s.gc}</div><div class="hs-l">GC</div></div>
     </div>
     <div style="display:flex;gap:6px;align-items:center">
+      <button class="bsm" title="Probar la paleta verde (solo cambia el color de marca, no lo que significa cada color)" onclick="toggleTema()">${S.tema==='verde'?'🔴 Rojo':'🟢 Verde'}</button>
       ${S.isAdmin
         ?`<span style="font-size:10px;color:var(--goldbr);border:1px solid var(--goldbr);border-radius:999px;padding:3px 9px;opacity:.9">🔓 Admin</span>
            <button class="bsm" onclick="doLogout()">Salir</button>`
@@ -986,7 +1009,7 @@ async function asignarSlotDirecto(idx,jugId){
 }
 
 function abrirEventoSlot(idx,jugId){
-  S.slotEvPanel={jugId,slotIdx:idx,tipo:'Amarilla',minuto:1,subtipo:TIPOS_GOL[0],asistidor_id:'',asist_subtipo:'Pase',jugador_sale_id:''}
+  S.slotEvPanel={jugId,slotIdx:idx,tipo:'Amarilla',minuto:1,subtipo:SUBTIPOS_GOL[0],asistidor_id:'',asist_subtipo:'Pase',jugador_sale_id:''}
   renderEventoSlotModal()
 }
 
@@ -1005,7 +1028,7 @@ function renderEventoSlotModal(){
   ]
   const tiposBtns=tipos.map(t=>{
     const isOn=p.tipo===t.t
-    const sub=t.t==='Gol'?`'${TIPOS_GOL[0]}'`:t.t==='Asistencia'?`'${TIPOS_ASIST[0]}'`:`''`
+    const sub=t.t==='Gol'?`'${SUBTIPOS_GOL[0]}'`:t.t==='Asistencia'?`'${SUBTIPOS_ASIST[0]}'`:`''`
     return`<button onclick="S.slotEvPanel.tipo='${t.t}';S.slotEvPanel.subtipo=${sub};renderEventoSlotModal()"
       style="padding:10px 4px;border-radius:8px;border:2px solid ${isOn?t.c:'var(--borde2)'};background:${isOn?t.c+'33':'rgba(0,0,0,.3)'};color:${isOn?t.c:'var(--gris)'};font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;flex-direction:column;align-items:center;gap:3px;transition:all .15s;width:100%">
       <span style="font-size:20px">${t.ico}</span><span>${t.t}</span>
@@ -1020,14 +1043,14 @@ function renderEventoSlotModal(){
   let extra=''
   if(p.tipo==='Gol'){
     extra=`<div class="fg"><label>Tipo de gol</label><select onchange="S.slotEvPanel.subtipo=this.value" style="${inputStyle}">
-      ${TIPOS_GOL.map(st=>`<option ${p.subtipo===st?'selected':''}>${st}</option>`).join('')}</select></div>
+      ${SUBTIPOS_GOL.map(st=>`<option ${p.subtipo===st?'selected':''}>${st}</option>`).join('')}</select></div>
     <div class="fg"><label>Asistidor (opcional)</label><select onchange="S.slotEvPanel.asistidor_id=this.value;renderEventoSlotModal()" style="${inputStyle}">
       <option value="">— Sin asistencia —</option>${optsFor(p.asistidor_id)}</select></div>
     ${p.asistidor_id?`<div class="fg"><label>Tipo de asistencia</label><select onchange="S.slotEvPanel.asist_subtipo=this.value" style="${inputStyle}">
-      ${TIPOS_ASIST.map(t=>`<option ${p.asist_subtipo===t?'selected':''}>${t}</option>`).join('')}</select></div>`:''}`
+      ${SUBTIPOS_ASIST.map(t=>`<option ${p.asist_subtipo===t?'selected':''}>${t}</option>`).join('')}</select></div>`:''}`
   }else if(p.tipo==='Asistencia'){
     extra=`<div class="fg"><label>Tipo de asistencia</label><select onchange="S.slotEvPanel.subtipo=this.value" style="${inputStyle}">
-      ${TIPOS_ASIST.map(st=>`<option ${p.subtipo===st?'selected':''}>${st}</option>`).join('')}</select></div>`
+      ${SUBTIPOS_ASIST.map(st=>`<option ${p.subtipo===st?'selected':''}>${st}</option>`).join('')}</select></div>`
   }else if(p.tipo==='Sustitución'){
     extra=`<div class="fg"><label>Entra en su lugar</label><select onchange="S.slotEvPanel.jugador_sale_id=this.value" style="${inputStyle}">
       <option value="">— Seleccionar —</option>${opts}</select></div>`
@@ -1158,6 +1181,7 @@ async function cargarEnriquecimiento(){
   S.enriq.sqlPendiente=!Array.isArray(goles)||!Array.isArray(jugadores)
   S.enriq.goles=Array.isArray(goles)?goles:[]
   S.enriq.jugadores=Array.isArray(jugadores)?jugadores:[]
+  S.enriq.golesSnapshot=null
   S.enriq.loaded=true
   render()
   if(!S.enriq.sqlPendiente)await sincronizarFotosLiga()
@@ -1293,7 +1317,7 @@ async function migrarDatosAntiguos(){
   await cargarEnriquecimiento()
 }
 
-const SUBTIPOS_GOL=['Pie Derecho','Pie Izquierdo','Cabeza','Tiro Libre','Otro']
+const SUBTIPOS_GOL=['Pie Derecho','Pie Izquierdo','Cabeza','Tiro Libre','Penal','Otro']
 const SUBTIPOS_ASIST=['Pase','Pase Filtrado','Centro','Cutback','Córner','Rebote','Individual','Tiro Libre','Penal Cedido','Otro']
 
 function renderEnriquecer(){
@@ -1309,10 +1333,10 @@ function renderEnriquecer(){
   const sinFoto=E.jugadores.filter(j=>!j.foto_url).length
   // Header colapsable reutilizable — arranca cerrado para no mostrar todo
   // junto; el aviso (n faltan) ya dice si vale la pena abrirlo.
-  const seccion=(key,titulo,aviso,avisoOk,contenidoFn)=>{
+  const seccion=(key,titulo,aviso,avisoOk,contenidoFn,extraToggle)=>{
     const abierto=!!E[key]
     return`<div class="panel" style="margin-bottom:14px">
-      <div class="ph" style="cursor:pointer" onclick="S.enriq.${key}=!S.enriq.${key};render()">
+      <div class="ph" style="cursor:pointer" onclick="S.enriq.${key}=!S.enriq.${key};${extraToggle||''}render()">
         <span class="pt">${titulo}</span>
         <span style="display:flex;align-items:center;gap:8px">
           <span style="font-size:10.5px;font-weight:700;color:${aviso?'var(--am)':'var(--gris)'}">${aviso||avisoOk}</span>
@@ -1378,7 +1402,15 @@ function renderEnriquecer(){
         {id:'todos',l:'Todos',n:E.goles.length},
       ]
       const filtro=E.filtroGoles
-      const visibles=(filtro==='sinTipo'?E.goles.filter(g=>!g.subtipo):filtro==='sinAsist'?E.goles.filter(g=>!g.asistidor_id):E.goles)
+      // La lista visible se congela al entrar a la sección o cambiar de
+      // filtro — no se recalcula en cada guardado. Así, después de elegir
+      // "Cómo fue el gol" el ítem no desaparece de golpe y da tiempo a
+      // completar también el asistidor antes de que se vaya de la vista.
+      if(!E.golesSnapshot){
+        E.golesSnapshot=(filtro==='sinTipo'?E.goles.filter(g=>!g.subtipo):filtro==='sinAsist'?E.goles.filter(g=>!g.asistidor_id):E.goles).map(g=>g.id)
+      }
+      const idsVisibles=new Set(E.golesSnapshot)
+      const visibles=E.goles.filter(g=>idsVisibles.has(g.id))
         .slice().sort((a,b)=>(b.partido?.jornada||0)-(a.partido?.jornada||0)||a.minuto-b.minuto)
       const grupos=[]
       visibles.forEach(g=>{
@@ -1393,7 +1425,7 @@ function renderEnriquecer(){
       })
       return`
         <div style="color:var(--gris);font-size:11px;margin-bottom:10px">El scraper detecta el gol y el minuto solo — cómo fue y quién dio el pase se carga acá.</div>
-        <div class="tabs" style="margin-bottom:14px">${FILTROS.map(f=>`<button class="tab ${filtro===f.id?'on':''}" onclick="S.enriq.filtroGoles='${f.id}';render()">${f.l}${f.n?` (${f.n})`:''}</button>`).join('')}</div>
+        <div class="tabs" style="margin-bottom:14px">${FILTROS.map(f=>`<button class="tab ${filtro===f.id?'on':''}" onclick="S.enriq.filtroGoles='${f.id}';S.enriq.golesSnapshot=null;render()">${f.l}${f.n?` (${f.n})`:''}</button>`).join('')}</div>
         ${!visibles.length?`<div class="empty">${filtro==='todos'?'Sin goles registrados todavía.':'Nada pendiente en este filtro ✓'}</div>`:grupos.map(grp=>`
           <div style="font-size:11px;font-weight:800;color:var(--gris);margin:14px 0 6px">F${grp.jornada} · vs ${grp.rival}</div>
           ${grp.goles.map(g=>{
@@ -1430,7 +1462,7 @@ function renderEnriquecer(){
           }).join('')}
         `).join('')}
       `
-    })}
+    },'S.enriq.golesSnapshot=null;')}
   </div>`
 }
 
@@ -1495,7 +1527,7 @@ function renderRegistro(){
         ${Object.keys(ICONOS).map(t=>`<option ${S.editEv.tipo===t?'selected':''}>${t}</option>`).join('')}
       </select></div>
       ${['Gol','Asistencia'].includes(S.editEv.tipo)?`<div class="fg" style="margin-bottom:0"><label>Subtipo</label><select onchange="S.editEv.subtipo=this.value">
-        ${(S.editEv.tipo==='Gol'?TIPOS_GOL:TIPOS_ASIST).map(st=>`<option ${S.editEv.subtipo===st?'selected':''}>${st}</option>`).join('')}
+        ${(S.editEv.tipo==='Gol'?SUBTIPOS_GOL:SUBTIPOS_ASIST).map(st=>`<option ${S.editEv.subtipo===st?'selected':''}>${st}</option>`).join('')}
       </select></div>`:'<div></div>'}
     </div>
     <div class="fr2" style="margin-bottom:8px">
@@ -1889,10 +1921,38 @@ function calcularRachas(partidos,golesAmbos,tid){
   })
   return cats
 }
+// Una franja de "Goles por período" — cuenta, % dentro de su mitad, y
+// hasta 5 goleadores de esa franja con los minutos exactos.
+function franjaCard(label,evs,color,totalMitad,inicialesJ,nombreJ){
+  const n=evs.length
+  const pct=Math.round(n/Math.max(1,totalMitad)*100)
+  const gMap={}
+  evs.forEach(g=>{const jid=g.jugador?.id;if(!jid)return;if(!gMap[jid])gMap[jid]={jugador:g.jugador,mins:[]};gMap[jid].mins.push(g.minuto)})
+  const gList=Object.values(gMap).sort((a,b)=>b.mins.length-a.mins.length).slice(0,5).map(g=>
+    `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid rgba(16,24,32,0.05)">
+      <div style="width:26px;height:26px;border-radius:50%;background:rgba(16,24,32,0.08);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">${inicialesJ(g.jugador)}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreJ(g.jugador)}</div><div style="font-size:10px;color:${color};font-weight:600">⚽ ${g.mins.map(m=>m+"'").join(' ')}</div></div>
+    </div>`
+  ).join('')
+  return`<div style="text-align:center;padding:8px;background:rgba(0,0,0,.2);border-radius:6px">
+    <div style="font-size:22px;font-weight:800;color:${color}">${n}</div>
+    <div style="font-size:9px;color:var(--gris)">${label}</div>
+    <div class="bar-w" style="margin-top:6px"><div class="bar-f" style="width:${pct}%;background:${color}"></div></div>
+    <div style="font-size:9px;color:var(--muted);margin-top:2px">${pct}%</div>
+    ${gList?`<div style="margin-top:5px;text-align:left">${gList}</div>`:''}
+  </div>`
+}
 function renderEstadisticas(){
   const PL=S.partidosLiga
   if(!PL.loaded)return`<div class="content">${pageHero('ESTADÍSTICAS')}<div class="empty">Cargando estadísticas…</div></div>`
   const jugados=PL.partidos.filter(p=>p.resultado)
+  // Sub-21 y Debuts recientes de Temuco viven acá (son dato propio del
+  // club) — antes estaban en Liga→Destacados, que sigue mostrando la
+  // versión de los 16 equipos.
+  const L=S.liga
+  const temucoEquipo=L.loaded?L.equipos.find(e=>e.id===L.temucoId):null
+  const sub21Total=temucoEquipo?.sub21_minutos_contable??(L.sub21||[]).reduce((a,j)=>a+(j.minutos_oficial_temporada||0),0)
+  const debutsTemuco=L.loaded?(L.debutsPorEquipo.find(g=>g.equipo==='Deportes Temuco')||null):null
   const nombreJ=j=>j?nombreCompacto(j.nombre,j.apellido):'?'
   const inicialesJ=j=>iniciales(nombreJ(j))
   const avatarJ=(j,size)=>j?.foto_url
@@ -1900,7 +1960,7 @@ function renderEstadisticas(){
     :`<div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(16,24,32,0.05);display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*.33)}px;font-weight:800;flex-shrink:0">${inicialesJ(j)}</div>`
 
   const golesReales=PL.goles.filter(g=>!g.autogol)
-  const autogoles=PL.goles.filter(g=>g.autogol).length
+  const autogolesRivales=PL.goles.filter(g=>g.autogol).length // rival se autogoleó, gol a favor de Temuco
   const gf=jugados.reduce((a,p)=>a+p.gf,0)
   const gc=jugados.reduce((a,p)=>a+p.gc,0)
   const pz=jugados.filter(p=>p.gc===0).length
@@ -1914,8 +1974,16 @@ function renderEstadisticas(){
   const ult5=[...jugados].slice(-5).reverse()
   const u5pts=ptsDe(ult5)
 
-  const porPeriodo=(desde,hasta)=>golesReales.filter(g=>g.minuto>desde&&g.minuto<=hasta)
-  const per1=porPeriodo(0,30),per2=porPeriodo(30,60),per3=porPeriodo(60,120)
+  // 6 franjas (3 por tiempo: arranque / cierre / descuento) para ver el
+  // ritmo real del partido, no solo un promedio por tercio.
+  const franja1=golesReales.filter(g=>g.minuto>=1&&g.minuto<=22)
+  const franja2=golesReales.filter(g=>g.minuto>=23&&g.minuto<=44)
+  const franja3=golesReales.filter(g=>g.minuto===45)
+  const franja4=golesReales.filter(g=>g.minuto>=46&&g.minuto<=67)
+  const franja5=golesReales.filter(g=>g.minuto>=68&&g.minuto<=89)
+  const franja6=golesReales.filter(g=>g.minuto>=90)
+  const totalT1=franja1.length+franja2.length+franja3.length
+  const totalT2=franja4.length+franja5.length+franja6.length
 
   const golMap={}
   golesReales.forEach(g=>{
@@ -1936,9 +2004,29 @@ function renderEstadisticas(){
   })
   const asistidores=Object.values(asistMap).sort((a,b)=>b.asist-a.asist)
 
+  // Autogoles que metieron jugadores DE TEMUCO — PL.goles está filtrado
+  // por equipo_id=tid (a quién le suma el gol), así que un autogol propio
+  // NO aparece ahí (le suma al rival); por eso se usa autogolesPropios,
+  // que sí identifica al jugador que lo metió sin importar a quién benefició.
+  const antigolMap={}
+  PL.autogolesPropios.forEach(g=>{
+    const jid=g.jugador?.id
+    if(!jid)return
+    if(!antigolMap[jid])antigolMap[jid]={jugador:g.jugador,n:0}
+    antigolMap[jid].n++
+  })
+  const antigoleadores=Object.values(antigolMap).sort((a,b)=>b.n-a.n)
+
   const subtipoMap={}
   golesReales.forEach(g=>{if(g.subtipo)subtipoMap[g.subtipo]=(subtipoMap[g.subtipo]||0)+1})
   const conSubtipo=Object.values(subtipoMap).reduce((a,b)=>a+b,0)
+
+  const asistSubtipoMap={}
+  golesReales.forEach(g=>{if(g.asistidor&&g.asist_subtipo)asistSubtipoMap[g.asist_subtipo]=(asistSubtipoMap[g.asist_subtipo]||0)+1})
+  const conAsistSubtipo=Object.values(asistSubtipoMap).reduce((a,b)=>a+b,0)
+
+  const partidoPorId={}
+  PL.partidos.forEach(p=>{partidoPorId[p.id]=p})
 
   const discMap={}
   PL.tarjetas.forEach(t=>{
@@ -1975,14 +2063,6 @@ function renderEstadisticas(){
   const topCambios=Object.values(cambioMap).sort((a,b)=>b.n-a.n).slice(0,8)
   const topCambiosPos=Object.entries(cambioPosMap).sort((a,b)=>b[1]-a[1])
 
-  const golesUlt=golesReales.filter(g=>g.minuto>=80)
-  const golesUltMap={}
-  golesUlt.forEach(g=>{
-    const jid=g.jugador?.id;if(!jid)return
-    if(!golesUltMap[jid])golesUltMap[jid]={jugador:g.jugador,mins:[]}
-    golesUltMap[jid].mins.push(`${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}`)
-  })
-  const golesUltList=Object.values(golesUltMap).sort((a,b)=>b.mins.length-a.mins.length)
 
   return`<div class="content">
     ${pageHero('ESTADÍSTICAS','Liga de Ascenso Caixun 2026 · datos oficiales')}
@@ -2011,32 +2091,50 @@ function renderEstadisticas(){
         </div>
       </div>
     </div>`:''}
-    <div class="panel" style="margin-bottom:12px">
-      <div class="ph"><span class="pt">Goles por período</span></div>
-      <div class="pb" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-        ${[['0-30 min',per1,'var(--vc)'],['31-60 min',per2,'var(--am)'],['61+ min',per3,'var(--ro)']].map(([label,evs,color])=>{
-          const n=evs.length
-          const pct=Math.round(n/Math.max(1,per1.length+per2.length+per3.length)*100)
-          const gMap={}
-          evs.forEach(g=>{const jid=g.jugador?.id;if(!jid)return;if(!gMap[jid])gMap[jid]={jugador:g.jugador,mins:[]};gMap[jid].mins.push(g.minuto)})
-          const gList=Object.values(gMap).sort((a,b)=>b.mins.length-a.mins.length).slice(0,5).map(g=>
-            `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid rgba(16,24,32,0.05)">
-              <div style="width:26px;height:26px;border-radius:50%;background:rgba(16,24,32,0.08);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">${inicialesJ(g.jugador)}</div>
-              <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreJ(g.jugador)}</div><div style="font-size:10px;color:${color};font-weight:600">⚽ ${g.mins.map(m=>m+"'").join(' ')}</div></div>
-            </div>`
-          ).join('')
-          return`<div style="text-align:center;padding:8px;background:rgba(0,0,0,.2);border-radius:6px">
-            <div style="font-size:22px;font-weight:800;color:${color}">${n}</div>
-            <div style="font-size:9px;color:var(--gris)">${label}</div>
-            <div class="bar-w" style="margin-top:6px"><div class="bar-f" style="width:${pct}%;background:${color}"></div></div>
-            <div style="font-size:9px;color:var(--muted);margin-top:2px">${pct}%</div>
-            ${gList?`<div style="margin-top:5px;text-align:left">${gList}</div>`:''}
-          </div>`
-        }).join('')}
+    <div class="sub21-band">
+      <div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6)">Sub-21 · D. Temuco</div>
+        <div class="disp sub21-num">${sub21Total.toLocaleString('es-CL')}<span style="font-size:15px;color:rgba(255,255,255,.6);font-family:var(--font);font-weight:700"> min. acumulados</span></div>
+      </div>
+      <div style="flex:1;min-width:240px">
+        <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:8px">Jugadores con más minutos</div>
+        <div class="sub21-cards">
+          ${(L.sub21||[]).slice(0,4).map(j=>`<div class="sub21-card"><div style="color:#fff;font-weight:800;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreCompacto(j.nombre,j.apellido)}</div><div style="color:rgba(255,255,255,.55);font-size:10px">Nacido ${(j.fecha_nacimiento||'').slice(0,4)||'—'}</div><div class="disp sub21-card-m">${j.minutos_oficial_temporada||0}'</div></div>`).join('')||'<div style="color:rgba(255,255,255,.6);font-size:12px">Sin datos.</div>'}
+        </div>
       </div>
     </div>
-    <div class="g2">
-      <div class="panel"><div class="ph"><span class="pt">Goleadores</span><span style="font-size:10px;color:var(--gris)">${autogoles?`+${autogoles} autogol${autogoles>1?'es':''} en contra`:''}</span></div>
+    ${debutsTemuco?`<div class="panel" style="margin-bottom:12px;margin-top:12px">
+      <div class="ph"><span class="pt">🆕 Debuts recientes</span><span style="font-size:10px;color:var(--gris)">${debutsTemuco.jugadores.length}</span></div>
+      <div class="pb">
+        ${debutsTemuco.jugadores.map(j=>`<div style="padding:6px 0;border-bottom:1px solid var(--borde)">
+          <div style="font-weight:700;font-size:12px">${j.nombre}</div>
+          <div style="color:var(--muted);font-size:10px">F${j.jornada||'?'} · ${fmtFechaLarga(j.fecha_hora)}</div>
+        </div>`).join('')}
+      </div>
+    </div>`:''}
+    <div class="panel" style="margin-bottom:12px">
+      <div class="ph"><span class="pt">Goles por período</span></div>
+      <div class="pb">
+        <div class="g2" style="margin-bottom:14px">
+          <div class="mc verde"><div class="mc-l">Goles en el 1er tiempo</div><div class="mc-v">${totalT1}</div></div>
+          <div class="mc az"><div class="mc-l">Goles en el 2do tiempo</div><div class="mc-v">${totalT2}</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px">
+          <div style="text-align:center;font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;grid-column:1/4;border-bottom:1px solid var(--borde);padding-bottom:4px">Primer tiempo</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+          ${[['1-22\'',franja1,'var(--vc)'],['23-44\'',franja2,'var(--am)'],['45\'+desc.',franja3,'var(--ro)']].map(([label,evs,color])=>franjaCard(label,evs,color,totalT1,inicialesJ,nombreJ)).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px">
+          <div style="text-align:center;font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;grid-column:1/4;border-bottom:1px solid var(--borde);padding-bottom:4px">Segundo tiempo</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+          ${[['46-67\'',franja4,'var(--vc)'],['68-89\'',franja5,'var(--am)'],['90\'+desc.',franja6,'var(--ro)']].map(([label,evs,color])=>franjaCard(label,evs,color,totalT2,inicialesJ,nombreJ)).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="g3">
+      <div class="panel"><div class="ph"><span class="pt">Goleadores</span>${autogolesRivales?`<span style="font-size:9px;color:var(--gris)">+${autogolesRivales} de rival</span>`:''}</div>
         <div style="overflow-x:auto"><table><thead><tr><th></th><th>Jugador</th><th class="num">⚽</th><th class="num">Penales</th></tr></thead><tbody>
         ${goleadores.slice(0,10).map((g,i)=>`<tr><td>${avatarJ(g.jugador,22)}</td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${nombreJ(g.jugador)}</td><td class="num" style="color:var(--vc);font-weight:800">${g.goles}</td><td class="num" style="color:var(--gris)">${g.penales||'—'}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
         </tbody></table></div>
@@ -2046,20 +2144,55 @@ function renderEstadisticas(){
         ${asistidores.slice(0,10).map((a,i)=>`<tr><td>${avatarJ(a.jugador,22)}</td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${nombreJ(a.jugador)}</td><td class="num" style="color:var(--az);font-weight:800">${a.asist}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias cargadas</td></tr>`}
         </tbody></table></div>
       </div>
-    </div>
-    ${conSubtipo?`<div class="panel" style="margin-bottom:12px">
-      <div class="ph"><span class="pt">Cómo fueron los goles</span></div>
-      <div class="pb" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
-        ${SUBTIPOS_GOL.map(t=>{
-          const n=subtipoMap[t]||0
-          const pct=Math.round(n/Math.max(1,conSubtipo)*100)
-          return`<div class="mc"><div class="mc-l">${t}</div><div class="mc-v" style="font-size:20px">${n}</div><div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div><div class="mc-s">${pct}%</div></div>`
-        }).join('')}
+      <div class="panel"><div class="ph"><span class="pt">😅 Antigoleadores</span></div>
+        <div style="overflow-x:auto"><table><thead><tr><th></th><th>Jugador</th><th class="num">🥅</th></tr></thead><tbody>
+        ${antigoleadores.map((a,i)=>`<tr><td>${avatarJ(a.jugador,22)}</td><td>${nombreJ(a.jugador)}</td><td class="num" style="color:var(--ro);font-weight:800">${a.n}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Ninguno todavía 🎉</td></tr>`}
+        </tbody></table></div>
       </div>
-    </div>`:''}
-    <div class="panel" style="margin-bottom:12px"><div class="ph"><span class="pt">Disciplina</span></div>
-      <div style="overflow-x:auto"><table><thead><tr><th>Jugador</th><th class="num">🟡</th><th class="num">🔴</th></tr></thead><tbody>
-      ${disciplina.slice(0,8).map(j=>`<tr><td>${nombreJ(j.jugador)}</td><td class="num" style="color:var(--am)">${j.am}</td><td class="num" style="color:#b3261e">${j.ro}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Sin tarjetas</td></tr>`}
+    </div>
+    ${(()=>{
+      // Panel de desglose por subtipo (gol o asistencia), clickeable —
+      // reusado para "Cómo fueron los goles" y "Cómo fueron las
+      // asistencias", que son el mismo patrón con otro campo/lista.
+      const subtipoPanel=(titulo,tipos,mapa,total,stateKey,filtroFn)=>{
+        if(!total)return''
+        const expandido=S[stateKey]
+        return`<div class="panel" style="margin-bottom:12px">
+          <div class="ph"><span class="pt">${titulo}</span><span style="font-size:10px;color:var(--gris)">Hacé clic para ver los goles</span></div>
+          <div class="pb">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
+              ${tipos.map(t=>{
+                const n=mapa[t]||0
+                const pct=Math.round(n/Math.max(1,total)*100)
+                const abierto=expandido===t
+                return`<div class="mc" style="cursor:${n?'pointer':'default'};${abierto?'outline:2px solid var(--v);outline-offset:-1px':''}" ${n?`onclick="S.${stateKey}=S.${stateKey}==='${t}'?null:'${t}';render()"`:''}><div class="mc-l">${t}</div><div class="mc-v" style="font-size:20px">${n}</div><div class="bar-w"><div class="bar-f" style="width:${pct}%"></div></div><div class="mc-s">${pct}%</div></div>`
+              }).join('')}
+            </div>
+            ${expandido?(()=>{
+              const lista=golesReales.filter(filtroFn(expandido))
+              return`<div style="margin-top:14px;border-top:1px solid var(--borde);padding-top:12px">
+                ${lista.map(g=>{
+                  const p=partidoPorId[g.partido_id]
+                  return`<div class="pcard" style="cursor:${p?'pointer':'default'};margin-bottom:8px" ${p?`onclick="verPartidoLiga(${p.id},'plantilla')"`:''}>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+                      ${avatarJ(g.jugador,20)}
+                      <span style="font-size:12px;font-weight:700;flex:1">${nombreJ(g.jugador)}</span>
+                      <span style="font-size:11px;font-weight:800;color:var(--vc)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
+                    </div>
+                    <div style="font-size:10.5px;color:var(--gris)">${p?`vs ${p.rival} · F${p.jornada||'?'}`:'partido desconocido'}${g.asistidor?` · asistió ${nombreJ(g.asistidor)}`:''}</div>
+                  </div>`
+                }).join('')}
+              </div>`
+            })():''}
+          </div>
+        </div>`
+      }
+      return subtipoPanel('Cómo fueron los goles',SUBTIPOS_GOL,subtipoMap,conSubtipo,'golesSubtipoExpand',t=>g=>g.subtipo===t)
+        +subtipoPanel('Cómo fueron las asistencias',SUBTIPOS_ASIST,asistSubtipoMap,conAsistSubtipo,'asistSubtipoExpand',t=>g=>g.asist_subtipo===t&&g.asistidor)
+    })()}
+    <div class="panel" style="margin-bottom:12px"><div class="ph"><span class="pt">Disciplina</span><span style="font-size:10px;color:var(--gris)">${disciplina.length} jugadores · ${ta} amarillas · ${tr} rojas</span></div>
+      <div style="overflow-x:auto;max-height:300px;overflow-y:auto"><table><thead><tr><th>Jugador</th><th class="num">🟡</th><th class="num">🔴</th></tr></thead><tbody>
+      ${disciplina.map(j=>`<tr><td>${nombreJ(j.jugador)}</td><td class="num" style="color:var(--am)">${j.am}</td><td class="num" style="color:#b3261e">${j.ro}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Sin tarjetas</td></tr>`}
       </tbody></table></div>
     </div>
     <div class="panel" style="margin-bottom:12px">
@@ -2099,23 +2232,13 @@ function renderEstadisticas(){
         })()}
       </div>
     </div>
-    ${golesUltList.length?`<div class="panel">
-      <div class="ph"><span class="pt">Goles en los últimos 10 min</span><span style="font-size:10px;color:var(--gris)">min 80+</span></div>
-      <div class="pb">
-        ${golesUltList.map(g=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(200,21,39,.06)">
-          <div style="width:28px;height:28px;border-radius:50%;background:rgba(16,24,32,0.05);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;flex-shrink:0">${inicialesJ(g.jugador)}</div>
-          <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreJ(g.jugador)}</div><div style="font-size:9px;color:var(--gris)">${g.mins.join(', ')}</div></div>
-          <span style="font-size:14px;font-weight:800;color:var(--vc)">${g.mins.length}</span>
-        </div>`).join('')}
-      </div>
-    </div>`:''}
     ${(()=>{
       const cats=calcularRachas(jugados,PL.golesAmbos,S.liga.temucoId)
       const tiles=[
         {id:'remontadas',l:'Remontadas',s:'iba perdiendo y ganó',color:'verde'},
         {id:'vueltas',l:'Le dieron vuelta',s:'iba ganando y no ganó',color:'ro'},
         {id:'ganoAbajoDescanso',l:'Ganó yendo abajo al descanso',s:'',color:'verde'},
-        {id:'perdioArribaDescanso',l:'Perdió yendo arriba al descanso',s:'',color:'ro'},
+        {id:'perdioArribaDescanso',l:'No ganó yendo arriba al descanso',s:'',color:'ro'},
       ]
       const abierto=S.rachasExpand
       const lista=abierto?cats[abierto]:null
@@ -2146,25 +2269,27 @@ function renderEstadisticas(){
 function agregarTipoGol(){
   const val=S.nuevoTipoGol.trim()
   if(!val){toast('Escribe un nombre',true);return}
-  if(TIPOS_GOL.includes(val)){toast('Ese tipo ya existe',true);return}
-  TIPOS_GOL.push(val);S.nuevoTipoGol='';render();toast('Tipo "'+val+'" agregado')
+  if(SUBTIPOS_GOL.includes(val)){toast('Ese tipo ya existe',true);return}
+  SUBTIPOS_GOL.push(val);S.nuevoTipoGol='';render();toast('Tipo "'+val+'" agregado')
 }
 
 function eliminarTipoGol(i){
-  const tipo=TIPOS_GOL[i]
-  if(S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Gol')){toast('No se puede eliminar — hay goles con este tipo',true);return}
-  TIPOS_GOL.splice(i,1);render();toast('Tipo eliminado')
+  const tipo=SUBTIPOS_GOL[i]
+  if(S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Gol')){toast('No se puede eliminar — hay goles del registro antiguo con este tipo',true);return}
+  if(S.enriq.goles.some(g=>g.subtipo===tipo)){toast('No se puede eliminar — hay goles de la liga con este tipo',true);return}
+  SUBTIPOS_GOL.splice(i,1);render();toast('Tipo eliminado')
 }
 function agregarTipoAsist(){
   const val=S.nuevoTipoAsist.trim()
   if(!val){toast('Escribe un nombre',true);return}
-  if(TIPOS_ASIST.includes(val)){toast('Ese tipo ya existe',true);return}
-  TIPOS_ASIST.push(val);S.nuevoTipoAsist='';render();toast('Tipo "'+val+'" agregado')
+  if(SUBTIPOS_ASIST.includes(val)){toast('Ese tipo ya existe',true);return}
+  SUBTIPOS_ASIST.push(val);S.nuevoTipoAsist='';render();toast('Tipo "'+val+'" agregado')
 }
 function eliminarTipoAsist(i){
-  const tipo=TIPOS_ASIST[i]
-  if(S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Asistencia')){toast('No se puede eliminar — hay asistencias con este tipo',true);return}
-  TIPOS_ASIST.splice(i,1);render();toast('Tipo eliminado')
+  const tipo=SUBTIPOS_ASIST[i]
+  if(S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Asistencia')){toast('No se puede eliminar — hay asistencias del registro antiguo con este tipo',true);return}
+  if(S.enriq.goles.some(g=>g.asist_subtipo===tipo)){toast('No se puede eliminar — hay asistencias de la liga con este tipo',true);return}
+  SUBTIPOS_ASIST.splice(i,1);render();toast('Tipo eliminado')
 }
 
 // ===== MÉDICO =====
@@ -2290,7 +2415,7 @@ function renderConfig(){
     </div>
     <div class="config-section">
       <div class="config-title">⚙️ Tipos de gol</div>
-      ${TIPOS_GOL.map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--borde)">
+      ${SUBTIPOS_GOL.map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--borde)">
         <span style="flex:1;font-size:12px">${t}</span>
         <button class="bdel" style="padding:3px 8px;font-size:10px" onclick="eliminarTipoGol(${i})">✕</button>
       </div>`).join('')}
@@ -2303,7 +2428,7 @@ function renderConfig(){
     </div>
     <div class="config-section">
       <div class="config-title">🅰️ Tipos de asistencia</div>
-      ${TIPOS_ASIST.map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--borde)">
+      ${SUBTIPOS_ASIST.map((t,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--borde)">
         <span style="flex:1;font-size:12px">${t}</span>
         <button class="bdel" style="padding:3px 8px;font-size:10px" onclick="eliminarTipoAsist(${i})">✕</button>
       </div>`).join('')}
@@ -2796,8 +2921,12 @@ async function cargarPartidosLiga(){
   // filtrado equipo_id=tid, no alcanza para saber cómo iba el rival.
   const idsPartidos=S.partidosLiga.partidos.map(p=>p.id)
   if(idsPartidos.length){
-    const golesAmbos=await ligaGet('liga_goles',`?partido_id=in.(${idsPartidos.join(',')})&select=partido_id,equipo_id,minuto,minuto_extra`)
+    const golesAmbos=await ligaGet('liga_goles',`?partido_id=in.(${idsPartidos.join(',')})&select=partido_id,equipo_id,minuto,minuto_extra,autogol,jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido)`)
     S.partidosLiga.golesAmbos=Array.isArray(golesAmbos)?golesAmbos:[]
+    // Autogoles que metieron JUGADORES DE TEMUCO (no los que benefician a
+    // Temuco por autogol rival) — equipo_id ya viene corregido al equipo
+    // que se beneficia, así que "no es tid" = lo metió un jugador propio.
+    S.partidosLiga.autogolesPropios=S.partidosLiga.golesAmbos.filter(g=>g.autogol&&g.equipo_id!==tid)
     if(S.pag==='plantilla')render()
   }
 }
@@ -2878,11 +3007,6 @@ function renderLiga(){
 function renderLigaDestacados(){
   const L=S.liga
   const goleadores=L.golExpand?L.goleadores:L.goleadores.slice(0,5)
-  // Total OFICIAL de ANFP (tope por jornada) — no la suma de cada jugador,
-  // que sobrecuenta cuando hay más de un sub-21 en cancha a la vez. Si la
-  // columna nueva todavía no está poblada, cae de respaldo a la suma.
-  const temucoEquipo=L.equipos.find(e=>e.id===L.temucoId)
-  const sub21Total=temucoEquipo?.sub21_minutos_contable??L.sub21.reduce((a,j)=>a+(j.minutos_oficial_temporada||0),0)
   return`
     <div class="ph" style="background:none;border:none;padding:8px 0 12px">
       <div class="pt disp" style="font-size:18px">Goleadores de la temporada</div>
@@ -2898,19 +3022,6 @@ function renderLigaDestacados(){
           <div class="disp gcard-goles">${g.goles}</div>
         </div>
       `).join('')}
-    </div>
-
-    <div class="sub21-band">
-      <div>
-        <div style="font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6)">Sub-21 · D. Temuco</div>
-        <div class="disp sub21-num">${sub21Total.toLocaleString('es-CL')}<span style="font-size:15px;color:rgba(255,255,255,.6);font-family:var(--font);font-weight:700"> min. acumulados</span></div>
-      </div>
-      <div style="flex:1;min-width:240px">
-        <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:8px">Jugadores con más minutos</div>
-        <div class="sub21-cards">
-          ${L.sub21.slice(0,4).map(j=>`<div class="sub21-card"><div style="color:#fff;font-weight:800;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreCompacto(j.nombre,j.apellido)}</div><div style="color:rgba(255,255,255,.55);font-size:10px">Nacido ${(j.fecha_nacimiento||'').slice(0,4)||'—'}</div><div class="disp sub21-card-m">${j.minutos_oficial_temporada||0}'</div></div>`).join('')||'<div style="color:rgba(255,255,255,.6);font-size:12px">Sin datos.</div>'}
-        </div>
-      </div>
     </div>
 
     ${L.debutsPorEquipo.length?`<div class="ph" style="background:none;border:none;padding:24px 0 4px">
@@ -3473,7 +3584,7 @@ function statsAnalisis(){
   const stat={}
   // sub21Min = total OFICIAL de ANFP (tope por jornada), no la suma de cada
   // jugador — esa sobrecuenta cuando hay más de un sub-21 en cancha a la vez.
-  S.analisis.equipos.forEach(e=>{stat[e.id]={id:e.id,nombre:e.nombre,pj:0,gf:0,gc:0,am:0,rj:0,pjLocal:0,ptsLocal:0,pjVisita:0,ptsVisita:0,golesTotal:0,golesDescuento:0,sub21Min:e.sub21_minutos_contable||0}})
+  S.analisis.equipos.forEach(e=>{stat[e.id]={id:e.id,nombre:e.nombre,pj:0,gf:0,gc:0,am:0,rj:0,pjLocal:0,ptsLocal:0,pjVisita:0,ptsVisita:0,golesTotal:0,golesDescuento45:0,golesDescuento90:0,sub21Min:e.sub21_minutos_contable||0}})
   S.analisis.partidos.forEach(p=>{
     const l=stat[p.equipo_local_id],v=stat[p.equipo_visita_id]
     if(!l||!v)return
@@ -3490,7 +3601,8 @@ function statsAnalisis(){
   S.analisis.goles.forEach(g=>{
     const e=stat[g.equipo_id];if(!e)return
     e.golesTotal++
-    if(g.minuto_extra>0&&(g.minuto===45||g.minuto===90))e.golesDescuento++
+    if(g.minuto_extra>0&&g.minuto===45)e.golesDescuento45++
+    if(g.minuto_extra>0&&g.minuto===90)e.golesDescuento90++
   })
   return Object.values(stat).map(e=>({
     ...e,
@@ -3500,7 +3612,9 @@ function statsAnalisis(){
     rjPP:e.pj?+(e.rj/e.pj).toFixed(2):0,
     pppLocal:e.pjLocal?+(e.ptsLocal/e.pjLocal).toFixed(2):0,
     pppVisita:e.pjVisita?+(e.ptsVisita/e.pjVisita).toFixed(2):0,
-    pctDescuento:e.golesTotal?+((e.golesDescuento/e.golesTotal)*100).toFixed(1):0,
+    pctDescuento90:e.golesTotal?+((e.golesDescuento90/e.golesTotal)*100).toFixed(1):0,
+    pctDescuento45:e.golesTotal?+((e.golesDescuento45/e.golesTotal)*100).toFixed(1):0,
+    pctDescuentoAmbos:e.golesTotal?+(((e.golesDescuento90+e.golesDescuento45)/e.golesTotal)*100).toFixed(1):0,
     pts:e.ptsLocal+e.ptsVisita,
     ptsPP:e.pj?+((e.ptsLocal+e.ptsVisita)/e.pj).toFixed(2):0,
     isTemuco:temuco&&e.id===temuco.id,
@@ -3619,14 +3733,11 @@ function svgScatterXY(rows,cfg){
   svg+=`<text x="12" y="${pad.t+plotH/2}" text-anchor="middle" class="chart-axis" transform="rotate(-90 12 ${pad.t+plotH/2})">${cfg.yLabel} →</text>`
   svg+=`<line x1="${x(avgX)}" y1="${pad.t}" x2="${x(avgX)}" y2="${pad.t+plotH}" stroke="var(--borde2)" stroke-width="1.5" stroke-dasharray="3 3"/>`
   svg+=`<line x1="${pad.l}" y1="${y(avgY)}" x2="${pad.l+plotW}" y2="${y(avgY)}" stroke="var(--borde2)" stroke-width="1.5" stroke-dasharray="3 3"/>`
-  // Línea de tendencia (regresión lineal simple) — la "norma" esperada entre
-  // ambas variables. Quien queda arriba rinde mejor de lo que esa relación
-  // predice; quien queda abajo, peor. Se dibuja bien larga y se recorta con
-  // el clipPath del área del gráfico, así no importa la pendiente.
+  // Diagonal desde el origen (0,0) hasta el punto máximo visible de cada
+  // eje — referencia de proporción entre las dos variables (no una
+  // regresión de los datos reales).
   if(cfg.showTrend&&rows.length>=2){
-    const{slope,intercept}=linearRegression(rows,cfg.xFn,cfg.yFn)
-    const xA=-maxX*4,xB=maxX*5
-    svg+=`<line x1="${x(xA)}" y1="${y(slope*xA+intercept)}" x2="${x(xB)}" y2="${y(slope*xB+intercept)}" stroke="var(--v)" stroke-width="1.5" stroke-dasharray="7 4" opacity="0.5" clip-path="url(#${clipId})"><title>Tendencia general — arriba de la línea rinde mejor de lo esperado, abajo rinde peor</title></line>`
+    svg+=`<line x1="${x(0)}" y1="${y(0)}" x2="${x(maxX)}" y2="${y(maxY)}" stroke="var(--v)" stroke-width="1.5" stroke-dasharray="7 4" opacity="0.5" clip-path="url(#${clipId})"><title>Diagonal desde el origen — referencia de proporción entre los dos ejes</title></line>`
   }
   rows.forEach(r=>{
     const cx=x(cfg.xFn(r)),cy=y(cfg.yFn(r))
@@ -3642,17 +3753,6 @@ function svgScatterXY(rows,cfg){
   return svg
 }
 
-// ---- Regresión lineal simple (mínimos cuadrados) — la línea de tendencia
-// que se dibuja en los gráficos de dispersión de Análisis. ----
-function linearRegression(rows,xFn,yFn){
-  const n=rows.length
-  const xs=rows.map(xFn),ys=rows.map(yFn)
-  const mx=xs.reduce((a,b)=>a+b,0)/n,my=ys.reduce((a,b)=>a+b,0)/n
-  let num=0,den=0
-  for(let i=0;i<n;i++){num+=(xs[i]-mx)*(ys[i]-my);den+=(xs[i]-mx)**2}
-  const slope=den?num/den:0
-  return{slope,intercept:my-slope*mx}
-}
 // ---- Coeficiente de correlación de Pearson (dependencia estadística) ----
 function pearsonR(rows,xFn,yFn){
   const n=rows.length
@@ -3715,11 +3815,21 @@ function renderAnalisis(){
         if(l){const r=p.goles_local>p.goles_visita?'G':p.goles_local===p.goles_visita?'E':'P';l.acc+=r==='G'?3:r==='E'?1:0;l.serie.push({jornada:p.jornada,acumulado:l.acc,resultado:r})}
         if(v){const r=p.goles_visita>p.goles_local?'G':p.goles_local===p.goles_visita?'E':'P';v.acc+=r==='G'?3:r==='E'?1:0;v.serie.push({jornada:p.jornada,acumulado:v.acc,resultado:r})}
       })
+      // Filtro de rango — con las 22 fechas juntas el gráfico se ve como un
+      // montón de puntos sin mucha claridad, así que por defecto se puede
+      // acotar a las últimas N fechas.
+      const maxJornada=Math.max(1,...S.analisis.partidos.map(p=>p.jornada||1))
+      const RANGOS={5:5,10:10,todas:Infinity}
+      const desdeJornada=maxJornada-RANGOS[S.analisis.evolucionRango]+1
       const series=S.analisis.equipos.filter(e=>S.analisis.seleccion.has(e.id)).map(e=>({
-        nombre:e.nombre,color:colorEquipo(e.id,!!(temuco&&e.id===temuco.id)),serie:porEquipo[e.id].serie,
+        nombre:e.nombre,color:colorEquipo(e.id,!!(temuco&&e.id===temuco.id)),
+        serie:porEquipo[e.id].serie.filter(pt=>(pt.jornada||0)>=desdeJornada),
       }))
       return`
         <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Puntos acumulados por jornada. Usa los filtros de equipos de arriba para elegir cuáles comparar — con muchos equipos a la vez se pone difícil de leer.</div>
+        <div class="tabs" style="margin-bottom:10px">
+          ${[['5','Últimas 5'],['10','Últimas 10'],['todas','Todas']].map(([id,l])=>`<button class="tab ${S.analisis.evolucionRango===id?'on':''}" onclick="S.analisis.evolucionRango='${id}';render()">${l}</button>`).join('')}
+        </div>
         <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;font-size:11px;font-weight:700;color:var(--gris)">
           ${series.map(s=>`<span><span style="display:inline-block;width:9px;height:9px;background:${s.color};border-radius:2px;margin-right:4px"></span>${s.nombre}</span>`).join('')}
         </div>
@@ -3727,7 +3837,7 @@ function renderAnalisis(){
       `
     })():
     cat==='ataque'?`
-      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Cada escudo es un equipo. Arriba a la izquierda = ataca mucho y recibe poco. Las líneas punteadas marcan el promedio de los equipos filtrados; la diagonal roja marca la tendencia general — quien queda arriba rinde mejor de lo esperado, quien queda abajo, peor.</div>
+      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Cada escudo es un equipo. Arriba a la izquierda = ataca mucho y recibe poco. Las líneas punteadas marcan el promedio de los equipos filtrados; la diagonal roja va desde el origen y marca la proporción 1:1 entre los dos ejes.</div>
       ${svgScatterXY(rows,{xFn:r=>r.gcPP,yFn:r=>r.gfPP,xFmt:v=>v.toFixed(1),yFmt:v=>v.toFixed(1),xLabel:'Goles en contra por partido',yLabel:'Goles a favor por partido',xMaxHint:2.2,yMaxHint:2.2,showTrend:true})}
     `:
     cat==='disciplina'?`
@@ -3746,10 +3856,16 @@ function renderAnalisis(){
       </div>
       ${svgGroupedChart(rows,[{val:r=>r.pppLocal,color:'var(--az)',label:'Local'},{val:r=>r.pppVisita,color:'var(--gold)',label:'Visita'}],{maxHint:3})}
     `:
-    cat==='descuento'?`
-      <div style="color:var(--gris);font-size:12px;margin-bottom:12px">% de los goles del equipo marcados en el 45'+ o el 90'+.</div>
-      ${svgBarChart(rows,{val:r=>r.pctDescuento,fmt:v=>v.toFixed(1)+'%',maxHint:20})}
-    `:
+    cat==='descuento'?(()=>{
+      const campo=S.analisis.descuentoFiltro==='45'?'pctDescuento45':S.analisis.descuentoFiltro==='ambos'?'pctDescuentoAmbos':'pctDescuento90'
+      return`
+        <div style="color:var(--gris);font-size:12px;margin-bottom:12px">% de los goles del equipo marcados en tiempo de descuento.</div>
+        <div class="tabs" style="margin-bottom:12px">
+          ${[['90','Solo 90+'],['45','Solo 45+'],['ambos','Ambos']].map(([id,l])=>`<button class="tab ${S.analisis.descuentoFiltro===id?'on':''}" onclick="S.analisis.descuentoFiltro='${id}';render()">${l}</button>`).join('')}
+        </div>
+        ${svgBarChart(rows,{val:r=>r[campo],fmt:v=>v.toFixed(1)+'%',maxHint:20})}
+      `
+    })():
     cat==='sub21'?`
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Suma de minutos oficiales de todos los jugadores sub-21 usados en la temporada (dato ANFP).</div>
       ${svgBarChart(rows,{val:r=>r.sub21Min,fmt:v=>v.toLocaleString('es-CL'),maxHint:1000})}
@@ -3759,7 +3875,7 @@ function renderAnalisis(){
       const rSub21=pearsonR(rows,r=>r.sub21Min,r=>r.ptsPP)
       const chip=r=>`<div style="display:inline-block;font-size:12.5px;font-weight:800;color:${Math.abs(r)>=0.4?'var(--v)':'var(--gris)'};background:rgba(16,24,32,.04);border:1px solid var(--borde);border-radius:999px;padding:4px 12px;margin-bottom:10px">${interpretaR(r)}</div>`
       return`
-        <div style="color:var(--gris);font-size:12px;margin-bottom:18px">Análisis de dependencia estadística: qué tan relacionadas están dos variables entre los 16 equipos. El coeficiente de correlación de Pearson (r) va de -1 (relación inversa perfecta) a +1 (relación directa perfecta); cerca de 0 significa que no hay relación real entre ambas. La diagonal en cada gráfico es la línea de tendencia (regresión lineal) — quien queda arriba rinde mejor de lo que esa relación predice, quien queda abajo, peor.</div>
+        <div style="color:var(--gris);font-size:12px;margin-bottom:18px">Análisis de dependencia estadística: qué tan relacionadas están dos variables entre los 16 equipos. El coeficiente de correlación de Pearson (r) va de -1 (relación inversa perfecta) a +1 (relación directa perfecta); cerca de 0 significa que no hay relación real entre ambas. La diagonal en cada gráfico va desde el origen y marca la proporción 1:1 entre los dos ejes.</div>
         <div class="pt disp" style="font-size:15px;margin-bottom:2px">Disciplina vs Rendimiento</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Tarjetas por partido (eje X) vs puntos por partido (eje Y)</div>
         ${chip(rDisc)}
@@ -3880,6 +3996,7 @@ function render(){
 // navegador de alguien de una versión anterior.
 localStorage.removeItem('dt-bg')
 
+if(S.tema==='verde')document.documentElement.dataset.tema='verde'
 render()
 cargarDatos()
 cargarLiga()

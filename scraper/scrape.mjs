@@ -96,11 +96,13 @@ async function procesarPartido(matchUrl) {
   for (const j of informe.equipoA.jugadores) {
     const jr = await db.upsertJugador(equipoLocal.id, j.apellido, j.nombre);
     dorsalToJugadorA[j.dorsal] = jr.id;
+    await db.actualizarNumeroJugador(jr.id, j.dorsal);
   }
   const dorsalToJugadorB = {};
   for (const j of informe.equipoB.jugadores) {
     const jr = await db.upsertJugador(equipoVisita.id, j.apellido, j.nombre);
     dorsalToJugadorB[j.dorsal] = jr.id;
+    await db.actualizarNumeroJugador(jr.id, j.dorsal);
   }
 
   const alineaciones = [

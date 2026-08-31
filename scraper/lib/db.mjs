@@ -91,6 +91,20 @@ export async function upsertJugador(equipoId, apellido, nombre) {
   return created[0];
 }
 
+// Best-effort: guarda el "último dorsal visto" para el jugador. Columna
+// nueva (`liga_jugadores.numero`, ver scraper/sql/liga_jugadores_numero.sql)
+// — si todavía no se corrió esa migración en Supabase, el PATCH falla con
+// "column does not exist"; se ignora ese error puntual para no tumbar el
+// scrapeo completo por un dato que es un plus, no algo crítico.
+export async function actualizarNumeroJugador(jugadorId, numero) {
+  if (numero == null || !jugadorId) return;
+  try {
+    await sb('PATCH', 'liga_jugadores', { body: { numero }, params: `?id=eq.${jugadorId}` });
+  } catch (e) {
+    if (!/numero/i.test(e.message)) throw e;
+  }
+}
+
 export async function upsertPartido(partido) {
   return upsertOne('liga_partidos', partido, 'match_url');
 }

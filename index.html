@@ -3176,15 +3176,35 @@ function renderInicio(){
   return`<div class="pb">
     <div class="tabs">
       <button class="tab ${vista==='proxima'?'on':''}" onclick="S.inicioVista='proxima';render()">📅 Próxima fecha</button>
+      <button class="tab ${vista==='proximas'?'on':''}" onclick="S.inicioVista='proximas';render()">🗓️ Próximas fechas</button>
       <button class="tab ${vista==='pasadas'?'on':''}" onclick="S.inicioVista='pasadas';render()">🗓 Fechas pasadas</button>
     </div>
-    ${vista==='proxima'?renderProximaFechaVista():renderFechasPasadasVista()}
+    ${vista==='proxima'?renderProximaFechaVista():vista==='proximas'?renderProximasFechasVista():renderFechasPasadasVista()}
   </div>`
 }
 function renderProximaFechaVista(){
   if(S.rivales.loaded&&S.rivales.proximo)return renderProximoRival()
   if(S.rivales.loaded)return`<div class="empty">No hay una próxima fecha con día confirmado todavía.</div>`
   return`<div class="empty">Cargando el próximo partido…</div>`
+}
+function renderProximasFechasVista(){
+  const PL=S.partidosLiga
+  if(!PL.loaded)return`<div class="empty">Cargando partidos…</div>`
+  const programados=PL.partidos.filter(p=>!p.resultado&&p.fecha_hora).sort((a,b)=>new Date(a.fecha_hora)-new Date(b.fecha_hora))
+  const cards=programados.map((p,i)=>`<div class="pcard" ${p.jornada?`onclick="verPartidoLiga(${p.id},'inicio:proximas')"`:''} style="border-left:3px solid ${i===0?'var(--v)':'var(--borde2)'};padding:9px 12px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="badge ${i===0?'bv':''}" style="font-size:9px;flex-shrink:0">F${p.jornada||'?'}</span>
+      <img src="${crestUrl(p.rival)}" style="width:20px;height:20px;object-fit:contain;flex-shrink:0">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.rival}</div>
+        <div style="font-size:9.5px;color:var(--gris)">${fmtFechaLarga(p.fecha_hora)}${p.estadio?' · '+p.estadio:''}</div>
+      </div>
+      <span class="badge ${p.condicion==='Local'?'baz':'bg'}" style="font-size:8px;flex-shrink:0">${p.condicion==='Local'?'L':'V'}</span>
+    </div>
+  </div>`).join('')
+  return`<div style="margin-top:16px">
+    ${programados.length?`<div style="font-size:11px;color:var(--gris);margin-bottom:8px">${programados.length} partido${programados.length>1?'s':''} programado${programados.length>1?'s':''} con fecha confirmada. El primero de la lista es el mismo de la pestaña "Próxima fecha".</div>${cards}`:'<div class="empty">No hay fechas próximas con día confirmado todavía.</div>'}
+  </div>`
 }
 function renderFechasPasadasVista(){
   const PL=S.partidosLiga
@@ -3238,6 +3258,7 @@ function renderFechasPasadasVista(){
 function volverDePartido(){
   const[pag,sub]=(S.partidoLiga.volverA||'inicio').split(':')
   if(sub==='pasadas')S.inicioVista='pasadas'
+  if(sub==='proximas')S.inicioVista='proximas'
   if(sub==='explorar')S.ligaVista='explorar'
   navTo(pag)
 }
@@ -3350,7 +3371,7 @@ function renderPartidoLiga(){
         </div>
         <div class="hero2-mid">
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(d.local.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.local.nombre.toUpperCase()}</div></div>
-          <div class="disp hero2-score">${d.goles_local}&nbsp;–&nbsp;${d.goles_visita}</div>
+          <div class="disp hero2-score" style="${d.goles_local==null?'font-size:36px':''}">${d.goles_local==null?'VS':`${d.goles_local}&nbsp;–&nbsp;${d.goles_visita}`}</div>
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(d.visita.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.visita.nombre.toUpperCase()}</div></div>
         </div>
       </div>

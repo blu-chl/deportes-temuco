@@ -3325,7 +3325,7 @@ async function cargarPrevioPartido(id,jornada,equipoLocalId,equipoVisitaId){
 }
 async function verPartidoLiga(id,volverA){
   if(!id)return
-  S.partidoLiga={loaded:false,id,volverA:volverA||S.pag,data:null,eventos:[],previo:null}
+  S.partidoLiga={loaded:false,id,volverA:volverA||S.pag,data:null,eventos:[],previo:null,mvp:null}
   S.pag='partido'
   render()
   let[partidos,goles,tarjetas,sustituciones]=await Promise.all([
@@ -3346,6 +3346,49 @@ async function verPartidoLiga(id,volverA){
   if(S.pag==='partido')render()
   const d=S.partidoLiga.data
   if(d&&d.goles_local!=null&&d.jornada>1)cargarPrevioPartido(id,d.jornada,d.equipo_local_id,d.equipo_visita_id)
+  if(d&&d.goles_local!=null)cargarVotosMvp(id)
+}
+// Un UUID por navegador, guardado en localStorage — no hay login para votar,
+// así que esto es lo único que evita votar 2 veces por el mismo jugador (se
+// resetea si el usuario borra site data o usa otro navegador/dispositivo).
+function getVotanteId(){
+  let vid=localStorage.getItem('dt-votante-id')
+  if(!vid){
+    vid=(crypto.randomUUID?crypto.randomUUID():'v-'+Date.now()+'-'+Math.random().toString(36).slice(2))
+    localStorage.setItem('dt-votante-id',vid)
+  }
+  return vid
+}
+async function cargarVotosMvp(partidoId){
+  const tid=S.liga.temucoId
+  if(!tid)return
+  const[alineaciones,votos]=await Promise.all([
+    ligaGet('liga_alineaciones',`?partido_id=eq.${partidoId}&equipo_id=eq.${tid}&minutos_jugados=gt.0&select=jugador_id,minutos_jugados,titular,jugador:liga_jugadores!liga_alineaciones_jugador_id_fkey(id,nombre,apellido,foto_url)&order=titular.desc`),
+    ligaGet('liga_votos_mvp',`?partido_id=eq.${partidoId}&select=jugador_id,puntaje,votante_id`),
+  ])
+  if(S.partidoLiga.id!==partidoId)return // navegó a otro partido mientras cargaba
+  const sqlPendiente=!Array.isArray(alineaciones)||!Array.isArray(votos)
+  const votosArr=Array.isArray(votos)?votos:[]
+  const votanteId=getVotanteId()
+  const jugadores=(Array.isArray(alineaciones)?alineaciones:[]).map(a=>{
+    const propios=votosArr.filter(v=>v.jugador_id===a.jugador_id)
+    const promedio=propios.length?+(propios.reduce((s,v)=>s+v.puntaje,0)/propios.length).toFixed(1):0
+    const miVoto=propios.find(v=>v.votante_id===votanteId)
+    return{jugador:a.jugador,minutos:a.minutos_jugados,promedio,n:propios.length,miVoto:miVoto?miVoto.puntaje:0}
+  })
+  S.partidoLiga.mvp={loaded:true,sqlPendiente,jugadores}
+  render()
+}
+async function votarMvp(partidoId,jugadorId,puntaje){
+  const r=await fetch(`${SB_URL}/rest/v1/liga_votos_mvp?on_conflict=partido_id,jugador_id,votante_id`,{
+    method:'POST',
+    headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
+    body:JSON.stringify({partido_id:partidoId,jugador_id:jugadorId,puntaje,votante_id:getVotanteId()})
+  })
+  const d=await r.json().catch(()=>null)
+  if(!Array.isArray(d)){toast('Error al votar — ¿corriste sql/liga_votos_mvp.sql?',true);return}
+  await cargarVotosMvp(partidoId)
+  toast('¡Voto guardado!')
 }
 async function guardarResumenYoutube(id,url){
   const r=await patch('liga_partidos',{resumen_youtube_url:url||null},`?id=eq.${id}`)
@@ -3374,6 +3417,20 @@ function filaEventoPartido(ev){
     <span style="flex-shrink:0">${EV_ICONS[ev.tipo]||''}</span>
     <span>${texto}</span>
   </span>`
+}
+
+function filaMvp(partidoId,pj){
+  const j=pj.jugador
+  const ini=iniciales(nombreCompacto(j.nombre,j.apellido))
+  const balones=[1,2,3,4,5].map(n=>`<span onclick="votarMvp(${partidoId},${j.id},${n})" title="${n} de 5" style="cursor:pointer;font-size:15px;opacity:${n<=pj.miVoto?1:.25}">⚽</span>`).join('')
+  return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--borde)">
+    <div style="width:26px;height:26px;border-radius:50%;overflow:hidden;background:rgba(16,24,32,0.08);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">${j.foto_url?`<img src="${j.foto_url}" style="width:100%;height:100%;object-fit:cover">`:ini}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreCompacto(j.nombre,j.apellido)}</div>
+      <div style="font-size:9.5px;color:var(--gris)">${pj.minutos}' jugados${pj.n?` · promedio ${pj.promedio} (${pj.n} voto${pj.n>1?'s':''})`:' · sin votos todavía'}</div>
+    </div>
+    <div style="display:flex;gap:2px;flex-shrink:0">${balones}</div>
+  </div>`
 }
 
 function renderPartidoLiga(){
@@ -3428,6 +3485,19 @@ function renderPartidoLiga(){
         </div>
       </div>`
     })()}
+
+    ${d.goles_local!=null?(()=>{
+      const M=P.mvp
+      if(!M)return`<div class="panel" style="margin-top:16px"><div class="ph"><span class="pt">⚽ Vota el MVP <span class="badge ba" style="font-size:8px;margin-left:4px;vertical-align:1px">BETA</span></span></div><div class="pb"><div class="empty">Cargando…</div></div></div>`
+      if(M.sqlPendiente||!M.jugadores.length)return''
+      return`<div class="panel" style="margin-top:16px">
+        <div class="ph"><span class="pt">⚽ Vota el MVP <span class="badge ba" style="font-size:8px;margin-left:4px;vertical-align:1px">BETA</span></span></div>
+        <div class="pb">
+          <div style="font-size:10.5px;color:var(--gris);margin-bottom:6px">Puntúa de 1 a 5 balones cómo viste a cada jugador de Temuco en este partido. Sin login — un voto por jugador desde este navegador, se puede cambiar tocando otro balón.</div>
+          ${M.jugadores.map(pj=>filaMvp(d.id,pj)).join('')}
+        </div>
+      </div>`
+    })():''}
 
     ${P.previo?`<div class="panel" style="margin-top:16px">
       <div class="ph"><div class="pt disp" style="font-size:15px">📊 Cómo llegaban las estadísticas</div></div>

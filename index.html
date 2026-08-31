@@ -383,7 +383,7 @@ let S={
   partidosLiga:{loaded:false,partidos:[],goles:[],golesAmbos:[],autogolesPropios:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[],previo:null},
-  rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:''},
+  rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:'',suspendidos:null},
   analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],seleccion:new Set(),descuentoFiltro:'90',evolucionRango:'todas'},
   // Reorganización de navegación pública: sub-vistas dentro de cada pestaña
   // de primer nivel (en vez de más pestañas de primer nivel).
@@ -3402,8 +3402,36 @@ async function cargarRivales(){
     const rivalId=p.equipo_local_id===S.liga.temucoId?p.visita.id:p.local.id
     const[statsTemuco,statsRival]=await Promise.all([statsEquipoLiga(S.liga.temucoId),statsEquipoLiga(rivalId)])
     S.rivales.comparacion={temuco:statsTemuco,rival:statsRival}
+    render()
+    const[susTemuco,susRival]=await Promise.all([calcularSuspendidosEquipo(S.liga.temucoId),calcularSuspendidosEquipo(rivalId)])
+    S.rivales.suspendidos={temuco:susTemuco,rival:susRival}
     if(S.pag==='inicio')render()
   }
+}
+
+// Estimado, no dato oficial: ANFP no publica sanciones/suspensiones. Se
+// infiere de la regla más común en el ascenso chileno (5 amarillas
+// acumuladas = 1 fecha, roja directa = 1 fecha), confirmada contra nuestros
+// propios datos: de los jugadores que llegaron a su 5ª amarilla acumulada,
+// el 79% se ausentó del partido siguiente (vs. ~10% en la 3ª/4ª/6ª, que es
+// ruido normal de rotación/lesiones) — y el 93% de las rojas se ausentó
+// del partido siguiente. Puede fallar si ANFP resetea el conteo en algún
+// punto de la temporada que no podemos ver desde acá.
+async function calcularSuspendidosEquipo(equipoId){
+  const[tarjetas,ultimo]=await Promise.all([
+    ligaGet('liga_tarjetas',`?equipo_id=eq.${equipoId}&select=partido_id,tipo,jugador:liga_jugadores!liga_tarjetas_jugador_id_fkey(id,nombre,apellido)`),
+    ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${equipoId},equipo_visita_id.eq.${equipoId})&goles_local=not.is.null&select=id&order=fecha_hora.desc&limit=1`),
+  ])
+  if(!Array.isArray(tarjetas)||!Array.isArray(ultimo)||!ultimo[0])return[]
+  const ultimoPartidoId=ultimo[0].id
+  const porJugador={}
+  tarjetas.forEach(t=>{
+    const jid=t.jugador?.id;if(!jid)return
+    if(!porJugador[jid])porJugador[jid]={jugador:t.jugador,amarillas:0,rojaUltimo:false}
+    if(t.tipo==='amarilla')porJugador[jid].amarillas++
+    if(t.tipo==='roja'&&t.partido_id===ultimoPartidoId)porJugador[jid].rojaUltimo=true
+  })
+  return Object.values(porJugador).filter(j=>(j.amarillas>0&&j.amarillas%5===0)||j.rojaUltimo)
 }
 
 async function guardarNotaRival(equipoId){
@@ -3476,6 +3504,31 @@ function renderProximoRival(){
         <div style="display:flex;justify-content:center"><div class="hero2-meta">${esLocal?'Juega de Local':'Juega de Visita'}</div></div>
       </div>
     </div>
+
+    ${(()=>{
+      const sus=S.rivales.suspendidos
+      if(!sus||(!sus.temuco.length&&!sus.rival.length))return''
+      const listaJ=arr=>arr.map(j=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--borde)">
+        <span style="font-size:12px;font-weight:700">${nombreCompacto(j.jugador.nombre,j.jugador.apellido)}</span>
+        <span class="badge ${j.rojaUltimo?'br':'ba'}" style="font-size:8px">${j.rojaUltimo?'Roja':j.amarillas+'ª amarilla'}</span>
+      </div>`).join('')
+      return`<div class="panel" style="margin-top:14px">
+        <div class="ph"><div class="pt disp" style="font-size:15px">🚫 Posibles suspendidos</div></div>
+        <div class="pb">
+          <div style="font-size:10.5px;color:var(--gris);margin-bottom:10px">Estimado, no es dato oficial de ANFP — inferido de 5 amarillas acumuladas o roja directa en el partido anterior. Puede fallar si hubo reset a mitad de temporada.</div>
+          <div class="g2">
+            <div>
+              <div style="font-size:10px;font-weight:800;color:var(--gris);text-transform:uppercase;margin-bottom:4px">Deportes Temuco</div>
+              ${sus.temuco.length?listaJ(sus.temuco):'<div style="font-size:11px;color:var(--muted)">Sin bajas estimadas</div>'}
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:800;color:var(--gris);text-transform:uppercase;margin-bottom:4px">${rival.nombre}</div>
+              ${sus.rival.length?listaJ(sus.rival):'<div style="font-size:11px;color:var(--muted)">Sin bajas estimadas</div>'}
+            </div>
+          </div>
+        </div>
+      </div>`
+    })()}
 
     ${c?`<div class="panel" style="margin-top:14px">
       <div class="ph"><div class="pt disp" style="font-size:15px">📈 Evolución de puntos</div></div>

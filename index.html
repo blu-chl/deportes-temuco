@@ -393,6 +393,7 @@ let S={
   rachasExpand:null,
   golesSubtipoExpand:null,
   asistSubtipoExpand:null,
+  golTab:'goleadores',
 }
 
 async function cargarDatos(){
@@ -1956,14 +1957,14 @@ function calcularRachas(partidos,golesAmbos,tid){
 }
 // Una franja de "Goles por período" — cuenta, % dentro de su mitad, y
 // hasta 5 goleadores de esa franja con los minutos exactos.
-function franjaCard(label,evs,color,totalMitad,inicialesJ,nombreJ){
+function franjaCard(label,evs,color,totalMitad,avatarJ,nombreJ){
   const n=evs.length
   const pct=Math.round(n/Math.max(1,totalMitad)*100)
   const gMap={}
   evs.forEach(g=>{const jid=g.jugador?.id;if(!jid)return;if(!gMap[jid])gMap[jid]={jugador:g.jugador,mins:[]};gMap[jid].mins.push(g.minuto)})
   const gList=Object.values(gMap).sort((a,b)=>b.mins.length-a.mins.length).slice(0,5).map(g=>
     `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid rgba(16,24,32,0.05)">
-      <div style="width:26px;height:26px;border-radius:50%;background:rgba(16,24,32,0.08);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">${inicialesJ(g.jugador)}</div>
+      ${avatarJ(g.jugador,26)}
       <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreJ(g.jugador)}</div><div style="font-size:10px;color:${color};font-weight:600">⚽ ${g.mins.map(m=>m+"'").join(' ')}</div></div>
     </div>`
   ).join('')
@@ -2051,10 +2052,20 @@ function renderEstadisticas(){
   })
   const antigoleadores=Object.values(antigolMap).sort((a,b)=>b.n-a.n)
 
-  // Autogoles que metieron NUESTROS jugadores (van al panel "Autogoles
-  // propios" más abajo) — golesAmbos incluye TODO, así que se filtra por
-  // autogol=true Y equipo_id!==tid (el gol le sumó al rival).
+  // Autogoles que metieron NUESTROS jugadores (tab "Antigoleadores" del
+  // toggle de Goleadores) — golesAmbos incluye TODO, así que se filtra por
+  // autogol=true Y equipo_id!==tid (el gol le sumó al rival). Se agrupa por
+  // jugador igual que "Ayudita", para que las 3 tablas del toggle se vean
+  // consistentes.
   const autogolesPropios=PL.autogolesPropios
+  const propiosMap={}
+  autogolesPropios.forEach(g=>{
+    const jid=g.jugador?.id
+    if(!jid)return
+    if(!propiosMap[jid])propiosMap[jid]={jugador:g.jugador,n:0}
+    propiosMap[jid].n++
+  })
+  const antigolesPropios=Object.values(propiosMap).sort((a,b)=>b.n-a.n)
 
   const subtipoMap={}
   golesReales.forEach(g=>{if(g.subtipo)subtipoMap[g.subtipo]=(subtipoMap[g.subtipo]||0)+1})
@@ -2169,49 +2180,47 @@ function renderEstadisticas(){
           <div style="text-align:center;font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;grid-column:1/4;border-bottom:1px solid var(--borde);padding-bottom:4px">Primer tiempo</div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
-          ${[['1-22\'',franja1,'var(--vc)'],['23-44\'',franja2,'var(--am)'],['45\'+desc.',franja3,'var(--ro)']].map(([label,evs,color])=>franjaCard(label,evs,color,totalT1,inicialesJ,nombreJ)).join('')}
+          ${[['1-22\'',franja1,'var(--vc)'],['23-44\'',franja2,'var(--am)'],['45\'+desc.',franja3,'var(--ro)']].map(([label,evs,color])=>franjaCard(label,evs,color,totalT1,avatarJ,nombreJ)).join('')}
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px">
           <div style="text-align:center;font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;grid-column:1/4;border-bottom:1px solid var(--borde);padding-bottom:4px">Segundo tiempo</div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-          ${[['46-67\'',franja4,'var(--vc)'],['68-89\'',franja5,'var(--am)'],['90\'+desc.',franja6,'var(--ro)']].map(([label,evs,color])=>franjaCard(label,evs,color,totalT2,inicialesJ,nombreJ)).join('')}
+          ${[['46-67\'',franja4,'var(--vc)'],['68-89\'',franja5,'var(--am)'],['90\'+desc.',franja6,'var(--ro)']].map(([label,evs,color])=>franjaCard(label,evs,color,totalT2,avatarJ,nombreJ)).join('')}
         </div>
       </div>
     </div>
-    <div class="g3">
-      <div class="panel"><div class="ph"><span class="pt">Goleadores</span>${autogolesRivales?`<span style="font-size:9px;color:var(--gris)">+${autogolesRivales} de rival</span>`:''}</div>
-        <div style="overflow-x:auto"><table><thead><tr><th></th><th>Jugador</th><th class="num">⚽</th><th class="num">Penales</th></tr></thead><tbody>
-        ${goleadores.slice(0,10).map((g,i)=>`<tr><td>${avatarJ(g.jugador,22)}</td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${nombreJ(g.jugador)}</td><td class="num" style="color:var(--vc);font-weight:800">${g.goles}</td><td class="num" style="color:var(--gris)">${g.penales||'—'}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
-        </tbody></table></div>
-      </div>
+    <div class="g2">
+      ${(()=>{
+        const golTab=S.golTab||'goleadores'
+        const GOL_TABS=[{id:'goleadores',l:'⚽ Goleadores'},{id:'ayudita',l:'😅 Ayudita'},{id:'antigoleadores',l:'🙈 Antigoleadores'}]
+        const subt=golTab==='goleadores'
+          ?(autogolesRivales?`<span style="font-size:9px;color:var(--gris)">+${autogolesRivales} de rival</span>`:'')
+          :golTab==='ayudita'?`<span style="font-size:9px;color:var(--gris)">del rival, a nuestro favor</span>`
+          :`<span style="font-size:9px;color:var(--gris)">nuestros jugadores, en contra</span>`
+        const tabla=golTab==='goleadores'
+          ?`<table><thead><tr><th></th><th>Jugador</th><th class="num">⚽</th><th class="num">Penales</th></tr></thead><tbody>
+            ${goleadores.slice(0,10).map((g,i)=>`<tr><td>${avatarJ(g.jugador,22)}</td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${nombreJ(g.jugador)}</td><td class="num" style="color:var(--vc);font-weight:800">${g.goles}</td><td class="num" style="color:var(--gris)">${g.penales||'—'}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>`}
+          </tbody></table>`
+          :golTab==='ayudita'
+          ?`<table><thead><tr><th></th><th>Jugador</th><th class="num">🥅</th></tr></thead><tbody>
+            ${antigoleadores.map(a=>`<tr><td>${avatarJ(a.jugador,22)}</td><td>${nombreJ(a.jugador)}</td><td class="num" style="color:var(--ro);font-weight:800">${a.n}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Ninguno todavía 🎉</td></tr>`}
+          </tbody></table>`
+          :`<table><thead><tr><th></th><th>Jugador</th><th class="num">🥅</th></tr></thead><tbody>
+            ${antigolesPropios.map(a=>`<tr><td>${avatarJ(a.jugador,22)}</td><td>${nombreJ(a.jugador)}</td><td class="num" style="color:var(--ro);font-weight:800">${a.n}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Ninguno todavía 🎉</td></tr>`}
+          </tbody></table>`
+        return`<div class="panel">
+          <div class="ph"><span class="pt">Goleadores</span>${subt}</div>
+          <div class="tabs" style="margin:10px 14px">${GOL_TABS.map(t=>`<button class="tab ${golTab===t.id?'on':''}" onclick="S.golTab='${t.id}';render()">${t.l}</button>`).join('')}</div>
+          <div style="overflow-x:auto">${tabla}</div>
+        </div>`
+      })()}
       <div class="panel"><div class="ph"><span class="pt">Asistidores</span></div>
         <div style="overflow-x:auto"><table><thead><tr><th></th><th>Jugador</th><th class="num">🅰️</th></tr></thead><tbody>
         ${asistidores.slice(0,10).map((a,i)=>`<tr><td>${avatarJ(a.jugador,22)}</td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} ${nombreJ(a.jugador)}</td><td class="num" style="color:var(--az);font-weight:800">${a.asist}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Sin asistencias cargadas</td></tr>`}
         </tbody></table></div>
       </div>
-      <div class="panel"><div class="ph"><span class="pt">😅 Antigoleadores</span><span style="font-size:9px;color:var(--gris)">del rival, a nuestro favor</span></div>
-        <div style="overflow-x:auto"><table><thead><tr><th></th><th>Jugador</th><th class="num">🥅</th></tr></thead><tbody>
-        ${antigoleadores.map((a,i)=>`<tr><td>${avatarJ(a.jugador,22)}</td><td>${nombreJ(a.jugador)}</td><td class="num" style="color:var(--ro);font-weight:800">${a.n}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Ninguno todavía 🎉</td></tr>`}
-        </tbody></table></div>
-      </div>
     </div>
-    ${autogolesPropios.length?`<div class="panel" style="margin-bottom:12px">
-      <div class="ph"><span class="pt">🙈 Autogoles propios</span><span style="font-size:9px;color:var(--gris)">nuestros jugadores, en contra</span></div>
-      <div class="pb">
-        ${autogolesPropios.map(g=>{
-          const p=partidoPorId[g.partido_id]
-          return`<div class="pcard" style="cursor:${p?'pointer':'default'};margin-bottom:6px;display:flex;align-items:center;gap:8px" ${p?`onclick="verPartidoLiga(${p.id},'plantilla')"`:''}>
-            ${avatarJ(g.jugador,22)}
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:700;font-size:12px">${nombreJ(g.jugador)}</div>
-              <div style="font-size:10px;color:var(--gris)">${p?`vs ${p.rival} · F${p.jornada||'?'}`:'partido desconocido'}</div>
-            </div>
-            <span style="font-size:11px;font-weight:800;color:var(--ro)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
-          </div>`
-        }).join('')}
-      </div>
-    </div>`:''}
     ${(()=>{
       // Panel de desglose por subtipo (gol o asistencia), clickeable —
       // reusado para "Cómo fueron los goles" y "Cómo fueron las

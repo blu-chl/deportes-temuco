@@ -2752,9 +2752,21 @@ const CRESTS={
   'Unión Española':CREST_BASE+'2025/01/union-espanola.png','Santiago Wanderers':CREST_BASE+'2025/01/Santiago-Wanderers-2.svg',
 }
 function crestUrl(n){return CRESTS[n]||''}
-function estadioFotoTag(nombre){
-  const url=nombre&&S.liga.estadiosFoto&&S.liga.estadiosFoto[nombre]
-  return url?`<img src="${url}" title="${nombre}" style="width:150px;max-width:40vw;aspect-ratio:4/3;height:auto;border-radius:12px;object-fit:cover;border:1px solid rgba(255,255,255,.3);margin-top:8px;flex-shrink:0">`:''
+function estadioFotoUrl(nombre){
+  return (nombre&&S.liga.estadiosFoto&&S.liga.estadiosFoto[nombre])||null
+}
+// Fila del medio de la hero card: si hay foto de estadio, se parte en dos
+// mitades (foto | escudos vs) para darle más peso visual a la imagen; sin
+// foto, los escudos ocupan todo el ancho como antes. flex-wrap hace que en
+// mobile las mitades se apilen en vez de achicarse hasta romper.
+function heroMatchupRow(fotoUrl,matchupHtml){
+  if(!fotoUrl)return`<div class="hero2-mid">${matchupHtml}</div>`
+  return`<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:stretch">
+    <div style="flex:1 1 240px;min-height:180px;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.25)">
+      <img src="${fotoUrl}" style="width:100%;height:100%;object-fit:cover;display:block;min-height:180px">
+    </div>
+    <div class="hero2-mid" style="flex:1 1 240px;margin:0">${matchupHtml}</div>
+  </div>`
 }
 function iniciales(n){return (n||'').trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase()}
 // Bandera junto al nombre en Plantilla, para ver de un vistazo de dónde
@@ -3514,16 +3526,13 @@ function renderPartidoLiga(){
             <div style="font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.85)">Liga de Ascenso Caixun 2026</div>
             <div class="disp" style="color:#fff;font-size:28px;margin-top:4px">FECHA ${d.jornada||''}</div>
           </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end">
-            <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(d.fecha_hora)}${d.estadio?'<br>'+d.estadio:''}${d.arbitro?'<br>Árbitro: '+d.arbitro:''}</div>
-            ${estadioFotoTag(d.estadio)}
-          </div>
+          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(d.fecha_hora)}${d.estadio?'<br>'+d.estadio:''}${d.arbitro?'<br>Árbitro: '+d.arbitro:''}</div>
         </div>
-        <div class="hero2-mid">
+        ${heroMatchupRow(estadioFotoUrl(d.estadio),`
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(d.local.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.local.nombre.toUpperCase()}</div></div>
           <div class="disp hero2-score" style="${d.goles_local==null?'font-size:36px':''}">${d.goles_local==null?'VS':`${d.goles_local}&nbsp;–&nbsp;${d.goles_visita}`}</div>
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(d.visita.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.visita.nombre.toUpperCase()}</div></div>
-        </div>
+        `)}
       </div>
     </div>
 
@@ -3815,16 +3824,13 @@ function renderProximoRival(){
             <div style="font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.85)">Liga de Ascenso Caixun 2026</div>
             <div class="disp" style="color:#fff;font-size:28px;margin-top:4px">FECHA ${p.jornada||''}</div>
           </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end">
-            <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(p.fecha_hora)}${p.estadio?'<br>'+p.estadio:''}</div>
-            ${estadioFotoTag(p.estadio)}
-          </div>
+          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(p.fecha_hora)}${p.estadio?'<br>'+p.estadio:''}</div>
         </div>
-        <div class="hero2-mid">
+        ${heroMatchupRow(estadioFotoUrl(p.estadio),`
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl('Deportes Temuco')}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">DEPORTES TEMUCO</div>${posBadge(posTemuco)}</div>
           <div class="disp hero2-score" style="font-size:36px">VS</div>
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(rival.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${rival.nombre.toUpperCase()}</div>${posBadge(posRival)}</div>
-        </div>
+        `)}
         <div style="display:flex;justify-content:center"><div class="hero2-meta">${esLocal?'Juega de Local':'Juega de Visita'}</div></div>
       </div>
     </div>

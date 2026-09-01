@@ -2171,9 +2171,12 @@ function renderEstadisticas(){
     ${debutsTemuco?`<div class="panel" style="margin-bottom:12px;margin-top:12px">
       <div class="ph"><span class="pt">🆕 Debuts recientes</span><span style="font-size:10px;color:var(--gris)">${debutsTemuco.jugadores.length}</span></div>
       <div class="pb">
-        ${debutsTemuco.jugadores.map(j=>`<div style="padding:6px 0;border-bottom:1px solid var(--borde)">
-          <div style="font-weight:700;font-size:12px">${j.nombre}</div>
-          <div style="color:var(--muted);font-size:10px">F${j.jornada||'?'} · ${fmtFechaLarga(j.fecha_hora)}</div>
+        ${debutsTemuco.jugadores.map(j=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--borde)">
+          ${avatarNombre(j.nombre,j.foto_url,26)}
+          <div style="min-width:0">
+            <div style="font-weight:700;font-size:12px">${j.nombre}</div>
+            <div style="color:var(--muted);font-size:10px">F${j.jornada||'?'} · ${fmtFechaLarga(j.fecha_hora)}</div>
+          </div>
         </div>`).join('')}
       </div>
     </div>`:''}
@@ -2790,6 +2793,14 @@ function heroMatchupRow(fotoUrl,matchupHtml){
   </div>`
 }
 function iniciales(n){return (n||'').trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase()}
+// Avatar chico a partir de un nombre ya compactado + foto_url suelta (no un
+// objeto jugador completo) — usado en paneles que solo guardan esos dos
+// campos, como Debuts recientes.
+function avatarNombre(nombre,foto_url,size){
+  return foto_url
+    ?`<img src="${foto_url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+    :`<div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(16,24,32,0.05);display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*.33)}px;font-weight:800;flex-shrink:0">${iniciales(nombre)}</div>`
+}
 // Bandera junto al nombre en Plantilla, para ver de un vistazo de dónde
 // viene cada jugador (dato manual, campo "nacionalidad" — solo existe
 // para el plantel propio, no para liga_jugadores). Bandera blanca si la
@@ -2993,7 +3004,7 @@ async function cargarLiga(){
       const j=jugMap[d.jugador_id]
       if(!eq||!j)return
       if(!porEquipo[eq.id])porEquipo[eq.id]={equipoId:eq.id,equipo:eq.nombre,jugadores:[]}
-      porEquipo[eq.id].jugadores.push({nombre:nombreCompacto(j.nombre,j.apellido),jornada:d.jornada,fecha_hora:d.fecha_hora})
+      porEquipo[eq.id].jugadores.push({nombre:nombreCompacto(j.nombre,j.apellido),jornada:d.jornada,fecha_hora:d.fecha_hora,foto_url:j.foto_url})
     })
     Object.values(porEquipo).forEach(g=>g.jugadores.sort((a,b)=>b.fecha_hora.localeCompare(a.fecha_hora)))
     S.liga.debutsPorEquipo=Object.values(porEquipo).sort((a,b)=>
@@ -3204,9 +3215,12 @@ function renderLigaDestacados(){
           <span style="font-size:10px;color:var(--gris)">${g.jugadores.length}</span>
         </div>
         <div class="pb" style="padding:4px 12px 8px">
-          ${g.jugadores.map(j=>`<div style="padding:5px 0;border-top:1px solid var(--borde)">
-            <div style="font-weight:700;font-size:11.5px">${j.nombre}</div>
-            <div style="color:var(--muted);font-size:10px">F${j.jornada||'?'} · ${fmtFechaLarga(j.fecha_hora)}</div>
+          ${g.jugadores.map(j=>`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-top:1px solid var(--borde)">
+            ${avatarNombre(j.nombre,j.foto_url,22)}
+            <div style="min-width:0">
+              <div style="font-weight:700;font-size:11.5px">${j.nombre}</div>
+              <div style="color:var(--muted);font-size:10px">F${j.jornada||'?'} · ${fmtFechaLarga(j.fecha_hora)}</div>
+            </div>
           </div>`).join('')}
         </div>
       </div>`).join('')}

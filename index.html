@@ -2762,10 +2762,10 @@ function estadioFotoUrl(nombre){
 function heroMatchupRow(fotoUrl,matchupHtml){
   if(!fotoUrl)return`<div class="hero2-mid">${matchupHtml}</div>`
   return`<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:stretch">
+    <div class="hero2-mid" style="flex:1 1 240px;margin:0">${matchupHtml}</div>
     <div style="flex:1 1 240px;min-height:180px;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.25)">
       <img src="${fotoUrl}" style="width:100%;height:100%;object-fit:cover;display:block;min-height:180px">
     </div>
-    <div class="hero2-mid" style="flex:1 1 240px;margin:0">${matchupHtml}</div>
   </div>`
 }
 function iniciales(n){return (n||'').trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase()}

@@ -2132,7 +2132,14 @@ function renderEstadisticas(){
       <div style="flex:1;min-width:240px">
         <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:8px">Jugadores con más minutos</div>
         <div class="sub21-cards">
-          ${(L.sub21||[]).slice(0,4).map(j=>`<div class="sub21-card"><div style="color:#fff;font-weight:800;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreCompacto(j.nombre,j.apellido)}</div><div style="color:rgba(255,255,255,.55);font-size:10px">Nacido ${(j.fecha_nacimiento||'').slice(0,4)||'—'}</div><div class="disp sub21-card-m">${j.minutos_oficial_temporada||0}'</div></div>`).join('')||'<div style="color:rgba(255,255,255,.6);font-size:12px">Sin datos.</div>'}
+          ${(L.sub21||[]).slice(0,4).map(j=>`<div class="sub21-card" style="display:flex;align-items:center;gap:8px">
+            ${j.foto_url?`<img src="${j.foto_url}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">${iniciales(nombreCompacto(j.nombre,j.apellido))}</div>`}
+            <div style="min-width:0;flex:1">
+              <div style="color:#fff;font-weight:800;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreCompacto(j.nombre,j.apellido)}</div>
+              <div style="color:rgba(255,255,255,.55);font-size:10px">Nacido ${(j.fecha_nacimiento||'').slice(0,4)||'—'}</div>
+              <div class="disp sub21-card-m">${j.minutos_oficial_temporada||0}'</div>
+            </div>
+          </div>`).join('')||'<div style="color:rgba(255,255,255,.6);font-size:12px">Sin datos.</div>'}
         </div>
       </div>
     </div>
@@ -2224,8 +2231,8 @@ function renderEstadisticas(){
         +subtipoPanel('Cómo fueron las asistencias',SUBTIPOS_ASIST,asistSubtipoMap,conAsistSubtipo,'asistSubtipoExpand',t=>g=>g.asist_subtipo===t&&g.asistidor)
     })()}
     <div class="panel" style="margin-bottom:12px"><div class="ph"><span class="pt">Disciplina</span><span style="font-size:10px;color:var(--gris)">${disciplina.length} jugadores · ${ta} amarillas · ${tr} rojas</span></div>
-      <div style="overflow-x:auto;max-height:300px;overflow-y:auto"><table><thead><tr><th>Jugador</th><th class="num">🟡</th><th class="num">🔴</th></tr></thead><tbody>
-      ${disciplina.map(j=>`<tr><td>${nombreJ(j.jugador)}</td><td class="num" style="color:var(--am)">${j.am}</td><td class="num" style="color:#b3261e">${j.ro}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Sin tarjetas</td></tr>`}
+      <div style="overflow-x:auto;max-height:300px;overflow-y:auto"><table><thead><tr><th></th><th>Jugador</th><th class="num">🟡</th><th class="num">🔴</th></tr></thead><tbody>
+      ${disciplina.map(j=>`<tr><td>${avatarJ(j.jugador,22)}</td><td>${nombreJ(j.jugador)}</td><td class="num" style="color:var(--am)">${j.am}</td><td class="num" style="color:#b3261e">${j.ro}</td></tr>`).join('')||`<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin tarjetas</td></tr>`}
       </tbody></table></div>
     </div>
     <div class="panel" style="margin-bottom:12px">
@@ -2241,7 +2248,11 @@ function renderEstadisticas(){
         </div>`:''}
         ${topCambios.length?topCambios.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(200,21,39,0.07)">
           <div style="width:20px;text-align:right;font-size:11px;color:var(--muted)">${i+1}</div>
-          <div style="flex:1;font-size:11px"><span style="color:var(--ro)">↓ ${nombreJ(c.sale)}</span> <span style="color:var(--muted)">por</span> <span style="color:var(--vc)">↑ ${nombreJ(c.entra)}</span></div>
+          <div style="flex:1;font-size:11px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+            <span style="display:inline-flex;align-items:center;gap:4px;color:var(--ro)">↓${avatarJ(c.sale,16)}${nombreJ(c.sale)}</span>
+            <span style="color:var(--muted)">por</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;color:var(--vc)">↑${avatarJ(c.entra,16)}${nombreJ(c.entra)}</span>
+          </div>
           <div style="font-size:14px;font-weight:800;color:var(--am)">${c.n}<span style="font-size:9px;color:var(--gris);font-weight:400">×</span></div>
         </div>`).join(''):'<div class="empty">Sin sustituciones registradas.</div>'}
       </div>
@@ -2808,7 +2819,7 @@ async function cargarLiga(){
   let[equipos,goles,jugadores,partidosAll,sanciones,alineacionesAll,estadios]=await Promise.all([
     ligaGet('liga_equipos','?select=id,nombre,sub21_minutos_contable&order=nombre'),
     ligaGet('liga_goles','?select=jugador_id,autogol&autogol=eq.false&limit=1000'),
-    ligaGet('liga_jugadores','?select=id,apellido,nombre,equipo_id,sub21,minutos_oficial_temporada,fecha_nacimiento,numero&limit=1000'),
+    ligaGet('liga_jugadores','?select=id,apellido,nombre,equipo_id,sub21,minutos_oficial_temporada,fecha_nacimiento,numero,foto_url&limit=1000'),
     ligaGetAll('liga_partidos','id,jornada,fecha_hora,estadio,equipo_local_id,equipo_visita_id,goles_local,goles_visita'),
     ligaGet('liga_sanciones','?select=id,equipo_id,puntos,motivo,fecha&order=fecha.desc'),
     ligaGetAll('liga_alineaciones','partido_id,equipo_id,jugador_id'),
@@ -2939,9 +2950,9 @@ async function cargarPartidosLiga(){
   if(!tid){S.partidosLiga.loaded=true;render();return}
   let[partidos,goles,tarjetas,sustituciones,alineaciones]=await Promise.all([
     ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${tid},equipo_visita_id.eq.${tid})&select=id,jornada,fecha_hora,estadio,equipo_local_id,equipo_visita_id,goles_local,goles_visita,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre)&order=fecha_hora.asc`),
-    ligaGet('liga_goles',`?equipo_id=eq.${tid}&select=partido_id,minuto,minuto_extra,penal,autogol,subtipo,asistidor_id,asist_subtipo,jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido,foto_url),asistidor:liga_jugadores!liga_goles_asistidor_id_fkey(id,nombre,apellido)`),
-    ligaGet('liga_tarjetas',`?equipo_id=eq.${tid}&select=partido_id,tipo,minuto,jugador:liga_jugadores!liga_tarjetas_jugador_id_fkey(id,nombre,apellido)`),
-    ligaGet('liga_sustituciones',`?equipo_id=eq.${tid}&select=partido_id,entra:liga_jugadores!liga_sustituciones_entra_jugador_id_fkey(id,nombre,apellido,posicion),sale:liga_jugadores!liga_sustituciones_sale_jugador_id_fkey(id,nombre,apellido,posicion)`),
+    ligaGet('liga_goles',`?equipo_id=eq.${tid}&select=partido_id,minuto,minuto_extra,penal,autogol,subtipo,asistidor_id,asist_subtipo,jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido,foto_url),asistidor:liga_jugadores!liga_goles_asistidor_id_fkey(id,nombre,apellido,foto_url)`),
+    ligaGet('liga_tarjetas',`?equipo_id=eq.${tid}&select=partido_id,tipo,minuto,jugador:liga_jugadores!liga_tarjetas_jugador_id_fkey(id,nombre,apellido,foto_url)`),
+    ligaGet('liga_sustituciones',`?equipo_id=eq.${tid}&select=partido_id,entra:liga_jugadores!liga_sustituciones_entra_jugador_id_fkey(id,nombre,apellido,posicion,foto_url),sale:liga_jugadores!liga_sustituciones_sale_jugador_id_fkey(id,nombre,apellido,posicion,foto_url)`),
     ligaGet('liga_alineaciones',`?equipo_id=eq.${tid}&select=partido_id,minutos_jugados,portero,titular,jugador:liga_jugadores!liga_alineaciones_jugador_id_fkey(id,nombre,apellido,sub21)`),
   ])
   // subtipo/asistidor_id/asist_subtipo/posicion son columnas nuevas — si el
@@ -3070,10 +3081,10 @@ function renderLigaDestacados(){
       ${goleadores.map((g,i)=>`
         <div class="gcard">
           <div style="font-size:12px;color:var(--gris)">#${i+1}</div>
-          <div class="gcard-av">${g.numero!=null?g.numero:iniciales(g.nombre)}</div>
+          <div class="gcard-av">${g.numero!=null?'#'+g.numero:iniciales(g.nombre)}</div>
           ${g.crest?`<img src="${g.crest}" style="width:20px;height:20px;object-fit:contain">`:''}
           <div style="text-align:center"><div style="font-weight:800;font-size:12.5px">${g.nombre}</div><div style="color:var(--gris);font-size:10px">${g.equipo}</div></div>
-          <div class="disp gcard-goles">${g.goles}</div>
+          <div class="disp gcard-goles">${g.goles}<span style="font-size:16px">⚽</span></div>
         </div>
       `).join('')}
     </div>

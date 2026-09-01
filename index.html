@@ -1251,7 +1251,13 @@ async function migrarDatosAntiguos(){
     get('partidos','?competencia=eq.Primera B&select=id,rival,fecha,condicion'),
     get('eventos','?tipo=in.(Gol,Asistencia)&select=id,tipo,partido_id,jugador_id,minuto,subtipo'),
   ])
-  if(!Array.isArray(partidosPropios)||!Array.isArray(eventosPropios)){toast('Error leyendo el registro antiguo',true);return}
+  if(!Array.isArray(partidosPropios)||!Array.isArray(eventosPropios)){
+    const cual=!Array.isArray(partidosPropios)?'partidos':'eventos'
+    const err=!Array.isArray(partidosPropios)?partidosPropios:eventosPropios
+    console.error('migrarDatosAntiguos — error leyendo',cual,err)
+    toast(`Error leyendo "${cual}": ${err?.message||err?.code||'ver consola (F12)'}`,true)
+    return
+  }
   if(!S.partidosLiga.loaded)await cargarPartidosLiga()
   const ligaPartidos=S.partidosLiga.partidos
 

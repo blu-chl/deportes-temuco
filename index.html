@@ -376,7 +376,7 @@ let S={
   consulta:{tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   visitante:false,
-  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosLista:[]},
+  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosLista:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
   enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,filtroGoles:'sinTipo',golesSnapshot:null},
@@ -2815,6 +2815,28 @@ function pageHero(titulo,sub){return`<div class="pagehero">
   </div>`}
 async function ligaGet(table,params){return get(table,params)}
 
+// Extraída de cargarLiga para poder recalcular la tabla con un subconjunto
+// de partidos (ej. "cómo estaba en la fecha 3") sin volver a pedir datos.
+function calcularTablaLiga(equipos,partidosSubset,sanciones){
+  const st={}
+  equipos.forEach(e=>{st[e.id]={id:e.id,nombre:e.nombre,pj:0,pg:0,pe:0,pp:0,gf:0,gc:0,pts:0,descuento:0}})
+  partidosSubset.forEach(p=>{
+    const l=st[p.equipo_local_id],v=st[p.equipo_visita_id]
+    if(!l||!v)return
+    l.pj++;v.pj++
+    l.gf+=p.goles_local;l.gc+=p.goles_visita
+    v.gf+=p.goles_visita;v.gc+=p.goles_local
+    if(p.goles_local>p.goles_visita){l.pg++;l.pts+=3;v.pp++}
+    else if(p.goles_local<p.goles_visita){v.pg++;v.pts+=3;l.pp++}
+    else{l.pe++;v.pe++;l.pts++;v.pts++}
+  })
+  sanciones.forEach(s=>{
+    const e=st[s.equipo_id];if(!e)return
+    e.descuento+=s.puntos;e.pts-=s.puntos
+  })
+  return Object.values(st).sort((a,b)=>b.pts-a.pts||(b.gf-b.gc)-(a.gf-a.gc))
+}
+
 async function cargarLiga(){
   let[equipos,goles,jugadores,partidosAll,sanciones,alineacionesAll,estadios]=await Promise.all([
     ligaGet('liga_equipos','?select=id,nombre,sub21_minutos_contable&order=nombre'),
@@ -2857,23 +2879,8 @@ async function cargarLiga(){
     promedioGoles:jugadas.length?+(golesLiga/jugadas.length).toFixed(2):0,
   }
 
-  const st={}
-  S.liga.equipos.forEach(e=>{st[e.id]={id:e.id,nombre:e.nombre,pj:0,pg:0,pe:0,pp:0,gf:0,gc:0,pts:0,descuento:0}})
-  jugadas.forEach(p=>{
-    const l=st[p.equipo_local_id],v=st[p.equipo_visita_id]
-    if(!l||!v)return
-    l.pj++;v.pj++
-    l.gf+=p.goles_local;l.gc+=p.goles_visita
-    v.gf+=p.goles_visita;v.gc+=p.goles_local
-    if(p.goles_local>p.goles_visita){l.pg++;l.pts+=3;v.pp++}
-    else if(p.goles_local<p.goles_visita){v.pg++;v.pts+=3;l.pp++}
-    else{l.pe++;v.pe++;l.pts++;v.pts++}
-  })
-  S.liga.sanciones.forEach(s=>{
-    const e=st[s.equipo_id];if(!e)return
-    e.descuento+=s.puntos;e.pts-=s.puntos
-  })
-  S.liga.tabla=Object.values(st).sort((a,b)=>b.pts-a.pts||(b.gf-b.gc)-(a.gf-a.gc))
+  S.liga.partidosJugados=jugadas
+  S.liga.tabla=calcularTablaLiga(S.liga.equipos,jugadas,S.liga.sanciones)
 
   const jugArr=Array.isArray(jugadores)?jugadores:[]
   const jugMap={};jugArr.forEach(j=>{jugMap[j.id]=j})
@@ -2992,6 +2999,13 @@ function renderTablaGeneral(){
   const L=S.liga
   if(!L.loaded)return`<div class="pb"><div class="empty">Cargando tabla…</div></div>`
   const info=L.infoGeneral||{}
+  const jornadaMax=info.jornadaActual||0
+  // Sanciones no tienen jornada (solo fecha), así que se aplican igual sin
+  // importar la fecha elegida — es una simplificación: cambia el orden que
+  // dependía del resultado de cada partido, no los descuentos administrativos.
+  const tablaMostrada=L.tablaJornada
+    ?calcularTablaLiga(L.equipos,L.partidosJugados.filter(p=>(p.jornada||0)<=L.tablaJornada),L.sanciones)
+    :L.tabla
   return`<div class="pb">
     ${pageHero('TABLA DE POSICIONES','Liga de Ascenso Caixun 2026')}
     <div class="g4" style="margin-top:16px">
@@ -3001,7 +3015,17 @@ function renderTablaGeneral(){
       <div class="mc verde"><div class="mc-l">Goles / partido</div><div class="mc-v">${(info.promedioGoles||0).toFixed(2)}</div><div class="mc-s">${info.golesTotales||0} goles en total</div></div>
     </div>
 
-    <div class="pt disp" style="font-size:18px;margin:22px 0 10px">Tabla de posiciones</div>
+    <div class="ph" style="background:none;border:none;padding:22px 0 10px">
+      <span class="pt disp" style="font-size:18px">Tabla de posiciones</span>
+      ${jornadaMax>1?`<span style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:10.5px;color:var(--gris);font-weight:700">Ver cómo estaba en:</label>
+        <select onchange="S.liga.tablaJornada=this.value?+this.value:null;render()" style="font-size:11.5px;padding:5px 8px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:6px;color:var(--blanco);font-family:var(--font)">
+          <option value="">Actual (F${jornadaMax})</option>
+          ${Array.from({length:jornadaMax},(_,i)=>i+1).map(j=>`<option value="${j}" ${L.tablaJornada===j?'selected':''}>Fecha ${j}</option>`).join('')}
+        </select>
+      </span>`:''}
+    </div>
+    ${L.tablaJornada?`<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Tabla acumulada usando solo los partidos jugados hasta la fecha ${L.tablaJornada} (inclusive) — no necesariamente todos los equipos habían jugado la misma cantidad de partidos a esa altura.</div>`:''}
     <div class="panel">
       <div style="overflow-x:auto"><table>
         <thead><tr>
@@ -3010,7 +3034,7 @@ function renderTablaGeneral(){
           <th class="center">GF</th><th class="center">GC</th><th class="center mob-hide">DG</th><th class="center">Pts</th>
         </tr></thead>
         <tbody>
-          ${L.tabla.map((e,i)=>{
+          ${tablaMostrada.map((e,i)=>{
             const dg=e.gf-e.gc
             const esTemuco=e.id===L.temucoId
             const sancionesEquipo=L.sanciones.filter(s=>s.equipo_id===e.id)

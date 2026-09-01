@@ -2754,7 +2754,7 @@ const CRESTS={
 function crestUrl(n){return CRESTS[n]||''}
 function estadioFotoTag(nombre){
   const url=nombre&&S.liga.estadiosFoto&&S.liga.estadiosFoto[nombre]
-  return url?`<img src="${url}" title="${nombre}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid rgba(255,255,255,.3);margin-top:6px">`:''
+  return url?`<img src="${url}" title="${nombre}" style="width:150px;max-width:40vw;aspect-ratio:4/3;height:auto;border-radius:12px;object-fit:cover;border:1px solid rgba(255,255,255,.3);margin-top:8px;flex-shrink:0">`:''
 }
 function iniciales(n){return (n||'').trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase()}
 // Bandera junto al nombre en Plantilla, para ver de un vistazo de dónde

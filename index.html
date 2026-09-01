@@ -376,13 +376,13 @@ let S={
   consulta:{tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   visitante:false,
-  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosLista:[]},
+  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosCoords:{},estadiosLista:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
   enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,filtroGoles:'sinTipo',golesSnapshot:null},
   partidosLiga:{loaded:false,partidos:[],goles:[],golesAmbos:[],autogolesPropios:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
-  partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[],previo:null},
+  partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[],previo:null,clima:null,mvpExpand:false},
   rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:'',suspendidos:null,destacados:null},
   analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],seleccion:new Set(),descuentoFiltro:'90',evolucionRango:'todas'},
   // Reorganización de navegación pública: sub-vistas dentro de cada pestaña
@@ -1237,6 +1237,20 @@ async function guardarFotoEstadio(nombre,url){
   S.liga.estadiosFoto[nombre]=url||null
   toast('Foto guardada')
 }
+// Mismo upsert que guardarFotoEstadio pero para lat/lon — se usan para
+// pedir el clima histórico del día del partido (ver cargarClimaPartido).
+async function guardarCoordsEstadio(nombre,lat,lon){
+  const latNum=lat===''?null:+lat,lonNum=lon===''?null:+lon
+  const r=await fetch(`${SB_URL}/rest/v1/liga_estadios`,{
+    method:'POST',
+    headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
+    body:JSON.stringify({nombre,lat:latNum,lon:lonNum})
+  })
+  const d=await r.json().catch(()=>null)
+  if(!Array.isArray(d)){toast('Error al guardar — ¿corriste sql/liga_estadios_coords.sql?',true);return}
+  S.liga.estadiosCoords[nombre]=(latNum!=null&&lonNum!=null)?{lat:latNum,lon:lonNum}:null
+  toast('Coordenadas guardadas')
+}
 
 // Recupera goles/asistencias que ya estaban cargados a mano en el registro
 // viejo (tablas "partidos"/"eventos", Primera B, hasta que se dejó de
@@ -1418,10 +1432,12 @@ function renderEnriquecer(){
     `)}
 
     ${seccion('expandEstadios','🏟️ Fotos de estadios',sinEstadioFoto?`⚠ faltan ${sinEstadioFoto}`:'','todas cargadas ✓',()=>`
-      <div style="color:var(--gris);font-size:11px;margin-bottom:10px">Pega la URL de una foto por estadio (nombre exacto tal cual lo trae el scraper). Se muestra chica en la hero card de Próxima fecha y en el detalle de cada partido jugado ahí.</div>
+      <div style="color:var(--gris);font-size:11px;margin-bottom:10px">Pega la URL de una foto por estadio (nombre exacto tal cual lo trae el scraper). Se muestra chica en la hero card de Próxima fecha y en el detalle de cada partido jugado ahí. Las coordenadas (lat/lon) son opcionales — se usan para mostrar el clima que hizo el día del partido en el detalle de fechas pasadas.</div>
       ${S.liga.estadiosLista.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
         ${[...S.liga.estadiosLista].sort((a,b)=>(S.liga.estadiosFoto[a]?1:0)-(S.liga.estadiosFoto[b]?1:0)).map(nombre=>{
           const url=S.liga.estadiosFoto[nombre]
+          const coords=S.liga.estadiosCoords[nombre]
+          const key=nombre.replace(/'/g,"\\'")
           return`<div class="pcard" style="cursor:default;display:flex;align-items:center;gap:8px;padding:8px 10px;${url?'':'background:rgba(201,138,18,.06);border-color:rgba(201,138,18,.35)'}">
           <div style="width:32px;height:32px;border-radius:6px;overflow:hidden;background:rgba(16,24,32,0.08);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">
             ${url?`<img src="${url}" style="width:100%;height:100%;object-fit:cover">`:'🏟️'}
@@ -1430,7 +1446,15 @@ function renderEnriquecer(){
             <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombre}</div>
             <input type="url" placeholder="URL de la foto…" value="${url||''}"
               style="width:100%;font-size:9px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;padding:3px 6px;color:var(--blanco);font-family:var(--font);margin-top:3px"
-              onchange="guardarFotoEstadio('${nombre.replace(/'/g,"\\'")}',this.value)">
+              onchange="guardarFotoEstadio('${key}',this.value)">
+            <div style="display:flex;gap:4px;margin-top:3px">
+              <input type="number" step="any" placeholder="Lat" value="${coords?coords.lat:''}" id="lat-${key}"
+                style="width:50%;font-size:9px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;padding:3px 6px;color:var(--blanco);font-family:var(--font)"
+                onchange="guardarCoordsEstadio('${key}',this.value,document.getElementById('lon-${key}').value)">
+              <input type="number" step="any" placeholder="Lon" value="${coords?coords.lon:''}" id="lon-${key}"
+                style="width:50%;font-size:9px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;padding:3px 6px;color:var(--blanco);font-family:var(--font)"
+                onchange="guardarCoordsEstadio('${key}',document.getElementById('lat-${key}').value,this.value)">
+            </div>
           </div>
         </div>`}).join('')}
       </div>`:`<div class="empty">Todavía no hay estadios en la base (aparecen solos a medida que el scraper procesa partidos).</div>`}
@@ -2871,6 +2895,10 @@ function matchJugadorPropio(nombreLiga,apellidoLiga){
   return mejorScore>=0.9?mejor:null
 }
 function fmtFechaLarga(iso){return iso?new Date(iso).toLocaleDateString('es-CL',{day:'numeric',month:'long'}):''}
+// Hora de inicio en horario de Chile siempre (independiente del huso del
+// dispositivo que esté viendo la página) — lo relevante es a qué hora
+// arrancó el partido allá, no la hora local de quien mira la página.
+function fmtHora(iso){return iso?new Date(iso).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit',timeZone:'America/Santiago'}):''}
 function pageHero(titulo,sub){return`<div class="pagehero">
     <div class="pagehero-split"></div><div class="pagehero-stripes"></div>
     <div class="pagehero-inner">
@@ -2929,14 +2957,22 @@ async function cargarLiga(){
     ligaGetAll('liga_partidos','id,jornada,fecha_hora,estadio,equipo_local_id,equipo_visita_id,goles_local,goles_visita'),
     ligaGet('liga_sanciones','?select=id,equipo_id,puntos,motivo,fecha&order=fecha.desc'),
     ligaGetAll('liga_alineaciones','partido_id,equipo_id,jugador_id'),
-    ligaGet('liga_estadios','?select=nombre,foto_url'),
+    ligaGet('liga_estadios','?select=nombre,foto_url,lat,lon'),
     ligaGetAll('liga_tarjetas','partido_id,equipo_id,tipo'),
   ])
   S.liga.tarjetas=Array.isArray(tarjetasAll)?tarjetasAll:[]
+  // liga_estadios.lat/lon son columnas nuevas (scraper/sql/liga_estadios_coords.sql)
+  // — si esa migración no se corrió todavía, la query con esos campos falla
+  // entera; se reintenta sin pedirlas en vez de perder también foto_url.
+  if(!Array.isArray(estadios))estadios=await ligaGet('liga_estadios','?select=nombre,foto_url')
   // liga_estadios es una tabla nueva (scraper/sql/liga_estadios.sql) — si
   // todavía no se corrió esa migración, queda como mapa vacío sin romper nada.
   S.liga.estadiosFoto={}
-  if(Array.isArray(estadios))estadios.forEach(e=>{S.liga.estadiosFoto[e.nombre]=e.foto_url})
+  S.liga.estadiosCoords={}
+  if(Array.isArray(estadios))estadios.forEach(e=>{
+    S.liga.estadiosFoto[e.nombre]=e.foto_url
+    if(e.lat!=null&&e.lon!=null)S.liga.estadiosCoords[e.nombre]={lat:e.lat,lon:e.lon}
+  })
   // sub21_minutos_contable es una columna nueva (scraper/sql/liga_equipos_sub21_contable.sql)
   if(!Array.isArray(equipos))equipos=await ligaGet('liga_equipos','?select=id,nombre&order=nombre')
   // numero es una columna nueva (scraper/sql/liga_jugadores_numero.sql) — si
@@ -3451,9 +3487,47 @@ async function cargarPrevioPartido(id,jornada,equipoLocalId,equipoVisitaId){
   }
   render()
 }
+// Códigos de clima WMO que usa Open-Meteo → emoji + texto en español.
+const WMO_CLIMA={
+  0:['☀️','Despejado'],1:['🌤️','Mayormente despejado'],2:['⛅','Parcialmente nublado'],3:['☁️','Nublado'],
+  45:['🌫️','Niebla'],48:['🌫️','Niebla con escarcha'],
+  51:['🌦️','Llovizna débil'],53:['🌦️','Llovizna'],55:['🌦️','Llovizna intensa'],
+  56:['🌧️','Llovizna helada'],57:['🌧️','Llovizna helada intensa'],
+  61:['🌧️','Lluvia débil'],63:['🌧️','Lluvia'],65:['🌧️','Lluvia intensa'],
+  66:['🌧️','Lluvia helada'],67:['🌧️','Lluvia helada intensa'],
+  71:['🌨️','Nieve débil'],73:['🌨️','Nieve'],75:['🌨️','Nieve intensa'],77:['🌨️','Granizo fino'],
+  80:['🌦️','Chubascos débiles'],81:['🌦️','Chubascos'],82:['🌦️','Chubascos intensos'],
+  85:['🌨️','Chubascos de nieve'],86:['🌨️','Chubascos de nieve intensos'],
+  95:['⛈️','Tormenta eléctrica'],96:['⛈️','Tormenta con granizo'],99:['⛈️','Tormenta con granizo intenso'],
+}
+// Clima histórico del día del partido, vía Open-Meteo (API pública, sin
+// key). Necesita coordenadas cargadas a mano por estadio (Admin →
+// Enriquecer → Fotos de estadios) — sin eso no se puede pedir nada, así
+// que el panel de clima simplemente no aparece.
+async function cargarClimaPartido(id,estadio,fechaHoraIso){
+  const coords=estadio&&S.liga.estadiosCoords[estadio]
+  if(!coords||!fechaHoraIso)return
+  const fecha=fechaHoraIso.slice(0,10)
+  try{
+    const url=`https://archive-api.open-meteo.com/v1/archive?latitude=${coords.lat}&longitude=${coords.lon}&start_date=${fecha}&end_date=${fecha}&hourly=temperature_2m,weathercode,precipitation&timezone=America%2FSantiago`
+    const r=await fetch(url)
+    const d=await r.json()
+    if(S.partidoLiga.id!==id)return // navegó a otro partido mientras cargaba
+    if(!d||!d.hourly||!Array.isArray(d.hourly.time)||!d.hourly.time.length)return
+    // Hora de kickoff en horario de Chile, en el mismo formato "YYYY-MM-DDTHH"
+    // que trae hourly.time, para encontrar el bloque horario más cercano.
+    const horaChile=new Date(fechaHoraIso).toLocaleString('sv-SE',{timeZone:'America/Santiago'}).replace(' ','T').slice(0,13)
+    let idx=d.hourly.time.findIndex(t=>t.slice(0,13)===horaChile)
+    if(idx===-1)idx=Math.min(11,d.hourly.time.length-1) // fallback: mediodía si no calzó exacto
+    const codigo=d.hourly.weathercode[idx]
+    const[emoji,texto]=WMO_CLIMA[codigo]||['🌡️','Sin dato']
+    S.partidoLiga.clima={temp:d.hourly.temperature_2m[idx],emoji,texto,precip:d.hourly.precipitation[idx]}
+    render()
+  }catch(e){/* clima es un plus, no crítico — si falla la API queda sin mostrarse */}
+}
 async function verPartidoLiga(id,volverA){
   if(!id)return
-  S.partidoLiga={loaded:false,id,volverA:volverA||S.pag,data:null,eventos:[],previo:null,mvp:null}
+  S.partidoLiga={loaded:false,id,volverA:volverA||S.pag,data:null,eventos:[],previo:null,mvp:null,clima:null,mvpExpand:false}
   S.pag='partido'
   render()
   let[partidos,goles,tarjetas,sustituciones]=await Promise.all([
@@ -3475,6 +3549,7 @@ async function verPartidoLiga(id,volverA){
   const d=S.partidoLiga.data
   if(d&&d.goles_local!=null&&d.jornada>1)cargarPrevioPartido(id,d.jornada,d.equipo_local_id,d.equipo_visita_id)
   if(d&&d.goles_local!=null)cargarVotosMvp(id)
+  if(d&&d.goles_local!=null)cargarClimaPartido(id,d.estadio,d.fecha_hora)
 }
 // Un UUID por navegador, guardado en localStorage — no hay login para votar,
 // así que esto es lo único que evita votar 2 veces por el mismo jugador (se
@@ -3585,7 +3660,7 @@ function renderPartidoLiga(){
             <div style="font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.85)">Liga de Ascenso Caixun 2026</div>
             <div class="disp" style="color:#fff;font-size:28px;margin-top:4px">FECHA ${d.jornada||''}</div>
           </div>
-          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(d.fecha_hora)}${d.estadio?'<br>'+d.estadio:''}${d.arbitro?'<br>Árbitro: '+d.arbitro:''}</div>
+          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(d.fecha_hora)}${fmtHora(d.fecha_hora)?` · ${fmtHora(d.fecha_hora)} hrs`:''}${d.estadio?'<br>'+d.estadio:''}${d.arbitro?'<br>Árbitro: '+d.arbitro:''}</div>
         </div>
         ${heroMatchupRow(estadioFotoUrl(d.estadio),`
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(d.local.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.local.nombre.toUpperCase()}</div></div>
@@ -3611,18 +3686,16 @@ function renderPartidoLiga(){
       </div>`
     })()}
 
-    ${d.goles_local!=null?(()=>{
-      const M=P.mvp
-      if(!M)return`<div class="panel" style="margin-top:16px"><div class="ph"><span class="pt">⚽ Vota el MVP <span class="badge ba" style="font-size:8px;margin-left:4px;vertical-align:1px">BETA</span></span></div><div class="pb"><div class="empty">Cargando…</div></div></div>`
-      if(M.sqlPendiente||!M.jugadores.length)return''
-      return`<div class="panel" style="margin-top:16px">
-        <div class="ph"><span class="pt">⚽ Vota el MVP <span class="badge ba" style="font-size:8px;margin-left:4px;vertical-align:1px">BETA</span></span></div>
-        <div class="pb">
-          <div style="font-size:10.5px;color:var(--gris);margin-bottom:6px">Puntúa de 1 a 5 balones cómo viste a cada jugador de Temuco en este partido. Sin login — un voto por jugador desde este navegador, se puede cambiar tocando otro balón.</div>
-          ${M.jugadores.map(pj=>filaMvp(d.id,pj)).join('')}
+    ${d.goles_local!=null&&P.clima?`<div class="panel" style="margin-top:16px">
+      <div class="ph"><div class="pt disp" style="font-size:15px">Clima</div></div>
+      <div class="pb" style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:32px">${P.clima.emoji}</div>
+        <div>
+          <div style="font-weight:700;font-size:13px">${P.clima.texto}${P.clima.temp!=null?` · ${Math.round(P.clima.temp)}°C`:''}</div>
+          <div style="font-size:10.5px;color:var(--gris)">En ${d.estadio} a la hora del partido${P.clima.precip>0?` · ${P.clima.precip} mm de lluvia`:''}</div>
         </div>
-      </div>`
-    })():''}
+      </div>
+    </div>`:''}
 
     ${P.previo?`<div class="panel" style="margin-top:16px">
       <div class="ph"><div class="pt disp" style="font-size:15px">📊 Cómo llegaban las estadísticas</div></div>
@@ -3646,6 +3719,22 @@ function renderPartidoLiga(){
       </div>
       <div class="pb">${P.eventos.length?filasTimeline:'<div class="empty">Sin eventos registrados.</div>'}</div>
     </div>
+
+    ${d.goles_local!=null?(()=>{
+      const M=P.mvp
+      if(M&&(M.sqlPendiente||!M.jugadores.length))return'' // nada votable en este partido
+      const abierto=P.mvpExpand
+      return`<div class="panel" style="margin-top:16px">
+        <div class="ph" style="cursor:pointer" onclick="S.partidoLiga.mvpExpand=!S.partidoLiga.mvpExpand;render()">
+          <span class="pt">⚽ Vota el MVP <span class="badge ba" style="font-size:8px;margin-left:4px;vertical-align:1px">BETA</span></span>
+          <span style="font-size:11px;color:var(--gris)">${abierto?'▲':'▼'}</span>
+        </div>
+        ${abierto?`<div class="pb">${!M?'<div class="empty">Cargando…</div>':`
+          <div style="font-size:10.5px;color:var(--gris);margin-bottom:6px">Puntúa de 1 a 5 balones cómo viste a cada jugador de Temuco en este partido. Sin login — un voto por jugador desde este navegador, se puede cambiar tocando otro balón.</div>
+          ${M.jugadores.map(pj=>filaMvp(d.id,pj)).join('')}
+        `}</div>`:''}
+      </div>`
+    })():''}
   </div>`
 }
 

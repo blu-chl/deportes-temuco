@@ -394,6 +394,7 @@ let S={
   golesSubtipoExpand:null,
   asistSubtipoExpand:null,
   golTab:'goleadores',
+  cambiosTab:'jugadores',
 }
 
 async function cargarDatos(){
@@ -2104,6 +2105,7 @@ function renderEstadisticas(){
   const minutaje=Object.values(minMap).filter(m=>m.min>0).sort((a,b)=>b.min-a.min)
   const minSub21=minutaje.filter(m=>m.jugador.sub21).reduce((a,m)=>a+m.min,0)
 
+  const POS_LABEL={POR:'Portero',DEF:'Defensa',MED:'Mediocampista',DEL:'Delantero'}
   const cambioMap={}
   const cambioPosMap={}
   PL.sustituciones.forEach(s=>{
@@ -2112,7 +2114,7 @@ function renderEstadisticas(){
     if(!cambioMap[key])cambioMap[key]={sale:s.sale,entra:s.entra,n:0}
     cambioMap[key].n++
     if(s.sale.posicion&&s.entra.posicion){
-      const pk=`${s.sale.posicion} por ${s.entra.posicion}`
+      const pk=`${POS_LABEL[s.sale.posicion]||s.sale.posicion} por ${POS_LABEL[s.entra.posicion]||s.entra.posicion}`
       cambioPosMap[pk]=(cambioPosMap[pk]||0)+1
     }
   })
@@ -2275,23 +2277,27 @@ function renderEstadisticas(){
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">🔄 Cambios más recurrentes</span><span style="font-size:10px;color:var(--gris)">${topCambios.length} combinaciones</span></div>
       <div class="pb">
-        ${topCambiosPos.length?`<div style="margin-bottom:12px">
-          <div style="font-size:11px;color:var(--am);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:6px">¿Qué se cambia más?</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px">
-            ${topCambiosPos.map(([k,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(16,24,32,0.045);border-radius:5px;padding:4px 8px">
-              <span style="font-size:11px">${k}</span><strong style="font-size:12px;color:var(--am);margin-left:6px">${n}x</strong>
+        <div class="tabs" style="margin:0 0 12px">
+          <button class="tab ${S.cambiosTab!=='posiciones'?'on':''}" onclick="S.cambiosTab='jugadores';render()">Jugadores</button>
+          <button class="tab ${S.cambiosTab==='posiciones'?'on':''}" onclick="S.cambiosTab='posiciones';render()">Posiciones</button>
+        </div>
+        ${S.cambiosTab==='posiciones'?(
+          topCambiosPos.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px">
+            ${topCambiosPos.map(([k,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(16,24,32,0.045);border-radius:5px;padding:6px 10px">
+              <span style="font-size:11.5px">${k}</span><strong style="font-size:13px;color:var(--am);margin-left:6px">${n}×</strong>
             </div>`).join('')}
-          </div>
-        </div>`:''}
-        ${topCambios.length?topCambios.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(200,21,39,0.07)">
-          <div style="width:20px;text-align:right;font-size:11px;color:var(--muted)">${i+1}</div>
-          <div style="flex:1;font-size:11px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-            <span style="display:inline-flex;align-items:center;gap:4px;color:var(--ro)">↓${avatarJ(c.sale,16)}${nombreJ(c.sale)}</span>
-            <span style="color:var(--muted)">por</span>
-            <span style="display:inline-flex;align-items:center;gap:4px;color:var(--vc)">↑${avatarJ(c.entra,16)}${nombreJ(c.entra)}</span>
-          </div>
-          <div style="font-size:14px;font-weight:800;color:var(--am)">${c.n}<span style="font-size:9px;color:var(--gris);font-weight:400">×</span></div>
-        </div>`).join(''):'<div class="empty">Sin sustituciones registradas.</div>'}
+          </div>`:'<div class="empty">Sin posición cargada para los jugadores de los cambios — se carga en Liga → Jugadores clave.</div>'
+        ):(
+          topCambios.length?topCambios.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(200,21,39,0.07)">
+            <div style="width:20px;text-align:right;font-size:11px;color:var(--muted)">${i+1}</div>
+            <div style="flex:1;font-size:11px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;gap:4px;color:var(--ro)">↓${avatarJ(c.sale,16)}${nombreJ(c.sale)}</span>
+              <span style="color:var(--muted)">por</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;color:var(--vc)">↑${avatarJ(c.entra,16)}${nombreJ(c.entra)}</span>
+            </div>
+            <div style="font-size:14px;font-weight:800;color:var(--am)">${c.n}<span style="font-size:9px;color:var(--gris);font-weight:400">×</span></div>
+          </div>`).join(''):'<div class="empty">Sin sustituciones registradas.</div>'
+        )}
       </div>
     </div>
     <div class="panel" style="margin-bottom:12px">

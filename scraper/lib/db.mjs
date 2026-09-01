@@ -113,14 +113,43 @@ export async function upsertPartido(partido) {
 // reemplazan completas por partido en cada corrida: es más simple y robusto
 // que hacer upsert campo a campo, y permite corregir datos si el informe se
 // vuelve a scrapear (ej. porque ANFP corrigió el PDF).
+//
+// liga_goles es la excepción: tiene subtipo/asistidor_id/asist_subtipo, que
+// el scraper nunca rellena (son 100% trabajo manual de Admin → Enriquecer).
+// Antes de borrar y reinsertar se rescata ese enriquecimiento por gol —
+// matcheando por jugador_id+minuto+minuto_extra+autogol, que identifica un
+// gol de forma prácticamente única dentro de un mismo partido — y se
+// reaplica a la fila nueva que corresponda, para que volver a scrapear un
+// partido (ej. con --force) no borre lo ya cargado a mano.
 export async function reemplazarEventosPartido(partidoId, { alineaciones, goles, tarjetas, sustituciones }) {
+  const golesPrevios = await get(
+    'liga_goles',
+    `?partido_id=eq.${partidoId}&select=jugador_id,minuto,minuto_extra,autogol,subtipo,asistidor_id,asist_subtipo`
+  );
+  const claveGol = (g) => `${g.jugador_id}_${g.minuto}_${g.minuto_extra || 0}_${g.autogol}`;
+  const enriquecimientoPorClave = {};
+  if (Array.isArray(golesPrevios)) {
+    for (const g of golesPrevios) {
+      if (g.subtipo == null && g.asistidor_id == null && g.asist_subtipo == null) continue;
+      enriquecimientoPorClave[claveGol(g)] = {
+        subtipo: g.subtipo,
+        asistidor_id: g.asistidor_id,
+        asist_subtipo: g.asist_subtipo,
+      };
+    }
+  }
+  const golesConEnriquecimiento = goles.map((g) => {
+    const previo = enriquecimientoPorClave[claveGol(g)];
+    return previo ? { ...g, ...previo } : g;
+  });
+
   await del('liga_alineaciones', `?partido_id=eq.${partidoId}`);
   await del('liga_goles', `?partido_id=eq.${partidoId}`);
   await del('liga_tarjetas', `?partido_id=eq.${partidoId}`);
   await del('liga_sustituciones', `?partido_id=eq.${partidoId}`);
 
   if (alineaciones.length) await sb('POST', 'liga_alineaciones', { body: alineaciones });
-  if (goles.length) await sb('POST', 'liga_goles', { body: goles });
+  if (golesConEnriquecimiento.length) await sb('POST', 'liga_goles', { body: golesConEnriquecimiento });
   if (tarjetas.length) await sb('POST', 'liga_tarjetas', { body: tarjetas });
   if (sustituciones.length) await sb('POST', 'liga_sustituciones', { body: sustituciones });
 }

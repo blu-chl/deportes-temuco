@@ -2851,15 +2851,20 @@ async function ligaGet(table,params){return get(table,params)}
 
 // Extraída de cargarLiga para poder recalcular la tabla con un subconjunto
 // de partidos (ej. "cómo estaba en la fecha 3") sin volver a pedir datos.
-function calcularTablaLiga(equipos,partidosSubset,sanciones){
+// Orden de desempate según Art. 82 de las Bases Primera B 2026: puntos →
+// diferencia de gol → partidos ganados → goles a favor → goles a favor de
+// visita → menos tarjetas rojas → menos tarjetas amarillas → sorteo (el
+// sorteo no es simulable, queda como empate en el orden mostrado).
+function calcularTablaLiga(equipos,partidosSubset,sanciones,tarjetas){
   const st={}
-  equipos.forEach(e=>{st[e.id]={id:e.id,nombre:e.nombre,pj:0,pg:0,pe:0,pp:0,gf:0,gc:0,pts:0,descuento:0}})
+  equipos.forEach(e=>{st[e.id]={id:e.id,nombre:e.nombre,pj:0,pg:0,pe:0,pp:0,gf:0,gc:0,gfVisita:0,pts:0,descuento:0,amarillas:0,rojas:0}})
   partidosSubset.forEach(p=>{
     const l=st[p.equipo_local_id],v=st[p.equipo_visita_id]
     if(!l||!v)return
     l.pj++;v.pj++
     l.gf+=p.goles_local;l.gc+=p.goles_visita
     v.gf+=p.goles_visita;v.gc+=p.goles_local
+    v.gfVisita+=p.goles_visita
     if(p.goles_local>p.goles_visita){l.pg++;l.pts+=3;v.pp++}
     else if(p.goles_local<p.goles_visita){v.pg++;v.pts+=3;l.pp++}
     else{l.pe++;v.pe++;l.pts++;v.pts++}
@@ -2868,11 +2873,24 @@ function calcularTablaLiga(equipos,partidosSubset,sanciones){
     const e=st[s.equipo_id];if(!e)return
     e.descuento+=s.puntos;e.pts-=s.puntos
   })
-  return Object.values(st).sort((a,b)=>b.pts-a.pts||(b.gf-b.gc)-(a.gf-a.gc))
+  ;(tarjetas||[]).forEach(t=>{
+    const e=st[t.equipo_id];if(!e)return
+    if(t.tipo==='amarilla')e.amarillas++
+    else if(t.tipo==='roja')e.rojas++
+  })
+  return Object.values(st).sort((a,b)=>
+    b.pts-a.pts||
+    (b.gf-b.gc)-(a.gf-a.gc)||
+    b.pg-a.pg||
+    b.gf-a.gf||
+    b.gfVisita-a.gfVisita||
+    a.rojas-b.rojas||
+    a.amarillas-b.amarillas
+  )
 }
 
 async function cargarLiga(){
-  let[equipos,goles,jugadores,partidosAll,sanciones,alineacionesAll,estadios]=await Promise.all([
+  let[equipos,goles,jugadores,partidosAll,sanciones,alineacionesAll,estadios,tarjetasAll]=await Promise.all([
     ligaGet('liga_equipos','?select=id,nombre,sub21_minutos_contable&order=nombre'),
     ligaGet('liga_goles','?select=jugador_id,autogol&autogol=eq.false&limit=1000'),
     ligaGet('liga_jugadores','?select=id,apellido,nombre,equipo_id,sub21,minutos_oficial_temporada,fecha_nacimiento,numero,foto_url&limit=1000'),
@@ -2880,7 +2898,9 @@ async function cargarLiga(){
     ligaGet('liga_sanciones','?select=id,equipo_id,puntos,motivo,fecha&order=fecha.desc'),
     ligaGetAll('liga_alineaciones','partido_id,equipo_id,jugador_id'),
     ligaGet('liga_estadios','?select=nombre,foto_url'),
+    ligaGetAll('liga_tarjetas','partido_id,equipo_id,tipo'),
   ])
+  S.liga.tarjetas=Array.isArray(tarjetasAll)?tarjetasAll:[]
   // liga_estadios es una tabla nueva (scraper/sql/liga_estadios.sql) — si
   // todavía no se corrió esa migración, queda como mapa vacío sin romper nada.
   S.liga.estadiosFoto={}
@@ -2914,7 +2934,7 @@ async function cargarLiga(){
   }
 
   S.liga.partidosJugados=jugadas
-  S.liga.tabla=calcularTablaLiga(S.liga.equipos,jugadas,S.liga.sanciones)
+  S.liga.tabla=calcularTablaLiga(S.liga.equipos,jugadas,S.liga.sanciones,S.liga.tarjetas)
 
   const jugArr=Array.isArray(jugadores)?jugadores:[]
   const jugMap={};jugArr.forEach(j=>{jugMap[j.id]=j})
@@ -3038,7 +3058,11 @@ function renderTablaGeneral(){
   // importar la fecha elegida — es una simplificación: cambia el orden que
   // dependía del resultado de cada partido, no los descuentos administrativos.
   const tablaMostrada=L.tablaJornada
-    ?calcularTablaLiga(L.equipos,L.partidosJugados.filter(p=>(p.jornada||0)<=L.tablaJornada),L.sanciones)
+    ?(()=>{
+      const partidosHasta=L.partidosJugados.filter(p=>(p.jornada||0)<=L.tablaJornada)
+      const idsHasta=new Set(partidosHasta.map(p=>p.id))
+      return calcularTablaLiga(L.equipos,partidosHasta,L.sanciones,(L.tarjetas||[]).filter(t=>idsHasta.has(t.partido_id)))
+    })()
     :L.tabla
   return`<div class="pb">
     ${pageHero('TABLA DE POSICIONES','Liga de Ascenso Caixun 2026')}
@@ -4332,6 +4356,89 @@ async function borrarSancion(id){
   await cargarLiga()
   toast('Sanción eliminada')
 }
+// Panel de referencia + métricas de cumplimiento, basado en las Bases del
+// Campeonato Primera B 2026 (ANFP), documento "Ascenso CAIXUN 2026". Los
+// umbrales de acumulación de tarjetas para suspensión NO están en estas
+// Bases (viven en el Código de Procedimiento y Penalidades, Art. 5° letra
+// d, que no está cargado acá) — por eso el panel de suspendidos de Próxima
+// fecha sigue marcado como estimado y no se referencia como oficial aquí.
+function renderReglamento(){
+  const L=S.liga
+  if(!L.loaded)return`<div class="empty">Cargando datos de la liga…</div>`
+  const temucoEquipo=L.equipos.find(e=>e.id===L.temucoId)
+  const sub21Total=temucoEquipo?.sub21_minutos_contable||0
+  const jornadaActual=L.infoGeneral?.jornadaActual||0
+  const METAF15=945,METAF30=1890 // Art. 31 incisos 4° y 6° — 70% y 50% de los 2700 min posibles en 30 fechas
+  const pct30=METAF30?+((sub21Total/METAF30)*100).toFixed(1):0
+  const pct15=METAF15?+((sub21Total/METAF15)*100).toFixed(1):0
+  let estado30,clase30
+  if(pct30>=70){estado30='Al día con la cuota de temporada (≥70%).';clase30='verde'}
+  else if(pct30>=65.1){estado30='Zona de riesgo si termina así: −3 puntos + multa de 250 UF.';clase30='am'}
+  else if(pct30>=60.1){estado30='Zona de riesgo si termina así: −6 puntos + multa de 250 UF.';clase30='am'}
+  else{estado30='Zona de riesgo si termina así: −9 puntos + multa de 250 UF.';clase30='ro'}
+  const okCheckpoint=sub21Total>=METAF15
+  const extranjeros=S.jugadores.filter(j=>(j.nacionalidad||'Chilena')!=='Chilena')
+  const colorClase={verde:'var(--vc)',am:'var(--am)',ro:'var(--ro)'}
+  const barra=(pct,color)=>`<div class="bar-w" style="margin-top:6px"><div class="bar-f" style="width:${Math.min(100,pct)}%;background:${color}"></div></div>`
+
+  const puntos=[
+    {t:'Planilla y jugadores no habilitados',a:'Art. 10',d:'Hacer disputar un partido a un jugador no habilitado: pérdida de puntos (3x0 en contra) + multa de 250 UF. Solo incluirlo en la nómina sin que juegue: 250 UF. Jugador habilitado pero fuera de la planilla firmada: 60-250 UF por jugador.'},
+    {t:'Extranjeros habilitados',a:'Art. 11 y 31',d:'Máximo 5 extranjeros habilitados en el plantel, y máximo 5 en la planilla de alineación de cada partido.'},
+    {t:'Cuota Sub-21 / Fútbol Formativo',a:'Art. 31',d:'Al menos 1 jugador chileno nacido desde el 1/1/2005 (2007 desde 2027) con 2+ temporadas en Formativo del club, en la planilla de cada partido. Debe sumar ≥70% de los minutos posibles en la temporada (1890 de 2700) y ≥50% (945 min) al cierre de la fecha 15. No llegar al 70% cuesta entre 3 y 9 puntos + 250 UF según qué tan lejos quede; no llegar al 50% en la fecha 15 cuesta 3 puntos.'},
+    {t:'Estadio y localía',a:'Art. 20 y 23',d:'No tener estadio disponible para jugar de local: pérdida del partido (3x0 en contra) + Falta Grave + multa de 500 UF. Prohibido hacer de local en el estadio principal registrado por el rival.'},
+    {t:'No presentación o abandono de partido',a:'Art. 24',d:'Pérdida de puntos (3x0 en contra), multa de 500 UF y 15 puntos adicionales de descuento, repartidos entre los próximos partidos que se ganen o empaten.'},
+    {t:'Jugador o DT suspendido que participa',a:'Art. 25',d:'Pérdida de los puntos en disputa (3x0 en contra). Si se repite, se considera desacato (se dobla la sanción) y puede derivar en propuesta de desafiliación del club.'},
+    {t:'Alineación e inicio de partido',a:'Art. 30',d:'Cargar y verificar la planilla en COMET entre 8h y 80min antes del partido, e imprimirla firmada. Llegar con menos de 90 min de anticipación: 25 UF (50 UF si reincide).'},
+    {t:'Mínimo de jugadores en cancha',a:'Art. 32',d:'Si un equipo queda con menos de 7 jugadores en cualquier momento del partido, este se suspende y el equipo pierde los puntos (3x0 en contra).'},
+    {t:'Sustituciones',a:'Art. 33',d:'Máximo 5 cambios en 3 ventanas (más el 6° por conmoción, aparte). Excederlas: pérdida de los puntos que se hubiesen obtenido en el partido.'},
+    {t:'Ausencia de Director Técnico',a:'Art. 54',d:'Dirigir sin un DT que cumpla los requisitos (Licencia PRO): pérdida de los puntos de cada fecha en que ocurra. Por caso fortuito, el Directorio puede autorizar a otro miembro del cuerpo técnico por un máximo de 3 fechas.'},
+    {t:'Tabla de posiciones — orden de desempate',a:'Art. 82',d:'Puntos → diferencia de gol → partidos ganados → goles a favor → goles a favor de visita → menos tarjetas rojas → menos tarjetas amarillas → sorteo. La tabla de Liga ya aplica este orden completo.'},
+    {t:'Descenso y Liguilla de Ascenso',a:'Art. 84-86',d:'El campeón (1° lugar) asciende directo. Del 2° al 8° lugar se juega la Liguilla de Ascenso, en llaves de ida y vuelta. El último de la tabla desciende directo a Segunda División.'},
+  ]
+
+  return`<div class="panel" style="margin-bottom:14px">
+    <div class="ph"><span class="pt">📜 Cumplimiento — Bases Primera B 2026</span></div>
+    <div class="pb">
+      <div style="font-size:11px;color:var(--gris);margin-bottom:12px">Métricas propias, calculadas con los datos ya cargados en la app, para seguir de cerca los puntos del reglamento que más le pueden costar puntos o multas a Temuco durante la temporada. No reemplaza la fiscalización oficial de la ANFP ni el Manual de Competiciones.</div>
+      <div class="g3">
+        <div class="mc ${clase30}">
+          <div class="mc-l">Cuota Sub-21 / Formativo</div>
+          <div class="mc-v" style="font-size:20px">${sub21Total.toLocaleString('es-CL')} min</div>
+          <div class="mc-s">${pct30}% de la meta de temporada (1890 min)</div>
+          ${barra(pct30,colorClase[clase30])}
+        </div>
+        <div class="mc ${okCheckpoint?'verde':'ro'}">
+          <div class="mc-l">Corte 1ª rueda (fecha 15)</div>
+          <div class="mc-v" style="font-size:20px">${okCheckpoint?'✅':'⚠️'} ${Math.min(100,pct15)}%</div>
+          <div class="mc-s">Mínimo 945 min — hoy va en fecha ${jornadaActual||'-'}</div>
+          ${barra(pct15,okCheckpoint?colorClase.verde:colorClase.ro)}
+        </div>
+        <div class="mc ${extranjeros.length>5?'ro':'verde'}">
+          <div class="mc-l">Extranjeros en plantel</div>
+          <div class="mc-v" style="font-size:20px">${extranjeros.length} / 5</div>
+          <div class="mc-s">Estimado según "Nacionalidad" cargada en Plantilla</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:14px">${estado30}</div>
+      <div style="font-size:11px;color:var(--gris)">Los umbrales de acumulación de tarjetas amarillas para suspensión de un jugador NO están en estas Bases — se regulan en el Código de Procedimiento y Penalidades de la ANFP (Art. 5° letra d), que no está cargado acá. El panel "🚫 Posibles suspendidos" de Próxima fecha sigue usando una regla estimada (5 amarillas acumuladas o roja directa en el partido anterior), validada contra resultados históricos, no contra el texto oficial de ese código.</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><span class="pt">Puntos del reglamento a tener presentes</span></div>
+    <div class="pb">
+      ${puntos.map(r=>`<div style="padding:9px 0;border-top:1px solid rgba(16,24,32,0.06)">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+          <span style="font-weight:700;font-size:12px">${r.t}</span>
+          <span style="font-size:9.5px;color:var(--muted);font-weight:700;white-space:nowrap">${r.a}</span>
+        </div>
+        <div style="font-size:11px;color:var(--gris);margin-top:2px">${r.d}</div>
+      </div>`).join('')}
+      <div style="font-size:9.5px;color:var(--muted);margin-top:10px">Fuente: Bases del Campeonato Nacional de Primera B Temporada 2026 (ANFP) — "Campeonato Ascenso CAIXUN 2026". Resumen no oficial, sin valor legal; ante cualquier duda revisar el texto completo de las Bases.</div>
+    </div>
+  </div>`
+}
+
 function renderSanciones(){
   const equiposOrd=[...S.liga.equipos].sort((a,b)=>a.nombre.localeCompare(b.nombre))
   const f=S.sancionForm
@@ -4376,7 +4483,7 @@ function renderSanciones(){
 function renderAdmin(){
   if(!S.isAdmin)return renderLogin()
   const subs=[
-    {id:'enriquecer',l:'✏️ Enriquecer'},{id:'sanciones',l:'⚖ Sanciones'},
+    {id:'enriquecer',l:'✏️ Enriquecer'},{id:'sanciones',l:'⚖ Sanciones'},{id:'reglamento',l:'📜 Reglamento'},
     {sep:true},
     {id:'registro',l:'📝 Registro (Primera B)'},{id:'medico',l:'🩹 Médico'},
     {sep:true},
@@ -4388,6 +4495,7 @@ function renderAdmin(){
     S.adminSub==='enriquecer'?renderEnriquecer():
     S.adminSub==='medico'?renderMedico():
     S.adminSub==='sanciones'?renderSanciones():
+    S.adminSub==='reglamento'?renderReglamento():
     renderConfig()
   }`
 }

@@ -37,7 +37,7 @@ const del = (table, params) => sb('DELETE', table, { params });
 
 // Upsert por una columna "clave" (ej. slug, o una combinación con
 // on_conflict). Devuelve la fila resultante.
-async function upsertOne(table, row, onConflict) {
+export async function upsertOne(table, row, onConflict) {
   const result = await sb('POST', table, {
     body: row,
     params: `?on_conflict=${onConflict}`,

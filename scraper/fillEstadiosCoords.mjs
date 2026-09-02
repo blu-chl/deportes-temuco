@@ -1,19 +1,23 @@
-// Completa lat/lon en liga_estadios para los estadios que ya están en la
-// base pero sin coordenadas cargadas — no se puede sacar del scraper (ANFP
-// no publica coordenadas), así que se investigó a mano cada uno (Wikipedia/
-// Wikidata) y se dejan acá como referencia fija.
+// Completa lat/lon en liga_estadios para los estadios que aparecen en
+// liga_partidos.estadio (la misma lista que ve Admin → Enriquecer → Fotos
+// de estadios) — liga_estadios solo tiene fila para los que alguien ya
+// guardó una foto o coordenada a mano, así que la mayoría de los nombres
+// todavía no existen ahí; por eso se arma la lista desde liga_partidos y
+// se hace upsert, no un simple PATCH sobre lo que ya hubiera en
+// liga_estadios. Las coordenadas no se pueden sacar del scraper (ANFP no
+// las publica), así que se investigaron a mano (Wikipedia/Wikidata) y
+// quedan acá como referencia fija.
 //
 // Matchea por un fragmento del nombre en vez de una lista de nombres
-// exactos, porque el nombre real en la base puede venir truncado/con
-// variantes que no se conocen de antemano al escribir este script — así
-// no hay riesgo de crear una fila nueva por un typo, siempre se hace
-// PATCH sobre el nombre real que ya existe en liga_estadios.
+// exactos, porque el nombre real puede traer variantes que no se conocen
+// de antemano al escribir este script — así el upsert siempre usa el
+// nombre real tal cual aparece en liga_partidos, nunca uno adivinado.
 //
 // Corre una vez (workflow_dispatch, ver
 // .github/workflows/fill-estadios-coords.yml) — es idempotente: si un
 // estadio ya tiene lat/lon cargado (a mano o por una corrida anterior), se
-// deja tal cual.
-import { get, patch } from './lib/db.mjs';
+// deja tal cual, nunca lo pisa.
+import { get, upsertOne } from './lib/db.mjs';
 
 const COORDS = [
   ['Iván Azócar', -35.41972, -71.67389], // Talca (ex Fiscal de Talca)
@@ -38,28 +42,42 @@ const COORDS = [
 ];
 
 async function main() {
-  const estadios = await get('liga_estadios', '?select=nombre,lat,lon');
-  if (!Array.isArray(estadios)) {
-    console.error('No se pudo leer liga_estadios (¿corriste liga_estadios_coords.sql?):', estadios);
+  const [partidos, estadiosExistentes] = await Promise.all([
+    get('liga_partidos', '?select=estadio&estadio=not.is.null'),
+    get('liga_estadios', '?select=nombre,lat,lon'),
+  ]);
+  if (!Array.isArray(partidos)) {
+    console.error('No se pudo leer liga_partidos:', partidos);
     process.exitCode = 1;
     return;
   }
-  console.log(`${estadios.length} estadios en la base.\n`);
+  if (!Array.isArray(estadiosExistentes)) {
+    console.error('No se pudo leer liga_estadios (¿corriste liga_estadios_coords.sql?):', estadiosExistentes);
+    process.exitCode = 1;
+    return;
+  }
+  const nombres = [...new Set(partidos.map((p) => p.estadio).filter(Boolean))];
+  const coordsPorNombre = {};
+  estadiosExistentes.forEach((e) => {
+    if (e.lat != null && e.lon != null) coordsPorNombre[e.nombre] = e;
+  });
+  console.log(`${nombres.length} estadios distintos en liga_partidos.\n`);
+
   let actualizados = 0;
   const sinMatch = [];
-  for (const e of estadios) {
-    if (e.lat != null && e.lon != null) {
-      console.log(`· ${e.nombre} — ya tiene coordenadas, se deja`);
+  for (const nombre of nombres) {
+    if (coordsPorNombre[nombre]) {
+      console.log(`· ${nombre} — ya tiene coordenadas, se deja`);
       continue;
     }
-    const match = COORDS.find(([frag]) => e.nombre.includes(frag));
+    const match = COORDS.find(([frag]) => nombre.includes(frag));
     if (!match) {
-      sinMatch.push(e.nombre);
+      sinMatch.push(nombre);
       continue;
     }
     const [, lat, lon] = match;
-    await patch('liga_estadios', `?nombre=eq.${encodeURIComponent(e.nombre)}`, { lat, lon });
-    console.log(`✓ ${e.nombre} -> ${lat}, ${lon}`);
+    await upsertOne('liga_estadios', { nombre, lat, lon }, 'nombre');
+    console.log(`✓ ${nombre} -> ${lat}, ${lon}`);
     actualizados++;
   }
   console.log(`\nListo: ${actualizados} estadios actualizados.`);

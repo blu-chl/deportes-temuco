@@ -1,0 +1,25 @@
+name: Completar coordenadas de estadios
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        working-directory: scraper
+        run: npm install
+
+      - name: Completar lat/lon en liga_estadios
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node fillEstadiosCoords.mjs

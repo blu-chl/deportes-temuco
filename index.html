@@ -4439,19 +4439,27 @@ function renderAnalisis(){
       ${svgBarChart(rows,{val:r=>r.sub21Min,fmt:v=>v.toLocaleString('es-CL'),maxHint:1000})}
     `:
     (()=>{
-      const rDisc=pearsonR(rows,r=>r.amPP+r.rjPP,r=>r.ptsPP)
-      const rSub21=pearsonR(rows,r=>r.sub21Min,r=>r.ptsPP)
+      // Una correlación contra rendimiento (puntos por partido) por cada
+      // categoría que ya se analiza por separado en las otras pestañas
+      // (Ataque y Defensa, Disciplina, Descuento, Sub-21) — así se ve de
+      // un vistazo cuál de todas realmente se relaciona con ganar puntos.
       const chip=r=>`<div style="display:inline-block;font-size:12.5px;font-weight:800;color:${Math.abs(r)>=0.4?'var(--v)':'var(--gris)'};background:rgba(16,24,32,.04);border:1px solid var(--borde);border-radius:999px;padding:4px 12px;margin-bottom:10px">${interpretaR(r)}</div>`
+      const bloque=(titulo,sub,xFn,xFmt,xLabel,xMaxHint)=>{
+        const r=pearsonR(rows,xFn,e=>e.ptsPP)
+        return`
+          <div class="pt disp" style="font-size:15px;margin:26px 0 2px">${titulo}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${sub}</div>
+          ${chip(r)}
+          ${svgScatterXY(rows,{xFn,yFn:e=>e.ptsPP,xFmt,yFmt:v=>v.toFixed(2),xLabel,yLabel:'Puntos por partido',xMaxHint,yMaxHint:2.5,showTrend:true})}
+        `
+      }
       return`
-        <div style="color:var(--gris);font-size:12px;margin-bottom:18px">Análisis de dependencia estadística: qué tan relacionadas están dos variables entre los 16 equipos. El coeficiente de correlación de Pearson (r) va de -1 (relación inversa perfecta) a +1 (relación directa perfecta); cerca de 0 significa que no hay relación real entre ambas. La diagonal en cada gráfico va desde el origen y marca la proporción 1:1 entre los dos ejes.</div>
-        <div class="pt disp" style="font-size:15px;margin-bottom:2px">Disciplina vs Rendimiento</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Tarjetas por partido (eje X) vs puntos por partido (eje Y)</div>
-        ${chip(rDisc)}
-        ${svgScatterXY(rows,{xFn:r=>r.amPP+r.rjPP,yFn:r=>r.ptsPP,xFmt:v=>v.toFixed(2),yFmt:v=>v.toFixed(2),xLabel:'Tarjetas por partido',yLabel:'Puntos por partido',xMaxHint:3.5,yMaxHint:2.5,showTrend:true})}
-        <div class="pt disp" style="font-size:15px;margin:26px 0 2px">Minutos Sub-21 vs Rendimiento</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Minutos oficiales sub-21 en la temporada (eje X) vs puntos por partido (eje Y)</div>
-        ${chip(rSub21)}
-        ${svgScatterXY(rows,{xFn:r=>r.sub21Min,yFn:r=>r.ptsPP,xFmt:v=>Math.round(v).toLocaleString('es-CL'),yFmt:v=>v.toFixed(2),xLabel:'Minutos Sub-21',yLabel:'Puntos por partido',xMaxHint:1000,yMaxHint:2.5,showTrend:true})}
+        <div style="color:var(--gris);font-size:12px;margin-bottom:8px">Análisis de dependencia estadística: qué tan relacionada está cada variable con el rendimiento (puntos por partido), entre los 16 equipos. El coeficiente de correlación de Pearson (r) va de -1 (relación inversa perfecta) a +1 (relación directa perfecta); cerca de 0 significa que no hay relación real entre ambas. La diagonal en cada gráfico va desde el origen y marca la proporción 1:1 entre los dos ejes.</div>
+        ${bloque('Ataque vs Rendimiento','Goles a favor por partido (eje X) vs puntos por partido (eje Y)',r=>r.gfPP,v=>v.toFixed(2),'Goles a favor por partido',2.5)}
+        ${bloque('Defensa vs Rendimiento','Goles en contra por partido (eje X) vs puntos por partido (eje Y) — se espera relación inversa',r=>r.gcPP,v=>v.toFixed(2),'Goles en contra por partido',2.5)}
+        ${bloque('Disciplina vs Rendimiento','Tarjetas por partido (eje X) vs puntos por partido (eje Y)',r=>r.amPP+r.rjPP,v=>v.toFixed(2),'Tarjetas por partido',3.5)}
+        ${bloque('Descuento vs Rendimiento','% de goles marcados en tiempo de descuento (eje X) vs puntos por partido (eje Y)',r=>r.pctDescuentoAmbos,v=>v.toFixed(1)+'%','% goles en descuento',20)}
+        ${bloque('Minutos Sub-21 vs Rendimiento','Minutos oficiales sub-21 en la temporada (eje X) vs puntos por partido (eje Y)',r=>r.sub21Min,v=>Math.round(v).toLocaleString('es-CL'),'Minutos Sub-21',1000)}
       `
     })()
 

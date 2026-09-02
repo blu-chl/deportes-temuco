@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Deportes Temuco · Ascenso 2026</title>
+<link rel="icon" type="image/svg+xml" href="https://www.campeonatochileno.cl/wp-content/uploads/2025/01/Temuco-1.svg">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -2163,8 +2164,8 @@ function renderEstadisticas(){
       <div class="pb">
         <div style="display:flex;gap:5px">
           ${ult5.map(p=>{
-            const col=p.resultado==='G'?'var(--vc)':p.resultado==='E'?'var(--am)':'var(--ro)'
-            return`<div style="flex:1;background:rgba(0,0,0,.2);border-radius:6px;padding:7px 4px;text-align:center;border-top:3px solid ${col}">
+            const col=p.resultado==='G'?'#1f8b4d':p.resultado==='E'?'var(--am)':'var(--ro)'
+            return`<div style="flex:1;background:rgba(16,24,32,0.035);border-radius:6px;padding:7px 4px;text-align:center;border-top:3px solid ${col}">
               <div style="font-size:10px;font-weight:800;color:${col}">${p.resultado}</div>
               <div style="font-size:9px;font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.rival.split(' ')[0]}</div>
               <div style="font-size:11px;font-weight:800;color:${col};margin-top:2px">${p.gf}—${p.gc}</div>

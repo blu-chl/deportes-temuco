@@ -4376,16 +4376,16 @@ function renderAnalisis(){
   // Dependencia estadística (coeficiente de Pearson) al pie de cada
   // pestaña, contra la variable propia de esa pestaña — en vez de una
   // pestaña aparte con todo junto, para ver la evidencia justo al lado
-  // del dato que la origina. Eje X siempre puntos por partido
-  // (rendimiento); el eje Y cambia según qué se esté mirando.
+  // del dato que la origina. Eje Y siempre puntos por partido
+  // (rendimiento); el eje X cambia según qué se esté mirando.
   const chipR=r=>`<div style="display:inline-block;font-size:12.5px;font-weight:800;color:${Math.abs(r)>=0.4?'var(--v)':'var(--gris)'};background:rgba(16,24,32,.04);border:1px solid var(--borde);border-radius:999px;padding:4px 12px;margin-bottom:10px">${interpretaR(r)}</div>`
-  const bloqueCorrelacion=(titulo,sub,yFn,yFmt,yLabel,yMaxHint)=>{
-    const r=pearsonR(rows,e=>e.ptsPP,yFn)
+  const bloqueCorrelacion=(titulo,sub,xFn,xFmt,xLabel,xMaxHint)=>{
+    const r=pearsonR(rows,xFn,e=>e.ptsPP)
     return`
       <div class="pt disp" style="font-size:15px;margin:22px 0 2px;border-top:1px solid var(--borde);padding-top:16px">📈 ${titulo}</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${sub}</div>
       ${chipR(r)}
-      ${svgScatterXY(rows,{xFn:e=>e.ptsPP,yFn,xFmt:v=>v.toFixed(2),yFmt,xLabel:'Puntos por partido',yLabel,xMaxHint:2.5,yMaxHint,showTrend:true})}
+      ${svgScatterXY(rows,{xFn,yFn:e=>e.ptsPP,xFmt,yFmt:v=>v.toFixed(2),xLabel,yLabel:'Puntos por partido',xMaxHint,yMaxHint:2.5,showTrend:true})}
     `
   }
 
@@ -4423,8 +4423,8 @@ function renderAnalisis(){
     cat==='ataque'?`
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Cada escudo es un equipo. Arriba a la izquierda = ataca mucho y recibe poco. Las líneas punteadas marcan el promedio de los equipos filtrados; la diagonal roja va desde el origen y marca la proporción 1:1 entre los dos ejes.</div>
       ${svgScatterXY(rows,{xFn:r=>r.gcPP,yFn:r=>r.gfPP,xFmt:v=>v.toFixed(1),yFmt:v=>v.toFixed(1),xLabel:'Goles en contra por partido',yLabel:'Goles a favor por partido',xMaxHint:2.2,yMaxHint:2.2,showTrend:true})}
-      ${bloqueCorrelacion('Dependencia con el ataque','Puntos por partido (eje X) vs goles a favor por partido (eje Y)',e=>e.gfPP,v=>v.toFixed(2),'Goles a favor por partido',2.5)}
-      ${bloqueCorrelacion('Dependencia con la defensa','Puntos por partido (eje X) vs goles en contra por partido (eje Y) — se espera relación inversa',e=>e.gcPP,v=>v.toFixed(2),'Goles en contra por partido',2.5)}
+      ${bloqueCorrelacion('Dependencia con el ataque','Goles a favor por partido (eje X) vs puntos por partido (eje Y)',e=>e.gfPP,v=>v.toFixed(2),'Goles a favor por partido',2.5)}
+      ${bloqueCorrelacion('Dependencia con la defensa','Goles en contra por partido (eje X) vs puntos por partido (eje Y) — se espera relación inversa',e=>e.gcPP,v=>v.toFixed(2),'Goles en contra por partido',2.5)}
     `:
     cat==='disciplina'?`
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Tarjetas recibidas por partido jugado.</div>
@@ -4433,8 +4433,8 @@ function renderAnalisis(){
         <span><span style="display:inline-block;width:9px;height:9px;background:var(--ro);border-radius:2px;margin-right:4px"></span>Rojas</span>
       </div>
       ${svgStackedChart(rows,[{val:r=>r.amPP,color:'var(--am)',label:'Amarillas'},{val:r=>r.rjPP,color:'var(--ro)',label:'Rojas'}],{maxHint:3.5})}
-      ${bloqueCorrelacion('Dependencia con las amarillas','Puntos por partido (eje X) vs amarillas por partido (eje Y)',e=>e.amPP,v=>v.toFixed(2),'Amarillas por partido',2.5)}
-      ${bloqueCorrelacion('Dependencia con las rojas','Puntos por partido (eje X) vs rojas por partido (eje Y)',e=>e.rjPP,v=>v.toFixed(2),'Rojas por partido',0.5)}
+      ${bloqueCorrelacion('Dependencia con las amarillas','Amarillas por partido (eje X) vs puntos por partido (eje Y)',e=>e.amPP,v=>v.toFixed(2),'Amarillas por partido',2.5)}
+      ${bloqueCorrelacion('Dependencia con las rojas','Rojas por partido (eje X) vs puntos por partido (eje Y)',e=>e.rjPP,v=>v.toFixed(2),'Rojas por partido',0.5)}
     `:
     cat==='rendimiento'?`
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Puntos obtenidos por partido jugado, según condición.</div>
@@ -4443,8 +4443,8 @@ function renderAnalisis(){
         <span><span style="display:inline-block;width:9px;height:9px;background:var(--gold);border-radius:2px;margin-right:4px"></span>Visita</span>
       </div>
       ${svgGroupedChart(rows,[{val:r=>r.pppLocal,color:'var(--az)',label:'Local'},{val:r=>r.pppVisita,color:'var(--gold)',label:'Visita'}],{maxHint:3})}
-      ${bloqueCorrelacion('Dependencia con el rendimiento de local','Puntos por partido (eje X) vs puntos por partido como local (eje Y)',e=>e.pppLocal,v=>v.toFixed(2),'Puntos por partido (local)',3)}
-      ${bloqueCorrelacion('Dependencia con el rendimiento de visita','Puntos por partido (eje X) vs puntos por partido como visita (eje Y)',e=>e.pppVisita,v=>v.toFixed(2),'Puntos por partido (visita)',3)}
+      ${bloqueCorrelacion('Dependencia con el rendimiento de local','Puntos por partido como local (eje X) vs puntos por partido (eje Y)',e=>e.pppLocal,v=>v.toFixed(2),'Puntos por partido (local)',3)}
+      ${bloqueCorrelacion('Dependencia con el rendimiento de visita','Puntos por partido como visita (eje X) vs puntos por partido (eje Y)',e=>e.pppVisita,v=>v.toFixed(2),'Puntos por partido (visita)',3)}
     `:
     cat==='descuento'?(()=>{
       const campo=S.analisis.descuentoFiltro==='45'?'pctDescuento45':S.analisis.descuentoFiltro==='ambos'?'pctDescuentoAmbos':'pctDescuento90'
@@ -4454,13 +4454,13 @@ function renderAnalisis(){
           ${[['90','Solo 90+'],['45','Solo 45+'],['ambos','Ambos']].map(([id,l])=>`<button class="tab ${S.analisis.descuentoFiltro===id?'on':''}" onclick="S.analisis.descuentoFiltro='${id}';render()">${l}</button>`).join('')}
         </div>
         ${svgBarChart(rows,{val:r=>r[campo],fmt:v=>v.toFixed(1)+'%',maxHint:20})}
-        ${bloqueCorrelacion('Dependencia con el descuento','Puntos por partido (eje X) vs % de goles en tiempo de descuento (eje Y)',e=>e[campo],v=>v.toFixed(1)+'%','% goles en descuento',20)}
+        ${bloqueCorrelacion('Dependencia con el descuento','% de goles en tiempo de descuento (eje X) vs puntos por partido (eje Y)',e=>e[campo],v=>v.toFixed(1)+'%','% goles en descuento',20)}
       `
     })():
     cat==='sub21'?`
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Suma de minutos oficiales de todos los jugadores sub-21 usados en la temporada (dato ANFP).</div>
       ${svgBarChart(rows,{val:r=>r.sub21Min,fmt:v=>v.toLocaleString('es-CL'),maxHint:1000})}
-      ${bloqueCorrelacion('Dependencia con los minutos Sub-21','Puntos por partido (eje X) vs minutos oficiales sub-21 en la temporada (eje Y)',e=>e.sub21Min,v=>Math.round(v).toLocaleString('es-CL'),'Minutos Sub-21',1000)}
+      ${bloqueCorrelacion('Dependencia con los minutos Sub-21','Minutos oficiales sub-21 en la temporada (eje X) vs puntos por partido (eje Y)',e=>e.sub21Min,v=>Math.round(v).toLocaleString('es-CL'),'Minutos Sub-21',1000)}
     `:''
 
   return`<div class="pb">

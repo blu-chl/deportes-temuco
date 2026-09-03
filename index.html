@@ -384,7 +384,7 @@ let S={
   partidosLiga:{loaded:false,partidos:[],goles:[],golesAmbos:[],autogolesPropios:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[],previo:null,clima:null,mvpExpand:false},
-  rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:'',suspendidos:null,destacados:null,clima:null},
+  rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:'',suspendidos:null,destacados:null,clima:null,statsTab:'global'},
   analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],seleccion:new Set(),descuentoFiltro:'90',evolucionRango:'todas'},
   // Reorganización de navegación pública: sub-vistas dentro de cada pestaña
   // de primer nivel (en vez de más pestañas de primer nivel).
@@ -3823,6 +3823,8 @@ async function statsEquipoLiga(equipoId){
     pppVisita:s.pjVisita?+(s.ptsVisita/s.pjVisita).toFixed(2):0,
     gfPPLocal:statsLocal.gfPP,gcPPLocal:statsLocal.gcPP,
     gfPPVisita:statsVisita.gfPP,gcPPVisita:statsVisita.gcPP,
+    amPPLocal:statsLocal.amPP,rjPPLocal:statsLocal.rjPP,pctDescuentoLocal:statsLocal.pctDescuento,
+    amPPVisita:statsVisita.amPP,rjPPVisita:statsVisita.rjPP,pctDescuentoVisita:statsVisita.pctDescuento,
     sub21Min,
     u5,
     serie,
@@ -4114,16 +4116,29 @@ function renderProximoRival(){
       <div class="ph"><div class="pt disp" style="font-size:15px">📊 Estadísticas generales</div></div>
       <div class="pb">
         ${c?`<div>
-          <div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:2px">
-            <span style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Número grande = temporada completa · "Ú5" = últimos 5 partidos</span>
+          <div class="tabs" style="margin-bottom:4px">
+            <button class="tab ${S.rivales.statsTab==='global'?'on':''}" onclick="S.rivales.statsTab='global';render()">Temporada completa</button>
+            <button class="tab ${S.rivales.statsTab==='condicion'?'on':''}" onclick="S.rivales.statsTab='condicion';render()">Local vs Visita</button>
           </div>
-          ${filaComparacion(esLocal?'Goles a favor / PJ (Local)':'Goles a favor / PJ (Visita)',esLocal?c.temuco.gfPPLocal:c.temuco.gfPPVisita,esLocal?c.rival.gfPPVisita:c.rival.gfPPLocal,v=>v.toFixed(2),true,c.temuco.u5.gfPP,c.rival.u5.gfPP)}
-          ${filaComparacion(esLocal?'Goles en contra / PJ (Local)':'Goles en contra / PJ (Visita)',esLocal?c.temuco.gcPPLocal:c.temuco.gcPPVisita,esLocal?c.rival.gcPPVisita:c.rival.gcPPLocal,v=>v.toFixed(2),false,c.temuco.u5.gcPP,c.rival.u5.gcPP)}
+          <div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:2px">
+            <span style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">${S.rivales.statsTab==='global'?'Número grande = temporada completa · "Ú5" = últimos 5 partidos':(esLocal?'Deportes Temuco de local vs. '+rival.nombre+' de visita':'Deportes Temuco de visita vs. '+rival.nombre+' de local')}</span>
+          </div>
+          ${S.rivales.statsTab==='global'?`
+          ${filaComparacion('Goles a favor / PJ',c.temuco.gfPP,c.rival.gfPP,v=>v.toFixed(2),true,c.temuco.u5.gfPP,c.rival.u5.gfPP)}
+          ${filaComparacion('Goles en contra / PJ',c.temuco.gcPP,c.rival.gcPP,v=>v.toFixed(2),false,c.temuco.u5.gcPP,c.rival.u5.gcPP)}
           ${filaComparacion('Amarillas / PJ',c.temuco.amPP,c.rival.amPP,v=>v.toFixed(2),false,c.temuco.u5.amPP,c.rival.u5.amPP)}
           ${filaComparacion('Rojas / PJ',c.temuco.rjPP,c.rival.rjPP,v=>v.toFixed(2),false,c.temuco.u5.rjPP,c.rival.u5.rjPP)}
-          ${filaComparacion(esLocal?'Pts/PJ Local':'Pts/PJ Visita',esLocal?c.temuco.pppLocal:c.temuco.pppVisita,esLocal?c.rival.pppVisita:c.rival.pppLocal,v=>v.toFixed(2),true,c.temuco.u5.ptsPP,c.rival.u5.ptsPP)}
+          ${filaComparacion('Pts / PJ',c.temuco.ptsPP,c.rival.ptsPP,v=>v.toFixed(2),true,c.temuco.u5.ptsPP,c.rival.u5.ptsPP)}
           ${filaComparacion('% goles en descuento',c.temuco.pctDescuento,c.rival.pctDescuento,v=>v.toFixed(1)+'%',true,c.temuco.u5.pctDescuento,c.rival.u5.pctDescuento)}
           ${filaComparacion('Minutos sub-21',c.temuco.sub21Min,c.rival.sub21Min,v=>v.toLocaleString('es-CL'))}
+          `:`
+          ${filaComparacion(esLocal?'Goles a favor / PJ (Local)':'Goles a favor / PJ (Visita)',esLocal?c.temuco.gfPPLocal:c.temuco.gfPPVisita,esLocal?c.rival.gfPPVisita:c.rival.gfPPLocal,v=>v.toFixed(2),true)}
+          ${filaComparacion(esLocal?'Goles en contra / PJ (Local)':'Goles en contra / PJ (Visita)',esLocal?c.temuco.gcPPLocal:c.temuco.gcPPVisita,esLocal?c.rival.gcPPVisita:c.rival.gcPPLocal,v=>v.toFixed(2),false)}
+          ${filaComparacion(esLocal?'Amarillas / PJ (Local)':'Amarillas / PJ (Visita)',esLocal?c.temuco.amPPLocal:c.temuco.amPPVisita,esLocal?c.rival.amPPVisita:c.rival.amPPLocal,v=>v.toFixed(2),false)}
+          ${filaComparacion(esLocal?'Rojas / PJ (Local)':'Rojas / PJ (Visita)',esLocal?c.temuco.rjPPLocal:c.temuco.rjPPVisita,esLocal?c.rival.rjPPVisita:c.rival.rjPPLocal,v=>v.toFixed(2),false)}
+          ${filaComparacion(esLocal?'Pts/PJ Local':'Pts/PJ Visita',esLocal?c.temuco.pppLocal:c.temuco.pppVisita,esLocal?c.rival.pppVisita:c.rival.pppLocal,v=>v.toFixed(2),true)}
+          ${filaComparacion(esLocal?'% goles en descuento (Local)':'% goles en descuento (Visita)',esLocal?c.temuco.pctDescuentoLocal:c.temuco.pctDescuentoVisita,esLocal?c.rival.pctDescuentoVisita:c.rival.pctDescuentoLocal,v=>v.toFixed(1)+'%',true)}
+          `}
         </div>`:`<div class="empty">Calculando comparación…</div>`}
       </div>
     </div>

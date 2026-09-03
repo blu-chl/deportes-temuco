@@ -384,7 +384,7 @@ let S={
   partidosLiga:{loaded:false,partidos:[],goles:[],golesAmbos:[],autogolesPropios:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[],previo:null,clima:null,mvpExpand:false},
-  rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:'',suspendidos:null,destacados:null},
+  rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:'',suspendidos:null,destacados:null,clima:null},
   analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],seleccion:new Set(),descuentoFiltro:'90',evolucionRango:'todas'},
   // Reorganización de navegación pública: sub-vistas dentro de cada pestaña
   // de primer nivel (en vez de más pestañas de primer nivel).
@@ -3501,19 +3501,26 @@ const WMO_CLIMA={
   85:['🌨️','Chubascos de nieve'],86:['🌨️','Chubascos de nieve intensos'],
   95:['⛈️','Tormenta eléctrica'],96:['⛈️','Tormenta con granizo'],99:['⛈️','Tormenta con granizo intenso'],
 }
-// Clima histórico del día del partido, vía Open-Meteo (API pública, sin
-// key). Necesita coordenadas cargadas a mano por estadio (Admin →
-// Enriquecer → Fotos de estadios) — sin eso no se puede pedir nada, así
-// que el panel de clima simplemente no aparece.
-async function cargarClimaPartido(id,estadio,fechaHoraIso){
+// Clima del día del partido, vía Open-Meteo (API pública, sin key).
+// Necesita coordenadas cargadas a mano por estadio (Admin → Enriquecer →
+// Fotos de estadios) — sin eso no se puede pedir nada, así que el panel
+// de clima simplemente no aparece. Para un partido futuro usa la API de
+// pronóstico en vez de la histórica (Open-Meteo solo pronostica ~16 días
+// adelante; más allá de eso no hay nada que mostrar todavía).
+// onResult(clima) se llama solo si se obtuvo un dato válido — quien
+// llama decide dónde guardarlo y si todavía corresponde (evita pisar el
+// estado si el usuario ya navegó a otro partido mientras esto cargaba).
+async function cargarClima(estadio,fechaHoraIso,onResult){
   const coords=estadio&&S.liga.estadiosCoords[estadio]
   if(!coords||!fechaHoraIso)return
   const fecha=fechaHoraIso.slice(0,10)
+  const esFuturo=new Date(fechaHoraIso)>new Date()
+  if(esFuturo&&(new Date(fechaHoraIso)-new Date())>15*86400000)return // fuera del rango de pronóstico
+  const base=esFuturo?'https://api.open-meteo.com/v1/forecast':'https://archive-api.open-meteo.com/v1/archive'
   try{
-    const url=`https://archive-api.open-meteo.com/v1/archive?latitude=${coords.lat}&longitude=${coords.lon}&start_date=${fecha}&end_date=${fecha}&hourly=temperature_2m,weathercode,precipitation&timezone=America%2FSantiago`
+    const url=`${base}?latitude=${coords.lat}&longitude=${coords.lon}&start_date=${fecha}&end_date=${fecha}&hourly=temperature_2m,weathercode,precipitation&timezone=America%2FSantiago`
     const r=await fetch(url)
     const d=await r.json()
-    if(S.partidoLiga.id!==id)return // navegó a otro partido mientras cargaba
     if(!d||!d.hourly||!Array.isArray(d.hourly.time)||!d.hourly.time.length)return
     // Hora de kickoff en horario de Chile, en el mismo formato "YYYY-MM-DDTHH"
     // que trae hourly.time, para encontrar el bloque horario más cercano.
@@ -3522,9 +3529,15 @@ async function cargarClimaPartido(id,estadio,fechaHoraIso){
     if(idx===-1)idx=Math.min(11,d.hourly.time.length-1) // fallback: mediodía si no calzó exacto
     const codigo=d.hourly.weathercode[idx]
     const[emoji,texto]=WMO_CLIMA[codigo]||['🌡️','Sin dato']
-    S.partidoLiga.clima={temp:d.hourly.temperature_2m[idx],emoji,texto,precip:d.hourly.precipitation[idx]}
-    render()
+    onResult({temp:d.hourly.temperature_2m[idx],emoji,texto,precip:d.hourly.precipitation[idx],esPronostico:esFuturo})
   }catch(e){/* clima es un plus, no crítico — si falla la API queda sin mostrarse */}
+}
+async function cargarClimaPartido(id,estadio,fechaHoraIso){
+  await cargarClima(estadio,fechaHoraIso,clima=>{
+    if(S.partidoLiga.id!==id)return // navegó a otro partido mientras cargaba
+    S.partidoLiga.clima=clima
+    render()
+  })
 }
 async function verPartidoLiga(id,volverA){
   if(!id)return
@@ -3550,7 +3563,7 @@ async function verPartidoLiga(id,volverA){
   const d=S.partidoLiga.data
   if(d&&d.goles_local!=null&&d.jornada>1)cargarPrevioPartido(id,d.jornada,d.equipo_local_id,d.equipo_visita_id)
   if(d&&d.goles_local!=null)cargarVotosMvp(id)
-  if(d&&d.goles_local!=null)cargarClimaPartido(id,d.estadio,d.fecha_hora)
+  if(d&&d.estadio&&d.fecha_hora)cargarClimaPartido(id,d.estadio,d.fecha_hora)
 }
 // Un UUID por navegador, guardado en localStorage — no hay login para votar,
 // así que esto es lo único que evita votar 2 veces por el mismo jugador (se
@@ -3687,13 +3700,13 @@ function renderPartidoLiga(){
       </div>`
     })()}
 
-    ${d.goles_local!=null&&P.clima?`<div class="panel" style="margin-top:16px">
-      <div class="ph"><div class="pt disp" style="font-size:15px">Clima</div></div>
+    ${P.clima?`<div class="panel" style="margin-top:16px">
+      <div class="ph"><div class="pt disp" style="font-size:15px">${P.clima.esPronostico?'Pronóstico':'Clima'}</div></div>
       <div class="pb" style="display:flex;align-items:center;gap:14px">
         <div style="font-size:32px">${P.clima.emoji}</div>
         <div>
           <div style="font-weight:700;font-size:13px">${P.clima.texto}${P.clima.temp!=null?` · ${Math.round(P.clima.temp)}°C`:''}</div>
-          <div style="font-size:10.5px;color:var(--gris)">En ${d.estadio} a la hora del partido${P.clima.precip>0?` · ${P.clima.precip} mm de lluvia`:''}</div>
+          <div style="font-size:10.5px;color:var(--gris)">En ${d.estadio} a la hora del partido${P.clima.precip>0?` · ${P.clima.precip} mm de lluvia`:''}${P.clima.esPronostico?' · puede cambiar antes del partido':''}</div>
         </div>
       </div>
     </div>`:''}
@@ -3824,10 +3837,16 @@ async function cargarRivales(){
   ])
   S.rivales.notas=Array.isArray(notas)?notas:[]
   S.rivales.proximo=Array.isArray(proximo)&&proximo[0]?proximo[0]:null
+  S.rivales.clima=null
   S.rivales.loaded=true
   render()
   if(S.rivales.proximo){
     const p=S.rivales.proximo
+    if(p.estadio&&p.fecha_hora)cargarClima(p.estadio,p.fecha_hora,clima=>{
+      if(S.rivales.proximo!==p)return // ya cargó un próximo partido distinto mientras esto pedía
+      S.rivales.clima=clima
+      if(S.pag==='inicio')render()
+    })
     const rivalId=p.equipo_local_id===S.liga.temucoId?p.visita.id:p.local.id
     const[statsTemuco,statsRival]=await Promise.all([statsEquipoLiga(S.liga.temucoId),statsEquipoLiga(rivalId)])
     S.rivales.comparacion={temuco:statsTemuco,rival:statsRival}
@@ -3973,7 +3992,7 @@ function renderProximoRival(){
             <div style="font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.85)">Liga de Ascenso Caixun 2026</div>
             <div class="disp" style="color:#fff;font-size:28px;margin-top:4px">FECHA ${p.jornada||''}</div>
           </div>
-          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(p.fecha_hora)}${p.estadio?'<br>'+p.estadio:''}</div>
+          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(p.fecha_hora)}${fmtHora(p.fecha_hora)?` · ${fmtHora(p.fecha_hora)} hrs`:''}${p.estadio?'<br>'+p.estadio:''}${S.rivales.clima?`<br><span style="color:#fff">${S.rivales.clima.emoji} ${Math.round(S.rivales.clima.temp)}°C</span> ${S.rivales.clima.texto}${S.rivales.clima.esPronostico?' (pronóstico)':''}`:''}</div>
         </div>
         ${heroMatchupRow(estadioFotoUrl(p.estadio),`
           <div class="hero2-team"><img class="hero2-crest" src="${crestUrl('Deportes Temuco')}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">DEPORTES TEMUCO</div>${posBadge(posTemuco)}</div>

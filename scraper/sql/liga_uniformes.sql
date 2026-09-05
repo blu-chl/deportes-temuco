@@ -30,14 +30,13 @@ create policy liga_uniformes_write on liga_uniformes for all
   using (auth.role() = 'authenticated')
   with check (auth.role() = 'authenticated');
 
--- Punto de partida con los colores TRADICIONALES de cada club, para no
--- tener que cargar 32 filas a mano. Son los históricos, no la camiseta
--- 2026 exacta: hay que verificarlos contra Wikipedia desde
--- Admin → Enriquecer → Uniformes y corregir lo que haya cambiado.
+-- Los 16 clubes, en dos tandas:
 --
--- Los clubes que NO están acá quedaron fuera a propósito: no tengo certeza
--- de sus colores y prefiero que aparezcan vacíos en el admin antes que
--- pintarlos mal. Se cargan a mano igual, desde la misma pantalla.
+--  · Los 10 primeros son los colores TRADICIONALES del club (históricos,
+--    no la camiseta 2026 exacta) — conviene verificarlos contra Wikipedia
+--    desde Admin → Enriquecer → Uniformes.
+--  · Los 6 últimos salen de las capturas de Wikipedia 2026, así que esos
+--    sí son los de esta temporada (menos San Felipe, ver su nota).
 insert into liga_uniformes (equipo_id, tipo, patron, camiseta, detalle, mangas, short, medias)
 select e.id, v.tipo, v.patron, v.camiseta, v.detalle, v.mangas, v.short, v.medias
 from (values
@@ -60,7 +59,23 @@ from (values
   ('Magallanes',         'local',  'liso',   '#7fc4e8', '#ffffff', '#7fc4e8', '#ffffff', '#7fc4e8'),
   ('Magallanes',         'visita', 'liso',   '#ffffff', '#7fc4e8', '#ffffff', '#ffffff', '#ffffff'),
   ('Deportes Temuco',    'local',  'liso',   '#0f8a44', '#ffffff', '#0f8a44', '#ffffff', '#0f8a44'),
-  ('Deportes Temuco',    'visita', 'liso',   '#ffffff', '#0f8a44', '#ffffff', '#ffffff', '#ffffff')
+  ('Deportes Temuco',    'visita', 'liso',   '#ffffff', '#0f8a44', '#ffffff', '#ffffff', '#ffffff'),
+  -- Estos tres salen de las capturas de Wikipedia (uniformes 2026).
+  ('San Marcos de Arica','local',  'liso',   '#2ca9e1', '#ffffff', '#2ca9e1', '#2ca9e1', '#2ca9e1'),
+  ('San Marcos de Arica','visita', 'liso',   '#e52534', '#1b2c5b', '#1b2c5b', '#e52534', '#e52534'),
+  ('Curicó Unido',       'local',  'franja', '#ffffff', '#e23b33', '#ffffff', '#1a1a1a', '#ffffff'),
+  ('Curicó Unido',       'visita', 'liso',   '#7c1f2e', '#ffffff', '#7c1f2e', '#7c1f2e', '#7c1f2e'),
+  ('Deportes Recoleta',  'local',  'liso',   '#1d2b54', '#ffffff', '#1d2b54', '#1d2b54', '#1d2b54'),
+  ('Deportes Recoleta',  'visita', 'liso',   '#ffffff', '#1d2b54', '#ffffff', '#ffffff', '#ffffff'),
+  ('Deportes Puerto Montt','local','liso',   '#ffffff', '#0e9648', '#0e9648', '#0e9648', '#ffffff'),
+  ('Deportes Puerto Montt','visita','liso',  '#1a1a1a', '#ffffff', '#1a1a1a', '#1a1a1a', '#1a1a1a'),
+  ('Club Deportes Santa Cruz','local','liso','#ffffff', '#1d3f8f', '#1d3f8f', '#ffffff', '#ffffff'),
+  ('Club Deportes Santa Cruz','visita','liso','#1e6fd9','#ffffff', '#1e6fd9', '#1e6fd9', '#1e6fd9'),
+  -- ⚠ Unión San Felipe salió de una miniatura, no de la captura completa:
+  -- se ve titular blanca y alternativa roja, pero los tonos exactos hay que
+  -- confirmarlos en Admin → Uniformes.
+  ('Unión San Felipe',   'local',  'liso',   '#ffffff', '#d32b2b', '#ffffff', '#ffffff', '#ffffff'),
+  ('Unión San Felipe',   'visita', 'liso',   '#d32b2b', '#ffffff', '#d32b2b', '#d32b2b', '#d32b2b')
 ) as v(equipo, tipo, patron, camiseta, detalle, mangas, short, medias)
 join liga_equipos e on e.nombre = v.equipo
 on conflict (equipo_id, tipo) do nothing;

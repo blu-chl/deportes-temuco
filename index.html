@@ -2212,7 +2212,7 @@ function renderEstadisticas(){
   PL.goles.filter(g=>g.autogol).forEach(g=>{
     const jid=g.jugador?.id
     if(!jid)return
-    if(!antigolMap[jid])antigolMap[jid]={jugador:g.jugador,n:0}
+    if(!antigolMap[jid])antigolMap[jid]={jugador:g.jugador,n:0,partido_id:g.partido_id}
     antigolMap[jid].n++
   })
   const antigoleadores=Object.values(antigolMap).sort((a,b)=>b.n-a.n)
@@ -2373,7 +2373,11 @@ function renderEstadisticas(){
           </tbody></table>`
           :golTab==='ayudita'
           ?`<table><thead><tr><th></th><th>Jugador</th><th class="num">🥅</th></tr></thead><tbody>
-            ${antigoleadores.map(a=>`<tr><td>${avatarJ(a.jugador,22)}</td><td>${nombreJ(a.jugador)}</td><td class="num" style="color:var(--ro);font-weight:800">${a.n}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Ninguno todavía 🎉</td></tr>`}
+            ${antigoleadores.map(a=>{
+              const rival=partidoPorId[a.partido_id]?.rival
+              const crest=rival?crestUrl(rival):''
+              return`<tr><td>${crest?`<img src="${crest}" style="width:22px;height:22px;object-fit:contain">`:avatarJ(a.jugador,22)}</td><td>${nombreJ(a.jugador)}${rival?` <span style="color:var(--gris);font-weight:400">(${rival})</span>`:''}</td><td class="num" style="color:var(--ro);font-weight:800">${a.n}</td></tr>`
+            }).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Ninguno todavía 🎉</td></tr>`}
           </tbody></table>`
           :`<table><thead><tr><th></th><th>Jugador</th><th class="num">🥅</th></tr></thead><tbody>
             ${antigolesPropios.map(a=>`<tr><td>${avatarJ(a.jugador,22)}</td><td>${nombreJ(a.jugador)}</td><td class="num" style="color:var(--ro);font-weight:800">${a.n}</td></tr>`).join('')||`<tr><td colspan="3" style="text-align:center;color:var(--gris);padding:12px">Ninguno todavía 🎉</td></tr>`}
@@ -2397,11 +2401,12 @@ function renderEstadisticas(){
       const subtipoPanel=(titulo,tipos,mapa,total,stateKey,filtroFn)=>{
         if(!total)return''
         const expandido=S[stateKey]
+        const tiposOrdenados=[...tipos].sort((a,b)=>(mapa[b]||0)-(mapa[a]||0))
         return`<div class="panel" style="margin-bottom:12px">
           <div class="ph"><span class="pt">${titulo}</span><span style="font-size:10px;color:var(--gris)">Hacé clic para ver los goles</span></div>
           <div class="pb">
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
-              ${tipos.map(t=>{
+              ${tiposOrdenados.map(t=>{
                 const n=mapa[t]||0
                 const pct=Math.round(n/Math.max(1,total)*100)
                 const abierto=expandido===t
@@ -2447,7 +2452,8 @@ function renderEstadisticas(){
             ${topCambiosPos.map(([k,n])=>`<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(16,24,32,0.045);border-radius:5px;padding:6px 10px">
               <span style="font-size:11.5px">${k}</span><strong style="font-size:13px;color:var(--am);margin-left:6px">${n}×</strong>
             </div>`).join('')}
-          </div>`:'<div class="empty">Sin posición cargada para los jugadores de los cambios — se carga en Liga → Jugadores clave.</div>'
+          </div>`:`<div class="empty">Sin posición cargada para los jugadores de los cambios.${S.isAdmin?' La posición de cada jugador de Temuco ya está en Plantilla — hace falta copiarla una vez a la base de la liga.':' Se carga en Liga → Jugadores clave.'}</div>
+          ${S.isAdmin?'<button class="bsm" style="margin-top:8px" onclick="sincronizarPosicionesTemuco()">🔄 Sincronizar posiciones de Temuco</button>':''}`
         ):(
           topCambios.length?topCambios.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(200,21,39,0.07)">
             <div style="width:20px;text-align:right;font-size:11px;color:var(--muted)">${i+1}</div>
@@ -2895,6 +2901,23 @@ async function cargarJugadoresClave(equipoId){
   render()
 }
 
+// Copia posicion de los jugadores propios de Temuco (S.jugadores, la
+// plantilla que ya carga Registro/Plantilla con POR/DEF/MED/DEL) hacia
+// liga_jugadores.posicion — vía el link liga_jugador_id. Sin esto,
+// "Cambios más recurrentes → Posiciones" queda vacío para Temuco aunque
+// la posición de cada jugador ya se conozca, porque esa vista lee
+// directamente de liga_jugadores y nadie la había copiado ahí todavía.
+async function sincronizarPosicionesTemuco(){
+  const pendientes=S.jugadores.filter(j=>j.liga_jugador_id&&j.posicion)
+  if(!pendientes.length){toast('No hay jugadores de Temuco con posición cargada en Plantilla',true);return}
+  let ok=0
+  for(const j of pendientes){
+    const r=await patch('liga_jugadores',{posicion:j.posicion},`?id=eq.${j.liga_jugador_id}`)
+    if(!(r&&r.code))ok++
+  }
+  toast(`Posiciones sincronizadas (${ok}/${pendientes.length})`)
+  await cargarPartidosLiga()
+}
 async function guardarPosicionLiga(id,val){
   const r=await patch('liga_jugadores',{posicion:val||null},`?id=eq.${id}`)
   if(r&&r.code){toast('Error al guardar — ¿corriste sql/liga_jugadores_posicion.sql?',true);return}
@@ -4040,8 +4063,8 @@ async function calcularSuspendidosEquipo(equipoId){
   return Object.values(porJugador).filter(j=>(j.amarillas>0&&j.amarillas%5===0)||j.rojaUltimo)
 }
 
-// Máximo goleador de un equipo (con minutos jugados y goles/90) y, si se
-// pide, máximo asistidor — asistidor solo tiene sentido pedirlo para
+// Top 5 goleadores de un equipo (con minutos jugados y goles/90) y, si se
+// pide, top 5 asistidores — asistidor solo tiene sentido pedirlo para
 // Temuco, porque es el único equipo del que cargamos ese dato a mano.
 async function cargarGoleadorEquipo(equipoId,incluirAsistidor){
   const[goles,alineaciones,ultimo]=await Promise.all([
@@ -4061,18 +4084,15 @@ async function cargarGoleadorEquipo(equipoId,incluirAsistidor){
     const jr=g.partido?.jornada||0
     if(jr>golMap[jid].ultimaJornada)golMap[jid].ultimaJornada=jr
   })
-  const rankingGoles=Object.values(golMap).sort((a,b)=>b.goles-a.goles)
-  let goleador=null
-  if(rankingGoles[0]){
-    const top=rankingGoles[0]
+  const goleadores=Object.values(golMap).sort((a,b)=>b.goles-a.goles).slice(0,5).map(top=>{
     const minutos=minMap[top.jid]||0
-    goleador={
+    return{
       jugador:top.jugador,goles:top.goles,minutos,
       golesPor90:minutos?+(top.goles/(minutos/90)).toFixed(2):0,
       fechasSinMarcar:Math.max(0,jornadaActual-top.ultimaJornada),
     }
-  }
-  let asistidor=null
+  })
+  let asistidores=[]
   if(incluirAsistidor){
     const asistMap={}
     golesArr.forEach(g=>{
@@ -4081,10 +4101,12 @@ async function cargarGoleadorEquipo(equipoId,incluirAsistidor){
       if(!asistMap[jid])asistMap[jid]={jugador:g.asistidor,asist:0}
       asistMap[jid].asist++
     })
-    const rankingAsist=Object.values(asistMap).sort((a,b)=>b.asist-a.asist)
-    if(rankingAsist[0])asistidor=rankingAsist[0]
+    asistidores=Object.values(asistMap).sort((a,b)=>b.asist-a.asist).slice(0,5)
   }
-  return{goleador,asistidor}
+  // goleador/asistidor (singular, el top 1) se mantienen por compatibilidad
+  // con "Liga → Explorar equipo", que solo muestra uno; "Próxima fecha"
+  // usa las listas de a 5.
+  return{goleadores,asistidores,goleador:goleadores[0]||null,asistidor:asistidores[0]||null}
 }
 
 async function guardarNotaRival(equipoId){
@@ -4160,21 +4182,21 @@ function renderProximoRival(){
 
     ${(()=>{
       const d=S.rivales.destacados
-      if(!d||(!d.temuco.goleador&&!d.rival.goleador))return''
-      const fila=(titulo,g)=>!g?'':`<div style="margin-bottom:10px">
+      if(!d||(!d.temuco.goleadores.length&&!d.rival.goleadores.length))return''
+      const medalla=i=>i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`
+      const filaGoleadores=(titulo,color,lista)=>!lista.length?'':`<div style="margin-bottom:10px">
         <div style="font-size:10px;font-weight:800;color:var(--gris);text-transform:uppercase;margin-bottom:4px">${titulo}</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-          <span style="font-size:12.5px;font-weight:700">${nombreCompacto(g.jugador.nombre,g.jugador.apellido)}</span>
-          <span style="font-size:15px;font-weight:800;color:var(--v)">${g.goles} ⚽</span>
-        </div>
-        <div style="font-size:10px;color:var(--gris);margin-top:2px">${g.minutos.toLocaleString('es-CL')}' jugados · ${g.golesPor90} goles/90${g.fechasSinMarcar>0?` · <span style="color:var(--am)">${g.fechasSinMarcar} fecha${g.fechasSinMarcar>1?'s':''} sin marcar</span>`:''}</div>
+        ${lista.map((g,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;${i>0?'border-top:1px solid var(--borde)':''}">
+          <span style="font-size:12px;font-weight:700">${medalla(i)} ${nombreCompacto(g.jugador.nombre,g.jugador.apellido)}</span>
+          <span style="font-size:13px;font-weight:800;color:${color}">${g.goles} ⚽</span>
+        </div>`).join('')}
       </div>`
-      const filaAsist=a=>!a?'':`<div>
-        <div style="font-size:10px;font-weight:800;color:var(--gris);text-transform:uppercase;margin-bottom:4px">Máximo asistidor</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-          <span style="font-size:12.5px;font-weight:700">${nombreCompacto(a.jugador.nombre,a.jugador.apellido)}</span>
-          <span style="font-size:15px;font-weight:800;color:var(--az)">${a.asist} 🅰️</span>
-        </div>
+      const filaAsistidores=lista=>!lista.length?'':`<div>
+        <div style="font-size:10px;font-weight:800;color:var(--gris);text-transform:uppercase;margin-bottom:4px">Top 5 asistidores</div>
+        ${lista.map((a,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;${i>0?'border-top:1px solid var(--borde)':''}">
+          <span style="font-size:12px;font-weight:700">${medalla(i)} ${nombreCompacto(a.jugador.nombre,a.jugador.apellido)}</span>
+          <span style="font-size:13px;font-weight:800;color:var(--az)">${a.asist} 🅰️</span>
+        </div>`).join('')}
       </div>`
       return`<div class="panel" style="margin-top:14px">
         <div class="ph"><div class="pt disp" style="font-size:15px">⭐ Destacados</div></div>
@@ -4182,12 +4204,12 @@ function renderProximoRival(){
           <div class="g2">
             <div>
               <div style="font-size:10px;font-weight:800;color:var(--v);text-transform:uppercase;margin-bottom:8px">Deportes Temuco</div>
-              ${fila('Máximo goleador',d.temuco.goleador)}
-              ${filaAsist(d.temuco.asistidor)}
+              ${filaGoleadores('Top 5 goleadores','var(--v)',d.temuco.goleadores)}
+              ${filaAsistidores(d.temuco.asistidores)}
             </div>
             <div>
               <div style="font-size:10px;font-weight:800;color:var(--az);text-transform:uppercase;margin-bottom:8px">${rival.nombre}</div>
-              ${fila('Máximo goleador',d.rival.goleador)}
+              ${filaGoleadores('Top 5 goleadores','var(--az)',d.rival.goleadores)}
               <div style="font-size:10px;color:var(--muted)">Asistencias: sin dato (solo cargamos ese detalle para Temuco)</div>
             </div>
           </div>

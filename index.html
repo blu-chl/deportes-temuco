@@ -1268,7 +1268,7 @@ async function seleccionarBorradorPartido(id){
 }
 async function agregarBorradorGol(){
   const B=S.enriq.borrador
-  if(!B.partidoSel||!B.nuevoJugador){toast('Elegí quién hizo el gol',true);return}
+  if(!B.partidoSel||!B.nuevoJugador){toast('Elige quién hizo el gol',true);return}
   const row={
     partido_id:+B.partidoSel,orden:B.items.length+1,jugador_id:+B.nuevoJugador,subtipo:B.nuevoSubtipo||null,
     asistidor_id:B.nuevoAsistidor&&B.nuevoAsistidor!=='individual'?+B.nuevoAsistidor:null,
@@ -1536,10 +1536,10 @@ function renderEnriquecer(){
       const roster=E.jugadores.slice().sort((a,b)=>(a.apellido||'').localeCompare(b.apellido||''))
       const opcionesJugador=(sel)=>roster.map(j=>`<option value="${j.id}" ${String(sel)===String(j.id)?'selected':''}>${j.apellido} ${j.nombre} #${j.numero??'-'}</option>`).join('')
       return`
-        <div style="color:var(--gris);font-size:11px;margin-bottom:10px">ANFP tarda en publicar el informe oficial — acá podés cargar apenas termina el partido quién metió cada gol de Temuco, EN EL ORDEN en que ocurrieron (no hace falta el minuto). Cuando el scraper procese el informe real, cruza el 1er gol cargado con el 1er gol real, el 2do con el 2do, etc., y le copia cómo fue y quién dio el pase. Si el jugador que cargaste no coincide con el goleador real, esa fila se deja para revisar a mano en "Goles y asistencias" en vez de aplicarse mal.</div>
+        <div style="color:var(--gris);font-size:11px;margin-bottom:10px">ANFP tarda en publicar el informe oficial — acá puedes cargar apenas termina el partido quién metió cada gol de Temuco, EN EL ORDEN en que ocurrieron (no hace falta el minuto). Cuando el scraper procese el informe real, cruza el 1er gol cargado con el 1er gol real, el 2do con el 2do, etc., y le copia cómo fue y quién dio el pase. Si el jugador que cargaste no coincide con el goleador real, esa fila se deja para revisar a mano en "Goles y asistencias" en vez de aplicarse mal.</div>
         <div class="fg"><label>Partido</label>
           <select onchange="seleccionarBorradorPartido(this.value)">
-            <option value="">Elegí un partido sin informe todavía</option>
+            <option value="">Elige un partido sin informe todavía</option>
             ${B.partidos.map(p=>{
               const rival=p.local?.nombre==='Deportes Temuco'?p.visita?.nombre:p.local?.nombre
               return`<option value="${p.id}" ${String(B.partidoSel)===String(p.id)?'selected':''}>F${p.jornada??'?'} · vs ${rival||'?'} · ${fmtFechaLarga(p.fecha_hora)}</option>`
@@ -1561,7 +1561,7 @@ function renderEnriquecer(){
             <div class="fr2" style="margin-bottom:8px">
               <div class="fg" style="margin-bottom:0"><label>Quién hizo el gol</label>
                 <select onchange="S.enriq.borrador.nuevoJugador=this.value">
-                  <option value="">Elegí jugador</option>
+                  <option value="">Elige jugador</option>
                   ${opcionesJugador(B.nuevoJugador)}
                 </select>
               </div>

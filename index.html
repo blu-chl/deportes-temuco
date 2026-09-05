@@ -4068,7 +4068,7 @@ async function calcularSuspendidosEquipo(equipoId){
 // Temuco, porque es el único equipo del que cargamos ese dato a mano.
 async function cargarGoleadorEquipo(equipoId,incluirAsistidor){
   const[goles,alineaciones,ultimo]=await Promise.all([
-    ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=jugador_id,asistidor_id,partido:liga_partidos!liga_goles_partido_id_fkey(jornada),jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido),asistidor:liga_jugadores!liga_goles_asistidor_id_fkey(id,nombre,apellido)`),
+    ligaGet('liga_goles',`?equipo_id=eq.${equipoId}&autogol=eq.false&select=jugador_id,asistidor_id,partido:liga_partidos!liga_goles_partido_id_fkey(jornada),jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido,foto_url),asistidor:liga_jugadores!liga_goles_asistidor_id_fkey(id,nombre,apellido,foto_url)`),
     ligaGet('liga_alineaciones',`?equipo_id=eq.${equipoId}&select=jugador_id,minutos_jugados`),
     ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${equipoId},equipo_visita_id.eq.${equipoId})&goles_local=not.is.null&select=jornada&order=fecha_hora.desc&limit=1`),
   ])
@@ -4183,33 +4183,48 @@ function renderProximoRival(){
     ${(()=>{
       const d=S.rivales.destacados
       if(!d||(!d.temuco.goleadores.length&&!d.rival.goleadores.length))return''
-      const medalla=i=>i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`
-      const filaGoleadores=(titulo,color,lista)=>!lista.length?'':`<div style="margin-bottom:10px">
-        <div style="font-size:10px;font-weight:800;color:var(--gris);text-transform:uppercase;margin-bottom:4px">${titulo}</div>
-        ${lista.map((g,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;${i>0?'border-top:1px solid var(--borde)':''}">
-          <span style="font-size:12px;font-weight:700">${medalla(i)} ${nombreCompacto(g.jugador.nombre,g.jugador.apellido)}</span>
-          <span style="font-size:13px;font-weight:800;color:${color}">${g.goles} ⚽</span>
-        </div>`).join('')}
-      </div>`
-      const filaAsistidores=lista=>!lista.length?'':`<div>
-        <div style="font-size:10px;font-weight:800;color:var(--gris);text-transform:uppercase;margin-bottom:4px">Top 5 asistidores</div>
-        ${lista.map((a,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;${i>0?'border-top:1px solid var(--borde)':''}">
-          <span style="font-size:12px;font-weight:700">${medalla(i)} ${nombreCompacto(a.jugador.nombre,a.jugador.apellido)}</span>
-          <span style="font-size:13px;font-weight:800;color:var(--az)">${a.asist} 🅰️</span>
-        </div>`).join('')}
-      </div>`
+      // Medalla superpuesta al avatar (foto si hay, si no iniciales) + barra
+      // relativa al líder de esa lista, para que se note de un vistazo cuánto
+      // saca ventaja el 1° sobre el resto, no solo el número seco.
+      const colorMedalla=i=>i===0?'#e8b84b':i===1?'#b7bcc4':i===2?'#c98a4b':'var(--borde2)'
+      const filaRanking=(titulo,icono,color,lista,valueKey)=>{
+        if(!lista.length)return''
+        const max=Math.max(1,lista[0][valueKey])
+        return`<div style="margin-bottom:14px">
+          <div style="font-size:10px;font-weight:800;color:var(--gris);text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px">${titulo}</div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            ${lista.map((it,i)=>{
+              const pct=Math.round(it[valueKey]/max*100)
+              const nombre=nombreCompacto(it.jugador.nombre,it.jugador.apellido)
+              return`<div style="display:flex;align-items:center;gap:8px">
+                <div style="position:relative;flex-shrink:0">
+                  ${avatarNombre(nombre,it.jugador.foto_url,28)}
+                  <div style="position:absolute;bottom:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:${colorMedalla(i)};color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--panel)">${i+1}</div>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombre}</div>
+                  <div style="height:4px;background:var(--borde);border-radius:2px;margin-top:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div></div>
+                </div>
+                <div style="text-align:right;flex-shrink:0;min-width:28px;display:flex;align-items:baseline;gap:2px">
+                  <span style="font-size:14px;font-weight:800;color:${color}">${it[valueKey]}</span><span style="font-size:10px">${icono}</span>
+                </div>
+              </div>`
+            }).join('')}
+          </div>
+        </div>`
+      }
       return`<div class="panel" style="margin-top:14px">
         <div class="ph"><div class="pt disp" style="font-size:15px">⭐ Destacados</div></div>
         <div class="pb">
           <div class="g2">
             <div>
               <div style="font-size:10px;font-weight:800;color:var(--v);text-transform:uppercase;margin-bottom:8px">Deportes Temuco</div>
-              ${filaGoleadores('Top 5 goleadores','var(--v)',d.temuco.goleadores)}
-              ${filaAsistidores(d.temuco.asistidores)}
+              ${filaRanking('Top 5 goleadores','⚽','var(--v)',d.temuco.goleadores,'goles')}
+              ${filaRanking('Top 5 asistidores','🅰️','var(--az)',d.temuco.asistidores,'asist')}
             </div>
             <div>
               <div style="font-size:10px;font-weight:800;color:var(--az);text-transform:uppercase;margin-bottom:8px">${rival.nombre}</div>
-              ${filaGoleadores('Top 5 goleadores','var(--az)',d.rival.goleadores)}
+              ${filaRanking('Top 5 goleadores','⚽','var(--az)',d.rival.goleadores,'goles')}
               <div style="font-size:10px;color:var(--muted)">Asistencias: sin dato (solo cargamos ese detalle para Temuco)</div>
             </div>
           </div>

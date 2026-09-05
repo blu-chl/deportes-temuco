@@ -154,6 +154,40 @@ export async function reemplazarEventosPartido(partidoId, { alineaciones, goles,
   if (sustituciones.length) await sb('POST', 'liga_sustituciones', { body: sustituciones });
 }
 
+// Borrador cargado a mano en Admin ANTES de que exista el informe (ver
+// scraper/sql/liga_goles_borrador.sql) — "orden" es la posición
+// cronológica de cada gol de Temuco dentro del partido, no un minuto (el
+// admin todavía no lo sabe cuando lo carga). Acá se cruza con los goles
+// recién insertados por reemplazarEventosPartido: el N-ésimo del borrador
+// (por orden) contra el N-ésimo gol real de ESE equipo (por minuto). Si el
+// borrador trae jugador_id y no coincide con el goleador real del informe,
+// esa fila se deja sin aplicar — mejor no enriquecer que enriquecer mal —
+// y queda pendiente de revisar a mano en Enriquecer.
+export async function aplicarBorradorGoles(partidoId, equipoId) {
+  const borrador = await get('liga_goles_borrador', `?partido_id=eq.${partidoId}&order=orden.asc`);
+  if (!Array.isArray(borrador) || !borrador.length) return;
+
+  const golesReales = await get(
+    'liga_goles',
+    `?partido_id=eq.${partidoId}&equipo_id=eq.${equipoId}&autogol=eq.false&select=id,jugador_id&order=minuto.asc,minuto_extra.asc`
+  );
+  if (!Array.isArray(golesReales) || !golesReales.length) return;
+
+  const aplicadosIds = [];
+  for (let i = 0; i < borrador.length && i < golesReales.length; i++) {
+    const d = borrador[i];
+    const r = golesReales[i];
+    if (d.jugador_id != null && d.jugador_id !== r.jugador_id) continue;
+    await patch('liga_goles', `?id=eq.${r.id}`, {
+      subtipo: d.subtipo,
+      asistidor_id: d.asistidor_id,
+      asist_subtipo: d.asist_subtipo,
+    });
+    aplicadosIds.push(d.id);
+  }
+  if (aplicadosIds.length) await del('liga_goles_borrador', `?id=in.(${aplicadosIds.join(',')})`);
+}
+
 export async function listarEquipos() {
   return get('liga_equipos', '?select=id,nombre');
 }

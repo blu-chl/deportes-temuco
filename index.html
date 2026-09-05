@@ -380,7 +380,8 @@ let S={
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosCoords:{},estadiosLista:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
-  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,filtroGoles:'sinTipo',golesSnapshot:null},
+  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,filtroGoles:'sinTipo',golesSnapshot:null,
+    expandBorrador:false,borrador:{loaded:false,loading:false,partidos:[],partidoSel:'',items:[],nuevoJugador:'',nuevoSubtipo:'',nuevoAsistidor:'',nuevoAsistSubtipo:''}},
   partidosLiga:{loaded:false,partidos:[],goles:[],golesAmbos:[],autogolesPropios:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[],previo:null,clima:null,mvpExpand:false},
@@ -1218,6 +1219,72 @@ async function guardarGolDetalle(id,campo,val){
   if(g)g[campo]=val||null
   render()
 }
+// "Quién dio el pase": además de elegir un jugador, se puede marcar
+// "Jugada Individual" (gol sin asistencia, ya revisado — no es lo mismo
+// que "Sin definir", que es un pendiente). Se guarda como asistidor_id
+// null + asist_subtipo='Individual' (valor que ya existe en SUBTIPOS_ASIST),
+// sin necesitar una columna nueva.
+async function cambiarAsistidor(id,val){
+  const asistidor_id=val&&val!=='individual'?+val:null
+  const asist_subtipo=val==='individual'?'Individual':null
+  const r=await patch('liga_goles',{asistidor_id,asist_subtipo},`?id=eq.${id}`)
+  if(r&&r.code){toast('Error al guardar — ¿corriste sql/liga_enriquecimiento.sql?',true);return}
+  const g=S.enriq.goles.find(x=>x.id===id)
+  if(g){g.asistidor_id=asistidor_id;g.asist_subtipo=asist_subtipo}
+  render()
+}
+// Borrador de goles cargado ANTES de que exista el informe de ANFP (ver
+// scraper/sql/liga_goles_borrador.sql) — se guarda solo el orden en que
+// ocurrieron (1°, 2°, 3° gol de Temuco), no el minuto, porque a esa altura
+// todavía no se sabe. Cuando el scraper procesa el informe real, cruza el
+// N-ésimo del borrador con el N-ésimo gol real (aplicarBorradorGoles en
+// scraper/lib/db.mjs) y le copia subtipo/asistidor_id/asist_subtipo.
+async function cargarBorradorPartidos(){
+  const B=S.enriq.borrador
+  if(B.loading)return
+  B.loading=true
+  if(!S.liga.loaded)await cargarLiga()
+  const tid=S.liga.temucoId
+  if(!tid){B.loaded=true;B.loading=false;render();return}
+  // Solo partidos que ya se jugaron (fecha_hora en el pasado) — si no,
+  // los próximos rivales todavía no jugados (que también tienen
+  // goles_local=null, están agendados con anticipación) taparían arriba
+  // de la lista al partido recién terminado que es el que interesa acá.
+  const partidos=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${tid},equipo_visita_id.eq.${tid})&goles_local=is.null&fecha_hora=lte.${new Date().toISOString()}&select=id,fecha_hora,jornada,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre)&order=fecha_hora.desc`)
+  B.partidos=Array.isArray(partidos)?partidos:[]
+  B.loaded=true
+  B.loading=false
+  render()
+}
+async function seleccionarBorradorPartido(id){
+  const B=S.enriq.borrador
+  B.partidoSel=id
+  B.items=[]
+  if(!id){render();return}
+  const items=await ligaGet('liga_goles_borrador',`?partido_id=eq.${id}&select=id,orden,subtipo,asist_subtipo,jugador:liga_jugadores!liga_goles_borrador_jugador_id_fkey(id,nombre,apellido),asistidor:liga_jugadores!liga_goles_borrador_asistidor_id_fkey(id,nombre,apellido)&order=orden.asc`)
+  if(!Array.isArray(items)){toast('Error al leer el borrador — ¿corriste sql/liga_goles_borrador.sql?',true);render();return}
+  B.items=items
+  render()
+}
+async function agregarBorradorGol(){
+  const B=S.enriq.borrador
+  if(!B.partidoSel||!B.nuevoJugador){toast('Elegí quién hizo el gol',true);return}
+  const row={
+    partido_id:+B.partidoSel,orden:B.items.length+1,jugador_id:+B.nuevoJugador,subtipo:B.nuevoSubtipo||null,
+    asistidor_id:B.nuevoAsistidor&&B.nuevoAsistidor!=='individual'?+B.nuevoAsistidor:null,
+    asist_subtipo:B.nuevoAsistidor==='individual'?'Individual':(B.nuevoAsistidor?(B.nuevoAsistSubtipo||null):null),
+  }
+  const r=await post('liga_goles_borrador',row)
+  if(!Array.isArray(r)){toast('Error al guardar — ¿corriste sql/liga_goles_borrador.sql?',true);return}
+  B.nuevoJugador='';B.nuevoSubtipo='';B.nuevoAsistidor='';B.nuevoAsistSubtipo=''
+  await seleccionarBorradorPartido(B.partidoSel)
+  toast('Gol agregado al borrador')
+}
+async function borrarBorradorGol(id){
+  const B=S.enriq.borrador
+  await del('liga_goles_borrador',`?id=eq.${id}`)
+  await seleccionarBorradorPartido(B.partidoSel)
+}
 async function guardarFotoJugadorLiga(id,url){
   const r=await patch('liga_jugadores',{foto_url:url||null},`?id=eq.${id}`)
   if(r&&r.code){toast('Error al guardar la foto',true);return}
@@ -1365,7 +1432,9 @@ function renderEnriquecer(){
     (<code style="color:var(--am)">scraper/sql/liga_enriquecimiento.sql</code>). Cópialo y pégalo en el SQL Editor de Supabase, corre una vez, y vuelve a entrar acá.</div>
   </div></div>`
   const sinTipo=E.goles.filter(g=>!g.subtipo).length
-  const sinAsist=E.goles.filter(g=>!g.asistidor_id).length
+  // "Individual" es una elección explícita (gol sin asistencia, ya
+  // revisado), no un pendiente — no debe contar como "falta asistidor".
+  const sinAsist=E.goles.filter(g=>!g.asistidor_id&&g.asist_subtipo!=='Individual').length
   const sinFoto=E.jugadores.filter(j=>!j.foto_url).length
   const sinEstadioFoto=S.liga.estadiosLista.filter(n=>!S.liga.estadiosFoto[n]).length
   // Header colapsable reutilizable — arranca cerrado para no mostrar todo
@@ -1461,6 +1530,69 @@ function renderEnriquecer(){
       </div>`:`<div class="empty">Todavía no hay estadios en la base (aparecen solos a medida que el scraper procesa partidos).</div>`}
     `)}
 
+    ${seccion('expandBorrador','📝 Borrador de goles (antes del informe)','','cargar antes de que salga el informe',()=>{
+      const B=E.borrador
+      if(!B.loaded){cargarBorradorPartidos();return`<div class="empty">Cargando partidos…</div>`}
+      const roster=E.jugadores.slice().sort((a,b)=>(a.apellido||'').localeCompare(b.apellido||''))
+      const opcionesJugador=(sel)=>roster.map(j=>`<option value="${j.id}" ${String(sel)===String(j.id)?'selected':''}>${j.apellido} ${j.nombre} #${j.numero??'-'}</option>`).join('')
+      return`
+        <div style="color:var(--gris);font-size:11px;margin-bottom:10px">ANFP tarda en publicar el informe oficial — acá podés cargar apenas termina el partido quién metió cada gol de Temuco, EN EL ORDEN en que ocurrieron (no hace falta el minuto). Cuando el scraper procese el informe real, cruza el 1er gol cargado con el 1er gol real, el 2do con el 2do, etc., y le copia cómo fue y quién dio el pase. Si el jugador que cargaste no coincide con el goleador real, esa fila se deja para revisar a mano en "Goles y asistencias" en vez de aplicarse mal.</div>
+        <div class="fg"><label>Partido</label>
+          <select onchange="seleccionarBorradorPartido(this.value)">
+            <option value="">Elegí un partido sin informe todavía</option>
+            ${B.partidos.map(p=>{
+              const rival=p.local?.nombre==='Deportes Temuco'?p.visita?.nombre:p.local?.nombre
+              return`<option value="${p.id}" ${String(B.partidoSel)===String(p.id)?'selected':''}>F${p.jornada??'?'} · vs ${rival||'?'} · ${fmtFechaLarga(p.fecha_hora)}</option>`
+            }).join('')}
+          </select>
+        </div>
+        ${!B.partidos.length?'<div class="empty">No hay partidos de Temuco pendientes de informe ahora mismo.</div>':''}
+        ${B.partidoSel?`
+          ${B.items.length?B.items.map((it,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--borde)">
+            <span style="font-weight:800;color:var(--gris);width:20px;flex-shrink:0">${i+1}°</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:12.5px">${it.jugador?nombreCompacto(it.jugador.nombre,it.jugador.apellido):'?'}${it.subtipo?` · ${it.subtipo}`:''}</div>
+              <div style="font-size:10.5px;color:var(--gris)">${it.asist_subtipo==='Individual'?'⚽ Jugada individual':it.asistidor?`Asiste ${nombreCompacto(it.asistidor.nombre,it.asistidor.apellido)}${it.asist_subtipo?' · '+it.asist_subtipo:''}`:'Sin asistencia definida'}</div>
+            </div>
+            <button class="bsm" onclick="borrarBorradorGol(${it.id})">🗑</button>
+          </div>`).join(''):'<div class="empty" style="padding:8px 0">Sin goles cargados todavía para este partido.</div>'}
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--borde)">
+            <div style="font-weight:800;font-size:11.5px;margin-bottom:8px">+ Agregar el ${B.items.length+1}° gol de Temuco</div>
+            <div class="fr2" style="margin-bottom:8px">
+              <div class="fg" style="margin-bottom:0"><label>Quién hizo el gol</label>
+                <select onchange="S.enriq.borrador.nuevoJugador=this.value">
+                  <option value="">Elegí jugador</option>
+                  ${opcionesJugador(B.nuevoJugador)}
+                </select>
+              </div>
+              <div class="fg" style="margin-bottom:0"><label>Cómo fue el gol</label>
+                <select onchange="S.enriq.borrador.nuevoSubtipo=this.value">
+                  <option value="">Sin definir</option>
+                  ${SUBTIPOS_GOL.map(t=>`<option value="${t}" ${B.nuevoSubtipo===t?'selected':''}>${t}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="fr2" style="margin-bottom:8px">
+              <div class="fg" style="margin-bottom:0"><label>Quién dio el pase</label>
+                <select onchange="S.enriq.borrador.nuevoAsistidor=this.value;render()">
+                  <option value="">Sin definir</option>
+                  <option value="individual" ${B.nuevoAsistidor==='individual'?'selected':''}>⚽ Jugada Individual</option>
+                  ${opcionesJugador(B.nuevoAsistidor)}
+                </select>
+              </div>
+              ${B.nuevoAsistidor&&B.nuevoAsistidor!=='individual'?`<div class="fg" style="margin-bottom:0"><label>Cómo fue la asistencia</label>
+                <select onchange="S.enriq.borrador.nuevoAsistSubtipo=this.value">
+                  <option value="">Sin definir</option>
+                  ${SUBTIPOS_ASIST.map(t=>`<option value="${t}" ${B.nuevoAsistSubtipo===t?'selected':''}>${t}</option>`).join('')}
+                </select>
+              </div>`:'<div></div>'}
+            </div>
+            <button class="btn" onclick="agregarBorradorGol()">+ Agregar</button>
+          </div>
+        `:''}
+      `
+    })}
+
     ${seccion('expandGoles','⚽ Goles y asistencias',(sinTipo||sinAsist)?`⚠ ${sinTipo} sin tipo · ${sinAsist} sin asistidor`:'','todo al día ✓',()=>{
       const FILTROS=[
         {id:'sinTipo',l:'Falta tipo de gol',n:sinTipo},
@@ -1473,7 +1605,7 @@ function renderEnriquecer(){
       // "Cómo fue el gol" el ítem no desaparece de golpe y da tiempo a
       // completar también el asistidor antes de que se vaya de la vista.
       if(!E.golesSnapshot){
-        E.golesSnapshot=(filtro==='sinTipo'?E.goles.filter(g=>!g.subtipo):filtro==='sinAsist'?E.goles.filter(g=>!g.asistidor_id):E.goles).map(g=>g.id)
+        E.golesSnapshot=(filtro==='sinTipo'?E.goles.filter(g=>!g.subtipo):filtro==='sinAsist'?E.goles.filter(g=>!g.asistidor_id&&g.asist_subtipo!=='Individual'):E.goles).map(g=>g.id)
       }
       const idsVisibles=new Set(E.golesSnapshot)
       const visibles=E.goles.filter(g=>idsVisibles.has(g.id))
@@ -1502,7 +1634,7 @@ function renderEnriquecer(){
                 <span style="font-weight:700;font-size:12.5px">${g.jugador?nombreCompacto(g.jugador.nombre,g.jugador.apellido):'?'}</span>
                 ${g.penal?'<span class="badge bg" style="font-size:8px">Penal</span>':''}
                 ${g.subtipo?'<span class="badge bv" style="font-size:8px">✓ tipo</span>':'<span class="badge ba" style="font-size:8px">falta tipo</span>'}
-                ${g.asistidor_id?'<span class="badge bv" style="font-size:8px">✓ asistidor</span>':'<span class="badge ba" style="font-size:8px">falta asistidor</span>'}
+                ${g.asistidor_id||g.asist_subtipo==='Individual'?'<span class="badge bv" style="font-size:8px">✓ asistidor</span>':'<span class="badge ba" style="font-size:8px">falta asistidor</span>'}
               </div>
               <div class="fr2">
                 <div class="fg" style="margin-bottom:0"><label>Cómo fue el gol</label>
@@ -1512,9 +1644,10 @@ function renderEnriquecer(){
                   </select>
                 </div>
                 <div class="fg" style="margin-bottom:0"><label>Quién dio el pase</label>
-                  <select onchange="guardarGolDetalle(${g.id},'asistidor_id',this.value?+this.value:'')">
-                    <option value="">Sin asistencia</option>
-                    ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${nombreCompacto(j.nombre,j.apellido)} · #${j.numero??'-'}</option>`).join('')}
+                  <select onchange="cambiarAsistidor(${g.id},this.value)">
+                    <option value="">Sin definir</option>
+                    <option value="individual" ${!g.asistidor_id&&g.asist_subtipo==='Individual'?'selected':''}>⚽ Jugada Individual</option>
+                    ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${j.apellido} ${j.nombre} #${j.numero??'-'}</option>`).join('')}
                   </select>
                 </div>
               </div>

@@ -193,6 +193,12 @@ async function procesarPartido(matchUrl) {
     sustituciones: sustitucionesRows,
   });
 
+  // Si el admin cargó un borrador de estos goles antes de que saliera el
+  // informe (ver liga_goles_borrador), acá se cruza con lo recién scrapeado.
+  const temucoEquipoId =
+    meta.equipoLocal === 'Deportes Temuco' ? equipoLocal.id : meta.equipoVisita === 'Deportes Temuco' ? equipoVisita.id : null;
+  if (temucoEquipoId) await db.aplicarBorradorGoles(partido.id, temucoEquipoId);
+
   return 'ok';
 }
 

@@ -2276,7 +2276,7 @@ function renderEstadisticas(){
       cambioPosMap[pk]=(cambioPosMap[pk]||0)+1
     }
   })
-  const topCambios=Object.values(cambioMap).sort((a,b)=>b.n-a.n).slice(0,8)
+  const topCambios=Object.values(cambioMap).sort((a,b)=>b.n-a.n)
   const topCambiosPos=Object.entries(cambioPosMap).sort((a,b)=>b[1]-a[1])
 
 
@@ -2455,15 +2455,15 @@ function renderEstadisticas(){
           </div>`:`<div class="empty">Sin posición cargada para los jugadores de los cambios.${S.isAdmin?' La posición de cada jugador de Temuco ya está en Plantilla — hace falta copiarla una vez a la base de la liga.':' Se carga en Liga → Jugadores clave.'}</div>
           ${S.isAdmin?'<button class="bsm" style="margin-top:8px" onclick="sincronizarPosicionesTemuco()">🔄 Sincronizar posiciones de Temuco</button>':''}`
         ):(
-          topCambios.length?topCambios.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(200,21,39,0.07)">
+          topCambios.length?`<div style="max-height:300px;overflow-y:auto">${topCambios.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(200,21,39,0.07)">
             <div style="width:20px;text-align:right;font-size:11px;color:var(--muted)">${i+1}</div>
             <div style="flex:1;font-size:11px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
               <span style="display:inline-flex;align-items:center;gap:4px;color:var(--ro)">↓${avatarJ(c.sale,16)}${nombreJ(c.sale)}</span>
               <span style="color:var(--muted)">por</span>
-              <span style="display:inline-flex;align-items:center;gap:4px;color:var(--vc)">↑${avatarJ(c.entra,16)}${nombreJ(c.entra)}</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;color:#1f8b4d">↑${avatarJ(c.entra,16)}${nombreJ(c.entra)}</span>
             </div>
             <div style="font-size:14px;font-weight:800;color:var(--am)">${c.n}<span style="font-size:9px;color:var(--gris);font-weight:400">×</span></div>
-          </div>`).join(''):'<div class="empty">Sin sustituciones registradas.</div>'
+          </div>`).join('')}</div>`:'<div class="empty">Sin sustituciones registradas.</div>'
         )}
       </div>
     </div>

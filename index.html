@@ -1176,7 +1176,7 @@ async function cargarEnriquecimiento(){
   if(!tid){S.enriq.loaded=true;render();return}
   const[goles,jugadores]=await Promise.all([
     ligaGet('liga_goles',`?equipo_id=eq.${tid}&autogol=eq.false&select=id,minuto,minuto_extra,penal,subtipo,asistidor_id,asist_subtipo,jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido),partido:liga_partidos!liga_goles_partido_id_fkey(jornada,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre))&order=minuto.desc`),
-    ligaGet('liga_jugadores',`?equipo_id=eq.${tid}&select=id,nombre,apellido,foto_url&order=apellido`),
+    ligaGet('liga_jugadores',`?equipo_id=eq.${tid}&select=id,nombre,apellido,numero,foto_url&order=apellido`),
   ])
   // Estas columnas son la migración scraper/sql/liga_enriquecimiento.sql —
   // si todavía no se corrió, PostgREST devuelve un error (no un array) y
@@ -1495,7 +1495,7 @@ function renderEnriquecer(){
         ${!visibles.length?`<div class="empty">${filtro==='todos'?'Sin goles registrados todavía.':'Nada pendiente en este filtro ✓'}</div>`:grupos.map(grp=>`
           <div style="font-size:11px;font-weight:800;color:var(--gris);margin:14px 0 6px">F${grp.jornada} · vs ${grp.rival}</div>
           ${grp.goles.map(g=>{
-            const otros=E.jugadores.filter(j=>j.id!==g.jugador?.id)
+            const otros=E.jugadores.filter(j=>j.id!==g.jugador?.id).slice().sort((a,b)=>(a.apellido||'').localeCompare(b.apellido||''))
             return`<div class="pcard" style="cursor:default;margin-bottom:8px">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
                 <span style="font-weight:800;font-family:var(--font-disp);color:var(--gris)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
@@ -1514,7 +1514,7 @@ function renderEnriquecer(){
                 <div class="fg" style="margin-bottom:0"><label>Quién dio el pase</label>
                   <select onchange="guardarGolDetalle(${g.id},'asistidor_id',this.value?+this.value:'')">
                     <option value="">Sin asistencia</option>
-                    ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${nombreCompacto(j.nombre,j.apellido)}</option>`).join('')}
+                    ${otros.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${nombreCompacto(j.nombre,j.apellido)} · #${j.numero??'-'}</option>`).join('')}
                   </select>
                 </div>
               </div>

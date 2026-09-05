@@ -377,10 +377,10 @@ let S={
   consulta:{tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   visitante:false,
-  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosCoords:{},estadiosLista:[]},
+  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosCoords:{},estadiosLista:[],uniformes:{}},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
-  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,filtroGoles:'sinTipo',golesSnapshot:null,
+  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,expandUniformes:false,filtroGoles:'sinTipo',golesSnapshot:null,
     expandBorrador:false,borrador:{loaded:false,loading:false,partidos:[],partidoSel:'',items:[],nuevoJugador:'',nuevoSubtipo:'',nuevoAsistidor:'',nuevoAsistSubtipo:''}},
   partidosLiga:{loaded:false,partidos:[],goles:[],golesAmbos:[],autogolesPropios:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
@@ -1285,6 +1285,25 @@ async function borrarBorradorGol(id){
   await del('liga_goles_borrador',`?id=eq.${id}`)
   await seleccionarBorradorPartido(B.partidoSel)
 }
+// Upsert de un color/patrón del uniforme. La PK es (equipo_id,tipo), así
+// que la primera edición de un equipo crea la fila y las siguientes la
+// actualizan — sin necesitar un "crear uniforme" aparte.
+async function guardarUniforme(equipoId,tipo,campo,valor){
+  const actual=uniformeDe(equipoId,tipo)||{}
+  const fila={equipo_id:equipoId,tipo,patron:actual.patron||'liso',camiseta:actual.camiseta||'#ffffff',
+    detalle:actual.detalle||null,mangas:actual.mangas||null,short:actual.short||null,medias:actual.medias||null,
+    [campo]:valor}
+  const r=await fetch(`${SB_URL}/rest/v1/liga_uniformes?on_conflict=equipo_id,tipo`,{
+    method:'POST',
+    headers:{...hdrs(),'Prefer':'resolution=merge-duplicates,return=representation'},
+    body:JSON.stringify(fila),
+  })
+  const d=await r.json().catch(()=>null)
+  if(!Array.isArray(d)){toast('Error al guardar — ¿corriste sql/liga_uniformes.sql?',true);return}
+  if(!S.liga.uniformes[equipoId])S.liga.uniformes[equipoId]={}
+  S.liga.uniformes[equipoId][tipo]=d[0]
+  render()
+}
 async function guardarFotoJugadorLiga(id,url){
   const r=await patch('liga_jugadores',{foto_url:url||null},`?id=eq.${id}`)
   if(r&&r.code){toast('Error al guardar la foto',true);return}
@@ -1529,6 +1548,37 @@ function renderEnriquecer(){
         </div>`}).join('')}
       </div>`:`<div class="empty">Todavía no hay estadios en la base (aparecen solos a medida que el scraper procesa partidos).</div>`}
     `)}
+
+    ${seccion('expandUniformes','👕 Uniformes',(()=>{
+      const faltan=S.liga.equipos.filter(e=>!uniformeDe(e.id,'local')||!uniformeDe(e.id,'visita')).length
+      return faltan?`⚠ faltan ${faltan}`:''
+    })(),'todos cargados ✓',()=>{
+      const fila=(e,tipo)=>{
+        const u=uniformeDe(e.id,tipo)||{}
+        const campo=(k,label)=>`<label style="display:flex;flex-direction:column;gap:2px;font-size:9px;color:var(--gris)">${label}
+          <input type="color" value="${u[k]||'#ffffff'}" onchange="guardarUniforme(${e.id},'${tipo}','${k}',this.value)" style="width:34px;height:26px;padding:0;border:1px solid var(--borde2);border-radius:4px;background:none;cursor:pointer"></label>`
+        return`<div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--borde)">
+          <div style="width:52px;font-size:10px;font-weight:800;color:var(--gris);text-transform:uppercase">${tipo}</div>
+          ${camisetaSvg(u.camiseta?u:null,38)||'<div style="width:38px;height:38px;border:1px dashed var(--borde2);border-radius:4px"></div>'}
+          <label style="display:flex;flex-direction:column;gap:2px;font-size:9px;color:var(--gris)">Patrón
+            <select onchange="guardarUniforme(${e.id},'${tipo}','patron',this.value)" style="font-size:10px;padding:3px 5px;background:rgba(16,24,32,0.035);border:1px solid var(--borde2);border-radius:4px;color:var(--blanco);font-family:var(--font)">
+              ${PATRONES_UNIFORME.map(([v,l])=>`<option value="${v}" ${(u.patron||'liso')===v?'selected':''}>${l}</option>`).join('')}
+            </select></label>
+          ${campo('camiseta','Camiseta')}${campo('detalle','Detalle')}${campo('mangas','Mangas')}${campo('short','Short')}${campo('medias','Medias')}
+        </div>`
+      }
+      return`
+        <div style="color:var(--gris);font-size:11px;margin-bottom:10px">La camiseta se dibuja con estos colores (no es una imagen), y en cada partido se muestra la que corresponde: local con la titular, visita con la alternativa. Los colores tradicionales vienen precargados — verifícalos contra Wikipedia y corrige lo que haya cambiado esta temporada.</div>
+        ${[...S.liga.equipos].sort((a,b)=>a.id===S.liga.temucoId?-1:b.id===S.liga.temucoId?1:a.nombre.localeCompare(b.nombre)).map(e=>`
+          <div class="pcard" style="cursor:default;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <img src="${crestUrl(e.nombre)}" style="width:20px;height:20px;object-fit:contain">
+              <span style="font-weight:800;font-size:12.5px">${e.nombre}</span>
+            </div>
+            ${fila(e,'local')}${fila(e,'visita')}
+          </div>`).join('')}
+      `
+    })}
 
     ${seccion('expandBorrador','📝 Borrador de goles (antes del informe)','','cargar antes de que salga el informe',()=>{
       const B=E.borrador
@@ -2980,6 +3030,47 @@ function crestUrl(n){return CRESTS[n]||''}
 function estadioFotoUrl(nombre){
   return (nombre&&S.liga.estadiosFoto&&S.liga.estadiosFoto[nombre])||null
 }
+
+// ===== UNIFORMES =====
+// La camiseta se DIBUJA en SVG a partir de los colores guardados en
+// liga_uniformes (ver scraper/sql/liga_uniformes.sql), en vez de linkear
+// una imagen: no depende de un archivo externo que puede desaparecer, se
+// ve nítida en cualquier tamaño y se corrige desde Admin → Uniformes.
+const PATRONES_UNIFORME=[['liso','Liso'],['rayas','Rayas verticales'],['bandas','Bandas horizontales'],['franja','Franja diagonal'],['mitades','Mitades']]
+function uniformeDe(equipoId,tipo){
+  const u=S.liga.uniformes&&S.liga.uniformes[equipoId]
+  return u?u[tipo||'local']||null:null
+}
+// clipId único por llamada: render() reescribe todo el DOM y varias
+// camisetas conviven en la misma página — ids repetidos harían que todas
+// usen el clip de la primera.
+let _camisetaSeq=0
+function camisetaSvg(u,size){
+  size=size||26
+  if(!u)return''
+  const id='cam'+(++_camisetaSeq)
+  const base=u.camiseta||'#e6e8ea'
+  const det=u.detalle||base
+  const mang=u.mangas||base
+  const borde='rgba(16,24,32,.35)'
+  let patron=''
+  if(u.patron==='rayas')patron=[22,29,36,43].map(x=>`<rect x="${x}" y="4" width="3.6" height="56" fill="${det}"/>`).join('')
+  else if(u.patron==='bandas')patron=[16,27,38,49].map(y=>`<rect x="17" y="${y}" width="30" height="5.5" fill="${det}"/>`).join('')
+  else if(u.patron==='franja')patron=`<polygon points="17,12 26,6 47,46 47,59 39,59" fill="${det}"/>`
+  else if(u.patron==='mitades')patron=`<rect x="32" y="4" width="15" height="56" fill="${det}"/>`
+  return`<svg width="${size}" height="${size}" viewBox="0 0 64 64" style="flex-shrink:0;display:block" aria-hidden="true">
+    <defs><clipPath id="${id}"><path d="M17,5 L17,59 L47,59 L47,5 Z"/></clipPath></defs>
+    <path d="M24,6 C27,11 37,11 40,6 L58,14 L52,27 L47,23 L47,59 L17,59 L17,23 L12,27 L6,14 Z" fill="${base}" stroke="${borde}" stroke-width="1.6" stroke-linejoin="round"/>
+    <g clip-path="url(#${id})">${patron}</g>
+    <path d="M17,11 L6,14 L12,27 L17,23 Z" fill="${mang}" stroke="${borde}" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M47,11 L58,14 L52,27 L47,23 Z" fill="${mang}" stroke="${borde}" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M24,6 C27,11 37,11 40,6" fill="none" stroke="${borde}" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`
+}
+// Camiseta de un equipo según cómo juega ESE partido (local o visita).
+function camisetaEquipo(equipoId,esLocal,size){
+  return camisetaSvg(uniformeDe(equipoId,esLocal?'local':'visita'),size)
+}
 // Fila del medio de la hero card: si hay foto de estadio, se parte en dos
 // mitades (foto | escudos vs) para darle más peso visual a la imagen; sin
 // foto, los escudos ocupan todo el ancho como antes. flex-wrap hace que en
@@ -3142,6 +3233,15 @@ async function cargarLiga(){
   // — si esa migración no se corrió todavía, la query con esos campos falla
   // entera; se reintenta sin pedirlas en vez de perder también foto_url.
   if(!Array.isArray(estadios))estadios=await ligaGet('liga_estadios','?select=nombre,foto_url')
+  // liga_uniformes es una tabla nueva (scraper/sql/liga_uniformes.sql) — si
+  // todavía no se corrió, queda el mapa vacío y las camisetas simplemente
+  // no se dibujan, sin romper ninguna pantalla.
+  const uniformes=await ligaGet('liga_uniformes','?select=equipo_id,tipo,patron,camiseta,detalle,mangas,short,medias')
+  S.liga.uniformes={}
+  if(Array.isArray(uniformes))uniformes.forEach(u=>{
+    if(!S.liga.uniformes[u.equipo_id])S.liga.uniformes[u.equipo_id]={}
+    S.liga.uniformes[u.equipo_id][u.tipo]=u
+  })
   // liga_estadios es una tabla nueva (scraper/sql/liga_estadios.sql) — si
   // todavía no se corrió esa migración, queda como mapa vacío sin romper nada.
   S.liga.estadiosFoto={}
@@ -3345,7 +3445,9 @@ function renderTablaGeneral(){
             return`<tr style="${esTemuco?'background:rgba(200,21,39,.05)':''}">
               <td class="center" style="font-weight:800;color:var(--gris)">${i+1}</td>
               <td style="width:26px"><img src="${crestUrl(e.nombre)}" style="width:22px;height:22px;object-fit:contain;display:block"></td>
-              <td style="font-weight:${esTemuco?800:600};color:${esTemuco?'var(--vc)':'var(--blanco)'}">${e.nombre}</td>
+              <td style="font-weight:${esTemuco?800:600};color:${esTemuco?'var(--vc)':'var(--blanco)'}">
+                <span style="display:inline-flex;align-items:center;gap:6px">${camisetaEquipo(e.id,true,18)}${e.nombre}</span>
+              </td>
               <td class="center mob-hide">${e.pj}</td><td class="center mob-hide">${e.pg}</td><td class="center mob-hide">${e.pe}</td><td class="center mob-hide">${e.pp}</td>
               <td class="center">${e.gf}</td><td class="center">${e.gc}</td>
               <td class="center mob-hide">${dg>=0?'+':''}${dg}</td>
@@ -3853,9 +3955,21 @@ function renderPartidoLiga(){
           <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(d.fecha_hora)}${fmtHora(d.fecha_hora)?` · ${fmtHora(d.fecha_hora)} hrs`:''}${d.estadio?'<br>'+d.estadio:''}${d.arbitro?'<br>Árbitro: '+d.arbitro:''}</div>
         </div>
         ${heroMatchupRow(estadioFotoUrl(d.estadio),`
-          <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(d.local.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.local.nombre.toUpperCase()}</div></div>
+          <div class="hero2-team">
+            <div style="display:flex;align-items:center;gap:8px">
+              <img class="hero2-crest" src="${crestUrl(d.local.nombre)}">
+              ${camisetaEquipo(d.equipo_local_id,true,42)}
+            </div>
+            <div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.local.nombre.toUpperCase()}</div>
+          </div>
           <div class="disp hero2-score" style="${d.goles_local==null?'font-size:36px':''}">${d.goles_local==null?'VS':`${d.goles_local}&nbsp;–&nbsp;${d.goles_visita}`}</div>
-          <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(d.visita.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.visita.nombre.toUpperCase()}</div></div>
+          <div class="hero2-team">
+            <div style="display:flex;align-items:center;gap:8px">
+              ${camisetaEquipo(d.equipo_visita_id,false,42)}
+              <img class="hero2-crest" src="${crestUrl(d.visita.nombre)}">
+            </div>
+            <div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.visita.nombre.toUpperCase()}</div>
+          </div>
         `)}
       </div>
     </div>
@@ -4172,9 +4286,21 @@ function renderProximoRival(){
           <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(p.fecha_hora)}${fmtHora(p.fecha_hora)?` · ${fmtHora(p.fecha_hora)} hrs`:''}${p.estadio?'<br>'+p.estadio:''}${S.rivales.clima?`<br><span style="color:#fff">${S.rivales.clima.emoji} ${Math.round(S.rivales.clima.temp)}°C</span> ${S.rivales.clima.texto}${S.rivales.clima.esPronostico?' (pronóstico)':''}`:''}</div>
         </div>
         ${heroMatchupRow(estadioFotoUrl(p.estadio),`
-          <div class="hero2-team"><img class="hero2-crest" src="${crestUrl('Deportes Temuco')}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">DEPORTES TEMUCO</div>${posBadge(posTemuco)}</div>
+          <div class="hero2-team">
+            <div style="display:flex;align-items:center;gap:8px">
+              <img class="hero2-crest" src="${crestUrl('Deportes Temuco')}">
+              ${camisetaEquipo(S.liga.temucoId,esLocal,42)}
+            </div>
+            <div class="disp" style="color:#fff;font-size:14px;text-align:center">DEPORTES TEMUCO</div>${posBadge(posTemuco)}
+          </div>
           <div class="disp hero2-score" style="font-size:36px">VS</div>
-          <div class="hero2-team"><img class="hero2-crest" src="${crestUrl(rival.nombre)}"><div class="disp" style="color:#fff;font-size:14px;text-align:center">${rival.nombre.toUpperCase()}</div>${posBadge(posRival)}</div>
+          <div class="hero2-team">
+            <div style="display:flex;align-items:center;gap:8px">
+              ${camisetaEquipo(rival.id,!esLocal,42)}
+              <img class="hero2-crest" src="${crestUrl(rival.nombre)}">
+            </div>
+            <div class="disp" style="color:#fff;font-size:14px;text-align:center">${rival.nombre.toUpperCase()}</div>${posBadge(posRival)}
+          </div>
         `)}
         <div style="display:flex;justify-content:center"><div class="hero2-meta">${esLocal?'Juega de Local':'Juega de Visita'}</div></div>
       </div>

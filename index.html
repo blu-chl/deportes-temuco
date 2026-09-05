@@ -1993,11 +1993,11 @@ function franjaCard(label,evs,color,totalMitad,avatarJ,nombreJ){
   const n=evs.length
   const pct=Math.round(n/Math.max(1,totalMitad)*100)
   const gMap={}
-  evs.forEach(g=>{const jid=g.jugador?.id;if(!jid)return;if(!gMap[jid])gMap[jid]={jugador:g.jugador,mins:[]};gMap[jid].mins.push(g.minuto)})
+  evs.forEach(g=>{const jid=g.jugador?.id;if(!jid)return;if(!gMap[jid])gMap[jid]={jugador:g.jugador,mins:[]};gMap[jid].mins.push({minuto:g.minuto,minuto_extra:g.minuto_extra||0})})
   const gList=Object.values(gMap).sort((a,b)=>b.mins.length-a.mins.length).slice(0,5).map(g=>
     `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid rgba(16,24,32,0.05)">
       ${avatarJ(g.jugador,26)}
-      <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreJ(g.jugador)}</div><div style="font-size:10px;color:${color};font-weight:600">⚽ ${g.mins.map(m=>m+"'").join(' ')}</div></div>
+      <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreJ(g.jugador)}</div><div style="font-size:10px;color:${color};font-weight:600">⚽ ${g.mins.map(m=>`${m.minuto}'${m.minuto_extra?`+${m.minuto_extra}`:''}`).join(' ')}</div></div>
     </div>`
   ).join('')
   return`<div style="text-align:center;padding:8px;background:rgba(0,0,0,.2);border-radius:6px">

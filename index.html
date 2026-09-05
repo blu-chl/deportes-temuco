@@ -2514,29 +2514,49 @@ function renderEstadisticas(){
   </div>`
 }
 
-function agregarTipoGol(){
+// SUBTIPOS_GOL/SUBTIPOS_ASIST arrancan con la lista de fábrica (hardcodeada
+// acá arriba) y se completan al boot con lo que haya en liga_tipos_custom
+// (ver cargarTiposCustom) — antes agregarTipoGol/agregarTipoAsist solo
+// hacían push() sobre el array en memoria, sin guardar nada: el tipo
+// agregado se perdía apenas alguien recargaba la página.
+async function cargarTiposCustom(){
+  const tipos=await get('liga_tipos_custom','?select=categoria,nombre')
+  if(!Array.isArray(tipos))return
+  tipos.forEach(t=>{
+    if(t.categoria==='gol'&&!SUBTIPOS_GOL.includes(t.nombre))SUBTIPOS_GOL.push(t.nombre)
+    if(t.categoria==='asistencia'&&!SUBTIPOS_ASIST.includes(t.nombre))SUBTIPOS_ASIST.push(t.nombre)
+  })
+  render()
+}
+async function agregarTipoGol(){
   const val=S.nuevoTipoGol.trim()
   if(!val){toast('Escribe un nombre',true);return}
   if(SUBTIPOS_GOL.includes(val)){toast('Ese tipo ya existe',true);return}
+  const r=await post('liga_tipos_custom',{categoria:'gol',nombre:val})
+  if(!Array.isArray(r)){toast('Error al guardar — ¿corriste sql/liga_tipos_custom.sql?',true);return}
   SUBTIPOS_GOL.push(val);S.nuevoTipoGol='';render();toast('Tipo "'+val+'" agregado')
 }
 
-function eliminarTipoGol(i){
+async function eliminarTipoGol(i){
   const tipo=SUBTIPOS_GOL[i]
   if(S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Gol')){toast('No se puede eliminar — hay goles del registro antiguo con este tipo',true);return}
   if(S.enriq.goles.some(g=>g.subtipo===tipo)){toast('No se puede eliminar — hay goles de la liga con este tipo',true);return}
+  await del('liga_tipos_custom',`?categoria=eq.gol&nombre=eq.${encodeURIComponent(tipo)}`)
   SUBTIPOS_GOL.splice(i,1);render();toast('Tipo eliminado')
 }
-function agregarTipoAsist(){
+async function agregarTipoAsist(){
   const val=S.nuevoTipoAsist.trim()
   if(!val){toast('Escribe un nombre',true);return}
   if(SUBTIPOS_ASIST.includes(val)){toast('Ese tipo ya existe',true);return}
+  const r=await post('liga_tipos_custom',{categoria:'asistencia',nombre:val})
+  if(!Array.isArray(r)){toast('Error al guardar — ¿corriste sql/liga_tipos_custom.sql?',true);return}
   SUBTIPOS_ASIST.push(val);S.nuevoTipoAsist='';render();toast('Tipo "'+val+'" agregado')
 }
-function eliminarTipoAsist(i){
+async function eliminarTipoAsist(i){
   const tipo=SUBTIPOS_ASIST[i]
   if(S.eventos.some(e=>e.subtipo===tipo&&e.tipo==='Asistencia')){toast('No se puede eliminar — hay asistencias del registro antiguo con este tipo',true);return}
   if(S.enriq.goles.some(g=>g.asist_subtipo===tipo)){toast('No se puede eliminar — hay asistencias de la liga con este tipo',true);return}
+  await del('liga_tipos_custom',`?categoria=eq.asistencia&nombre=eq.${encodeURIComponent(tipo)}`)
   SUBTIPOS_ASIST.splice(i,1);render();toast('Tipo eliminado')
 }
 
@@ -4827,6 +4847,7 @@ if(S.tema==='verde')document.documentElement.dataset.tema='verde'
 render()
 cargarDatos()
 cargarLiga()
+cargarTiposCustom()
 cargarPartidosLiga()
 cargarRivales()
 </script>

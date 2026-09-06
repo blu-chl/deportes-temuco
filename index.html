@@ -1288,6 +1288,33 @@ async function borrarBorradorGol(id){
 // Upsert de un color/patrón del uniforme. La PK es (equipo_id,tipo), así
 // que la primera edición de un equipo crea la fila y las siguientes la
 // actualizan — sin necesitar un "crear uniforme" aparte.
+// Control de admin para corregir qué camiseta usó cada equipo en un
+// partido puntual (ver scraper/sql/liga_partidos_uniformes.sql). Se
+// muestra bajo el marcador, en la hero de próxima fecha y en el detalle.
+function selectorUniformePartido(partido,ladoIzq,ladoDer){
+  if(!S.isAdmin||!partido)return''
+  const opt=(lado,sel)=>['local','visita'].map(t=>`<option value="${t}" ${sel===t?'selected':''}>${t==='local'?'Titular':'Alternativa'}</option>`).join('')
+  const uno=(lado,campo)=>`<label style="display:flex;align-items:center;gap:5px;color:rgba(255,255,255,.7)">${lado.nombre.split(' ').slice(-1)[0]}
+    <select onchange="guardarUniformePartido(${partido.id},'${campo}',this.value)"
+      style="font-size:10px;padding:2px 5px;border-radius:4px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.25);color:#fff;font-family:var(--font)">
+      ${opt(lado,tipoUniformePartido(partido,lado.esLocal))}
+    </select></label>`
+  return`<div style="display:flex;justify-content:center;gap:14px;font-size:10px;font-weight:700;margin-top:8px;flex-wrap:wrap">
+    <span style="color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.06em">Camiseta usada</span>
+    ${uno(ladoIzq,ladoIzq.esLocal?'uniforme_local':'uniforme_visita')}
+    ${uno(ladoDer,ladoDer.esLocal?'uniforme_local':'uniforme_visita')}
+  </div>`
+}
+async function guardarUniformePartido(partidoId,campo,valor){
+  const r=await patch('liga_partidos',{[campo]:valor},`?id=eq.${partidoId}`)
+  if(r&&r.code){toast('Error al guardar — ¿corriste sql/liga_partidos_uniformes.sql?',true);return}
+  // Refleja el cambio en las dos vistas que muestran uniformes sin tener
+  // que recargar: el próximo partido y el detalle abierto.
+  if(S.rivales.proximo&&S.rivales.proximo.id===partidoId)S.rivales.proximo[campo]=valor
+  if(S.partidoLiga.data&&S.partidoLiga.data.id===partidoId)S.partidoLiga.data[campo]=valor
+  render()
+  toast('Camiseta actualizada')
+}
 async function guardarUniforme(equipoId,tipo,campo,valor){
   const actual=uniformeDe(equipoId,tipo)||{}
   const fila={equipo_id:equipoId,tipo,patron:actual.patron||'liso',camiseta:actual.camiseta||'#ffffff',
@@ -3097,12 +3124,22 @@ function uniformeSvg(u,alto){
     <rect x="35" y="85" width="9" height="13" rx="1.5" fill="${med}" stroke="${borde}" stroke-width="1.6"/>
   </svg>`
 }
-// Camiseta de un equipo según cómo juega ESE partido (local o visita).
-function camisetaEquipo(equipoId,esLocal,size){
-  return camisetaSvg(uniformeDe(equipoId,esLocal?'local':'visita'),size)
+// Qué camiseta usó cada equipo en un partido. Por defecto el local juega
+// con la titular y el visitante con la alternativa, pero eso no siempre
+// pasa (si no hay choque de colores, el visitante suele jugar de titular),
+// así que se puede fijar a mano por partido desde Admin — se guarda en
+// liga_partidos.uniforme_local / .uniforme_visita.
+function tipoUniformePartido(partido,esLocal){
+  const fijado=esLocal?partido&&partido.uniforme_local:partido&&partido.uniforme_visita
+  if(fijado==='local'||fijado==='visita')return fijado
+  return esLocal?'local':'visita'
 }
-function uniformeEquipo(equipoId,esLocal,alto){
-  return uniformeSvg(uniformeDe(equipoId,esLocal?'local':'visita'),alto)
+// tipo es 'local' o 'visita' — el del uniforme, no el del partido.
+function camisetaEquipo(equipoId,tipo,size){
+  return camisetaSvg(uniformeDe(equipoId,tipo),size)
+}
+function uniformeEquipo(equipoId,tipo,alto){
+  return uniformeSvg(uniformeDe(equipoId,tipo),alto)
 }
 // Fila del medio de la hero card: si hay foto de estadio, se parte en dos
 // mitades (foto | escudos vs) para darle más peso visual a la imagen; sin
@@ -3479,7 +3516,7 @@ function renderTablaGeneral(){
               <td class="center" style="font-weight:800;color:var(--gris)">${i+1}</td>
               <td style="width:26px"><img src="${crestUrl(e.nombre)}" style="width:22px;height:22px;object-fit:contain;display:block"></td>
               <td style="font-weight:${esTemuco?800:600};color:${esTemuco?'var(--vc)':'var(--blanco)'}">
-                <span style="display:inline-flex;align-items:center;gap:6px">${camisetaEquipo(e.id,true,18)}${e.nombre}</span>
+                <span style="display:inline-flex;align-items:center;gap:6px">${camisetaEquipo(e.id,'local',18)}${e.nombre}</span>
               </td>
               <td class="center mob-hide">${e.pj}</td><td class="center mob-hide">${e.pg}</td><td class="center mob-hide">${e.pe}</td><td class="center mob-hide">${e.pp}</td>
               <td class="center">${e.gf}</td><td class="center">${e.gc}</td>
@@ -3856,7 +3893,7 @@ async function verPartidoLiga(id,volverA){
   S.pag='partido'
   render()
   let[partidos,goles,tarjetas,sustituciones]=await Promise.all([
-    ligaGet('liga_partidos',`?id=eq.${id}&select=id,jornada,fecha_hora,estadio,arbitro,resumen_youtube_url,equipo_local_id,equipo_visita_id,goles_local,goles_visita,local:liga_equipos!liga_partidos_equipo_local_id_fkey(id,nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(id,nombre)`),
+    ligaGet('liga_partidos',`?id=eq.${id}&select=id,jornada,fecha_hora,estadio,arbitro,resumen_youtube_url,uniforme_local,uniforme_visita,equipo_local_id,equipo_visita_id,goles_local,goles_visita,local:liga_equipos!liga_partidos_equipo_local_id_fkey(id,nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(id,nombre)`),
     ligaGet('liga_goles',`?partido_id=eq.${id}&select=equipo_id,minuto,minuto_extra,penal,autogol,jugador:liga_jugadores!liga_goles_jugador_id_fkey(nombre,apellido)`),
     ligaGet('liga_tarjetas',`?partido_id=eq.${id}&select=equipo_id,tipo,minuto,minuto_extra,motivo,segunda_amarilla,jugador:liga_jugadores!liga_tarjetas_jugador_id_fkey(nombre,apellido)`),
     ligaGet('liga_sustituciones',`?partido_id=eq.${id}&select=equipo_id,minuto,minuto_extra,entra:liga_jugadores!liga_sustituciones_entra_jugador_id_fkey(nombre,apellido),sale:liga_jugadores!liga_sustituciones_sale_jugador_id_fkey(nombre,apellido)`),
@@ -3965,18 +4002,11 @@ function renderPartidoLiga(){
   const P=S.partidoLiga
   if(!P.loaded||!P.data)return`<div class="pb"><div class="empty">Cargando partido…</div></div>`
   const d=P.data
-  // Esta es una app de Temuco, no un marcador neutral: si Temuco juega de
-  // visita se invierte el orden para que quede SIEMPRE a la izquierda —
-  // marcador, comparación previa y línea de tiempo, todo junto. La
-  // condición real de cada equipo se muestra igual bajo su nombre, para
-  // que no se pierda quién era local.
-  const invertir=d.equipo_visita_id===S.liga.temucoId
-  const ladoIzq=invertir
-    ?{eq:d.visita,id:d.equipo_visita_id,esLocal:false,goles:d.goles_visita,previo:'visita'}
-    :{eq:d.local,id:d.equipo_local_id,esLocal:true,goles:d.goles_local,previo:'local'}
-  const ladoDer=invertir
-    ?{eq:d.local,id:d.equipo_local_id,esLocal:true,goles:d.goles_local,previo:'local'}
-    :{eq:d.visita,id:d.equipo_visita_id,esLocal:false,goles:d.goles_visita,previo:'visita'}
+  // Orden de cancha: el local siempre a la izquierda y el visitante a la
+  // derecha, juegue Temuco donde juegue — marcador, comparación previa y
+  // línea de tiempo, los tres igual.
+  const ladoIzq={eq:d.local,id:d.equipo_local_id,esLocal:true,goles:d.goles_local,previo:'local'}
+  const ladoDer={eq:d.visita,id:d.equipo_visita_id,esLocal:false,goles:d.goles_visita,previo:'visita'}
   const condLabel=lado=>`<div style="font-size:9.5px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${lado.esLocal?'Local':'Visita'}</div>`
   const filasTimeline=P.eventos.map(ev=>{
     const esIzq=ev.equipo_id===ladoIzq.id
@@ -4004,7 +4034,7 @@ function renderPartidoLiga(){
           <div class="hero2-team">
             <div style="display:flex;align-items:center;gap:8px">
               <img class="hero2-crest" src="${crestUrl(ladoIzq.eq.nombre)}">
-              ${uniformeEquipo(ladoIzq.id,ladoIzq.esLocal,72)}
+              ${uniformeEquipo(ladoIzq.id,tipoUniformePartido(d,ladoIzq.esLocal),72)}
             </div>
             <div class="disp" style="color:#fff;font-size:14px;text-align:center">${ladoIzq.eq.nombre.toUpperCase()}</div>
             ${condLabel(ladoIzq)}
@@ -4012,13 +4042,14 @@ function renderPartidoLiga(){
           <div class="disp hero2-score" style="${d.goles_local==null?'font-size:36px':''}">${d.goles_local==null?'VS':`${ladoIzq.goles}&nbsp;–&nbsp;${ladoDer.goles}`}</div>
           <div class="hero2-team">
             <div style="display:flex;align-items:center;gap:8px">
-              ${uniformeEquipo(ladoDer.id,ladoDer.esLocal,72)}
+              ${uniformeEquipo(ladoDer.id,tipoUniformePartido(d,ladoDer.esLocal),72)}
               <img class="hero2-crest" src="${crestUrl(ladoDer.eq.nombre)}">
             </div>
             <div class="disp" style="color:#fff;font-size:14px;text-align:center">${ladoDer.eq.nombre.toUpperCase()}</div>
             ${condLabel(ladoDer)}
           </div>
         `)}
+        ${selectorUniformePartido(d,ladoIzq,ladoDer)}
       </div>
     </div>
 
@@ -4171,11 +4202,18 @@ async function statsEquipoLiga(equipoId){
 
 async function cargarRivales(){
   if(!S.liga.loaded)await cargarLiga()
-  const[notas,proximo]=await Promise.all([
+  let[notas,proximo]=await Promise.all([
     ligaGet('liga_notas_rivales','?select=id,equipo_id,texto,autor,created_at&order=created_at.desc&limit=500'),
-    S.liga.temucoId?ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${S.liga.temucoId},equipo_visita_id.eq.${S.liga.temucoId})&goles_local=is.null&select=id,jornada,fecha_hora,estadio,equipo_local_id,local:liga_equipos!liga_partidos_equipo_local_id_fkey(id,nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(id,nombre)&order=fecha_hora.asc&limit=1`):Promise.resolve([]),
+    S.liga.temucoId?ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${S.liga.temucoId},equipo_visita_id.eq.${S.liga.temucoId})&goles_local=is.null&select=id,jornada,fecha_hora,estadio,equipo_local_id,uniforme_local,uniforme_visita,local:liga_equipos!liga_partidos_equipo_local_id_fkey(id,nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(id,nombre)&order=fecha_hora.asc&limit=1`):Promise.resolve([]),
   ])
   S.rivales.notas=Array.isArray(notas)?notas:[]
+  // uniforme_local/uniforme_visita son columnas nuevas
+  // (scraper/sql/liga_partidos_uniformes.sql) — si esa migración todavía
+  // no se corrió, la query falla entera; se reintenta sin pedirlas en vez
+  // de quedarse sin próximo partido.
+  if(S.liga.temucoId&&!Array.isArray(proximo)){
+    proximo=await ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${S.liga.temucoId},equipo_visita_id.eq.${S.liga.temucoId})&goles_local=is.null&select=id,jornada,fecha_hora,estadio,equipo_local_id,local:liga_equipos!liga_partidos_equipo_local_id_fkey(id,nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(id,nombre)&order=fecha_hora.asc&limit=1`)
+  }
   S.rivales.proximo=Array.isArray(proximo)&&proximo[0]?proximo[0]:null
   S.rivales.clima=null
   S.rivales.loaded=true
@@ -4285,25 +4323,28 @@ async function borrarNotaRival(id){
   render()
 }
 
-function filaComparacion(label,vT,vR,fmt,masEsMejor=true,u5T,u5R){
+// colorIzq/colorDer permiten que el color siga al EQUIPO y no al lado:
+// cuando Temuco juega de visita se dibuja a la derecha, pero conserva su
+// verde.
+function filaComparacion(label,vT,vR,fmt,masEsMejor=true,u5T,u5R,colorIzq='var(--v)',colorDer='var(--az)'){
   fmt=fmt||(v=>v)
   const mejor=vT===vR?null:(masEsMejor?(vT>vR?'t':'r'):(vT<vR?'t':'r'))
   const total=Math.max(vT+vR,0.01)
   const conU5=u5T!==undefined&&u5R!==undefined
   return`<div style="display:grid;grid-template-columns:60px 1fr 60px;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--borde)">
     <div style="text-align:right">
-      <div style="font-weight:800;font-size:13px;color:${mejor==='t'?'var(--v)':'var(--blanco)'}">${fmt(vT)}</div>
+      <div style="font-weight:800;font-size:13px;color:${mejor==='t'?colorIzq:'var(--blanco)'}">${fmt(vT)}</div>
       ${conU5?`<div style="font-size:9px;color:var(--muted);margin-top:1px">Ú5: ${fmt(u5T)}</div>`:''}
     </div>
     <div>
       <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;text-align:center;margin-bottom:3px">${label}</div>
       <div style="display:flex;height:6px;border-radius:999px;overflow:hidden;background:var(--borde)">
-        <div style="width:${(vT/total)*100}%;background:${mejor==='t'?'var(--v)':'var(--borde2)'}"></div>
-        <div style="width:${(vR/total)*100}%;background:${mejor==='r'?'var(--az)':'var(--borde2)'}"></div>
+        <div style="width:${(vT/total)*100}%;background:${mejor==='t'?colorIzq:'var(--borde2)'}"></div>
+        <div style="width:${(vR/total)*100}%;background:${mejor==='r'?colorDer:'var(--borde2)'}"></div>
       </div>
     </div>
     <div style="text-align:left">
-      <div style="font-weight:800;font-size:13px;color:${mejor==='r'?'var(--az)':'var(--blanco)'}">${fmt(vR)}</div>
+      <div style="font-weight:800;font-size:13px;color:${mejor==='r'?colorDer:'var(--blanco)'}">${fmt(vR)}</div>
       ${conU5?`<div style="font-size:9px;color:var(--muted);margin-top:1px">Ú5: ${fmt(u5R)}</div>`:''}
     </div>
   </div>`
@@ -4319,9 +4360,19 @@ function renderProximoRival(){
   const posRival=S.liga.tabla.findIndex(e=>e.id===rival.id)
   const nEquipos=S.liga.tabla.length
   const posBadge=pos=>pos>=0?`<div style="font-size:10.5px;color:rgba(255,255,255,.65);font-weight:700;margin-top:2px">${pos+1}° / ${nEquipos}</div>`:''
-  const stTemuco=posTemuco>=0?S.liga.tabla[posTemuco]:null
-  const stRival=posRival>=0?S.liga.tabla[posRival]:null
   const formaReciente=serie=>(serie||[]).slice(-5).map(pt=>`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLOR_RESULTADO[pt.resultado]||'var(--borde2)'}" title="F${pt.jornada}: ${LABEL_RESULTADO[pt.resultado]||'?'}"></span>`).join('')
+  // Orden de cancha: el local a la izquierda y el visitante a la derecha,
+  // así que Temuco cambia de lado según dónde juegue. El color de cada
+  // equipo (verde Temuco, azul rival) sigue al EQUIPO y no al lado, para
+  // no confundir cuando Temuco es visita.
+  const ladoTemuco={k:'temuco',id:S.liga.temucoId,nombre:'Deportes Temuco',pos:posTemuco,color:'var(--v)',esLocal}
+  const ladoRival={k:'rival',id:rival.id,nombre:rival.nombre,pos:posRival,color:'var(--az)',esLocal:!esLocal}
+  const izq=esLocal?ladoTemuco:ladoRival
+  const der=esLocal?ladoRival:ladoTemuco
+  // Stats y posición de tabla del lado que va a cada lado.
+  const cI=c?c[izq.k]:null,cD=c?c[der.k]:null
+  const stIzq=izq.pos>=0?S.liga.tabla[izq.pos]:null
+  const stDer=der.pos>=0?S.liga.tabla[der.pos]:null
   return`<div style="margin-bottom:22px">
     <div class="hero2">
       <div class="hero2-split"></div><div class="hero2-stripes"></div>
@@ -4336,21 +4387,22 @@ function renderProximoRival(){
         ${heroMatchupRow(estadioFotoUrl(p.estadio),`
           <div class="hero2-team">
             <div style="display:flex;align-items:center;gap:8px">
-              <img class="hero2-crest" src="${crestUrl('Deportes Temuco')}">
-              ${uniformeEquipo(S.liga.temucoId,esLocal,72)}
+              <img class="hero2-crest" src="${crestUrl(izq.nombre)}">
+              ${uniformeEquipo(izq.id,tipoUniformePartido(p,izq.esLocal),72)}
             </div>
-            <div class="disp" style="color:#fff;font-size:14px;text-align:center">DEPORTES TEMUCO</div>${posBadge(posTemuco)}
+            <div class="disp" style="color:#fff;font-size:14px;text-align:center">${izq.nombre.toUpperCase()}</div>${posBadge(izq.pos)}
           </div>
           <div class="disp hero2-score" style="font-size:36px">VS</div>
           <div class="hero2-team">
             <div style="display:flex;align-items:center;gap:8px">
-              ${uniformeEquipo(rival.id,!esLocal,72)}
-              <img class="hero2-crest" src="${crestUrl(rival.nombre)}">
+              ${uniformeEquipo(der.id,tipoUniformePartido(p,der.esLocal),72)}
+              <img class="hero2-crest" src="${crestUrl(der.nombre)}">
             </div>
-            <div class="disp" style="color:#fff;font-size:14px;text-align:center">${rival.nombre.toUpperCase()}</div>${posBadge(posRival)}
+            <div class="disp" style="color:#fff;font-size:14px;text-align:center">${der.nombre.toUpperCase()}</div>${posBadge(der.pos)}
           </div>
         `)}
         <div style="display:flex;justify-content:center"><div class="hero2-meta">${esLocal?'Juega de Local':'Juega de Visita'}</div></div>
+        ${selectorUniformePartido(p,izq,der)}
       </div>
     </div>
 
@@ -4391,16 +4443,13 @@ function renderProximoRival(){
         <div class="ph"><div class="pt disp" style="font-size:15px">⭐ Destacados</div></div>
         <div class="pb">
           <div class="g2">
-            <div>
-              <div style="font-size:10px;font-weight:800;color:var(--v);text-transform:uppercase;margin-bottom:8px">Deportes Temuco</div>
-              ${filaRanking('Top 5 goleadores','⚽','var(--v)',d.temuco.goleadores,'goles')}
-              ${filaRanking('Top 5 asistidores','🅰️','var(--az)',d.temuco.asistidores,'asist')}
-            </div>
-            <div>
-              <div style="font-size:10px;font-weight:800;color:var(--az);text-transform:uppercase;margin-bottom:8px">${rival.nombre}</div>
-              ${filaRanking('Top 5 goleadores','⚽','var(--az)',d.rival.goleadores,'goles')}
-              <div style="font-size:10px;color:var(--muted)">Asistencias: sin dato (solo cargamos ese detalle para Temuco)</div>
-            </div>
+            ${[izq,der].map(lado=>`<div>
+              <div style="font-size:10px;font-weight:800;color:${lado.color};text-transform:uppercase;margin-bottom:8px">${lado.nombre}</div>
+              ${filaRanking('Top 5 goleadores','⚽',lado.color,d[lado.k].goleadores,'goles')}
+              ${lado.k==='temuco'
+                ?filaRanking('Top 5 asistidores','🅰️','var(--az)',d.temuco.asistidores,'asist')
+                :'<div style="font-size:10px;color:var(--muted)">Asistencias: sin dato (solo cargamos ese detalle para Temuco)</div>'}
+            </div>`).join('')}
           </div>
         </div>
       </div>`
@@ -4436,10 +4485,10 @@ function renderProximoRival(){
       <div class="pb" style="display:flex;gap:24px;flex-wrap:wrap">
         <div style="flex:1 1 460px;min-width:260px">
           <div style="display:flex;gap:14px;margin-bottom:8px;font-size:11px;font-weight:700;color:var(--gris)">
-            <span><span style="display:inline-block;width:9px;height:9px;background:var(--v);border-radius:2px;margin-right:4px"></span>Deportes Temuco</span>
-            <span><span style="display:inline-block;width:9px;height:9px;background:var(--az);border-radius:2px;margin-right:4px"></span>${rival.nombre}</span>
+            <span><span style="display:inline-block;width:9px;height:9px;background:${izq.color};border-radius:2px;margin-right:4px"></span>${izq.nombre}</span>
+            <span><span style="display:inline-block;width:9px;height:9px;background:${der.color};border-radius:2px;margin-right:4px"></span>${der.nombre}</span>
           </div>
-          ${svgRachaMultiple([{nombre:'Deportes Temuco',color:'var(--v)',serie:c.temuco.serie||[]},{nombre:rival.nombre,color:'var(--az)',serie:c.rival.serie||[]}])}
+          ${svgRachaMultiple([{nombre:izq.nombre,color:izq.color,serie:cI.serie||[]},{nombre:der.nombre,color:der.color,serie:cD.serie||[]}])}
         </div>
         <div style="flex:1 1 180px;min-width:170px;max-width:220px;display:flex;flex-direction:column;gap:16px">
           <div>
@@ -4450,26 +4499,26 @@ function renderProximoRival(){
               <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLOR_RESULTADO.P};margin-right:6px"></span>Perdió</span>
             </div>
           </div>
-          ${stTemuco&&stRival?`
+          ${stIzq&&stDer?`
           <div>
             <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Puntos totales</div>
             <div style="display:flex;justify-content:space-between;align-items:baseline">
-              <span style="font-weight:800;font-size:20px;color:var(--v)">${stTemuco.pts}</span>
-              <span style="font-weight:800;font-size:20px;color:var(--az)">${stRival.pts}</span>
+              <span style="font-weight:800;font-size:20px;color:${izq.color}">${stIzq.pts}</span>
+              <span style="font-weight:800;font-size:20px;color:${der.color}">${stDer.pts}</span>
             </div>
           </div>
           <div>
             <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Diferencia de gol</div>
             <div style="display:flex;justify-content:space-between;align-items:baseline">
-              <span style="font-weight:800;font-size:15px;color:${stTemuco.gf-stTemuco.gc>=0?'#27ae60':'var(--ro)'}">${stTemuco.gf-stTemuco.gc>=0?'+':''}${stTemuco.gf-stTemuco.gc}</span>
-              <span style="font-weight:800;font-size:15px;color:${stRival.gf-stRival.gc>=0?'#27ae60':'var(--ro)'}">${stRival.gf-stRival.gc>=0?'+':''}${stRival.gf-stRival.gc}</span>
+              <span style="font-weight:800;font-size:15px;color:${stIzq.gf-stIzq.gc>=0?'#27ae60':'var(--ro)'}">${stIzq.gf-stIzq.gc>=0?'+':''}${stIzq.gf-stIzq.gc}</span>
+              <span style="font-weight:800;font-size:15px;color:${stDer.gf-stDer.gc>=0?'#27ae60':'var(--ro)'}">${stDer.gf-stDer.gc>=0?'+':''}${stDer.gf-stDer.gc}</span>
             </div>
           </div>
           <div>
             <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px">Últimos 5</div>
             <div style="display:flex;justify-content:space-between">
-              <span style="display:flex;gap:3px">${formaReciente(c.temuco.serie)}</span>
-              <span style="display:flex;gap:3px">${formaReciente(c.rival.serie)}</span>
+              <span style="display:flex;gap:3px">${formaReciente(cI.serie)}</span>
+              <span style="display:flex;gap:3px">${formaReciente(cD.serie)}</span>
             </div>
           </div>`:''}
         </div>
@@ -4485,23 +4534,23 @@ function renderProximoRival(){
             <button class="tab ${S.rivales.statsTab==='condicion'?'on':''}" onclick="S.rivales.statsTab='condicion';render()">Local vs Visita</button>
           </div>
           <div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:2px">
-            <span style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">${S.rivales.statsTab==='global'?'Número grande = temporada completa · "Ú5" = últimos 5 partidos':(esLocal?'Deportes Temuco de local vs. '+rival.nombre+' de visita':'Deportes Temuco de visita vs. '+rival.nombre+' de local')}</span>
+            <span style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">${S.rivales.statsTab==='global'?'Número grande = temporada completa · "Ú5" = últimos 5 partidos':izq.nombre+' de local vs. '+der.nombre+' de visita'}</span>
           </div>
           ${S.rivales.statsTab==='global'?`
-          ${filaComparacion('Goles a favor / PJ',c.temuco.gfPP,c.rival.gfPP,v=>v.toFixed(2),true,c.temuco.u5.gfPP,c.rival.u5.gfPP)}
-          ${filaComparacion('Goles en contra / PJ',c.temuco.gcPP,c.rival.gcPP,v=>v.toFixed(2),false,c.temuco.u5.gcPP,c.rival.u5.gcPP)}
-          ${filaComparacion('Amarillas / PJ',c.temuco.amPP,c.rival.amPP,v=>v.toFixed(2),false,c.temuco.u5.amPP,c.rival.u5.amPP)}
-          ${filaComparacion('Rojas / PJ',c.temuco.rjPP,c.rival.rjPP,v=>v.toFixed(2),false,c.temuco.u5.rjPP,c.rival.u5.rjPP)}
-          ${filaComparacion('Pts / PJ',c.temuco.ptsPP,c.rival.ptsPP,v=>v.toFixed(2),true,c.temuco.u5.ptsPP,c.rival.u5.ptsPP)}
-          ${filaComparacion('% goles en descuento',c.temuco.pctDescuento,c.rival.pctDescuento,v=>v.toFixed(1)+'%',true,c.temuco.u5.pctDescuento,c.rival.u5.pctDescuento)}
-          ${filaComparacion('Minutos sub-21',c.temuco.sub21Min,c.rival.sub21Min,v=>v.toLocaleString('es-CL'))}
+          ${filaComparacion('Goles a favor / PJ',cI.gfPP,cD.gfPP,v=>v.toFixed(2),true,cI.u5.gfPP,cD.u5.gfPP,izq.color,der.color)}
+          ${filaComparacion('Goles en contra / PJ',cI.gcPP,cD.gcPP,v=>v.toFixed(2),false,cI.u5.gcPP,cD.u5.gcPP,izq.color,der.color)}
+          ${filaComparacion('Amarillas / PJ',cI.amPP,cD.amPP,v=>v.toFixed(2),false,cI.u5.amPP,cD.u5.amPP,izq.color,der.color)}
+          ${filaComparacion('Rojas / PJ',cI.rjPP,cD.rjPP,v=>v.toFixed(2),false,cI.u5.rjPP,cD.u5.rjPP,izq.color,der.color)}
+          ${filaComparacion('Pts / PJ',cI.ptsPP,cD.ptsPP,v=>v.toFixed(2),true,cI.u5.ptsPP,cD.u5.ptsPP,izq.color,der.color)}
+          ${filaComparacion('% goles en descuento',cI.pctDescuento,cD.pctDescuento,v=>v.toFixed(1)+'%',true,cI.u5.pctDescuento,cD.u5.pctDescuento,izq.color,der.color)}
+          ${filaComparacion('Minutos sub-21',cI.sub21Min,cD.sub21Min,v=>v.toLocaleString('es-CL'),true,undefined,undefined,izq.color,der.color)}
           `:`
-          ${filaComparacion(esLocal?'Goles a favor / PJ (Local)':'Goles a favor / PJ (Visita)',esLocal?c.temuco.gfPPLocal:c.temuco.gfPPVisita,esLocal?c.rival.gfPPVisita:c.rival.gfPPLocal,v=>v.toFixed(2),true)}
-          ${filaComparacion(esLocal?'Goles en contra / PJ (Local)':'Goles en contra / PJ (Visita)',esLocal?c.temuco.gcPPLocal:c.temuco.gcPPVisita,esLocal?c.rival.gcPPVisita:c.rival.gcPPLocal,v=>v.toFixed(2),false)}
-          ${filaComparacion(esLocal?'Amarillas / PJ (Local)':'Amarillas / PJ (Visita)',esLocal?c.temuco.amPPLocal:c.temuco.amPPVisita,esLocal?c.rival.amPPVisita:c.rival.amPPLocal,v=>v.toFixed(2),false)}
-          ${filaComparacion(esLocal?'Rojas / PJ (Local)':'Rojas / PJ (Visita)',esLocal?c.temuco.rjPPLocal:c.temuco.rjPPVisita,esLocal?c.rival.rjPPVisita:c.rival.rjPPLocal,v=>v.toFixed(2),false)}
-          ${filaComparacion(esLocal?'Pts/PJ Local':'Pts/PJ Visita',esLocal?c.temuco.pppLocal:c.temuco.pppVisita,esLocal?c.rival.pppVisita:c.rival.pppLocal,v=>v.toFixed(2),true)}
-          ${filaComparacion(esLocal?'% goles en descuento (Local)':'% goles en descuento (Visita)',esLocal?c.temuco.pctDescuentoLocal:c.temuco.pctDescuentoVisita,esLocal?c.rival.pctDescuentoVisita:c.rival.pctDescuentoLocal,v=>v.toFixed(1)+'%',true)}
+          ${filaComparacion('Goles a favor / PJ',cI.gfPPLocal,cD.gfPPVisita,v=>v.toFixed(2),true,undefined,undefined,izq.color,der.color)}
+          ${filaComparacion('Goles en contra / PJ',cI.gcPPLocal,cD.gcPPVisita,v=>v.toFixed(2),false,undefined,undefined,izq.color,der.color)}
+          ${filaComparacion('Amarillas / PJ',cI.amPPLocal,cD.amPPVisita,v=>v.toFixed(2),false,undefined,undefined,izq.color,der.color)}
+          ${filaComparacion('Rojas / PJ',cI.rjPPLocal,cD.rjPPVisita,v=>v.toFixed(2),false,undefined,undefined,izq.color,der.color)}
+          ${filaComparacion('Pts / PJ',cI.pppLocal,cD.pppVisita,v=>v.toFixed(2),true,undefined,undefined,izq.color,der.color)}
+          ${filaComparacion('% goles en descuento',cI.pctDescuentoLocal,cD.pctDescuentoVisita,v=>v.toFixed(1)+'%',true,undefined,undefined,izq.color,der.color)}
           `}
         </div>`:`<div class="empty">Calculando comparación…</div>`}
       </div>

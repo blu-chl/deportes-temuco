@@ -377,7 +377,7 @@ let S={
   consulta:{tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   visitante:false,
-  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosCoords:{},estadiosLista:[],uniformes:{}},
+  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosCoords:{},estadiosLista:[],uniformes:{},partidosPendientes:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
   enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,expandUniformes:false,filtroGoles:'sinTipo',golesSnapshot:null,
@@ -386,7 +386,7 @@ let S={
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
   partidoLiga:{loaded:false,id:null,volverA:'inicio',data:null,eventos:[],previo:null,clima:null,mvpExpand:false},
   rivales:{loaded:false,proximo:null,comparacion:null,notas:[],rivalSel:null,notaTexto:'',suspendidos:null,destacados:null,clima:null,statsTab:'global'},
-  analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],seleccion:new Set(),descuentoFiltro:'90',evolucionRango:'todas'},
+  analisis:{loaded:false,tab:'ataque',equipos:[],partidos:[],goles:[],tarjetas:[],seleccion:new Set(),descuentoFiltro:'90',evolucionRango:'todas',liguilla:null},
   // Reorganización de navegación pública: sub-vistas dentro de cada pestaña
   // de primer nivel (en vez de más pestañas de primer nivel).
   inicioVista:'proxima',
@@ -3349,6 +3349,9 @@ async function cargarLiga(){
   }
 
   S.liga.partidosJugados=jugadas
+  // Los que faltan por jugar — los usa la calculadora de liguilla para
+  // simular lo que queda de torneo.
+  S.liga.partidosPendientes=(Array.isArray(partidosAll)?partidosAll:[]).filter(p=>p.goles_local==null)
   S.liga.tabla=calcularTablaLiga(S.liga.equipos,jugadas,S.liga.sanciones,S.liga.tarjetas)
 
   const jugArr=Array.isArray(jugadores)?jugadores:[]
@@ -3676,11 +3679,15 @@ const COLOR_RESULTADO={G:'#27ae60',E:'var(--muted)',P:'var(--ro)'}
 const LABEL_RESULTADO={G:'Ganó',E:'Empató',P:'Perdió'}
 
 // ---- Evolución de puntos de 2+ equipos superpuesta, eje X = jornada ----
-function svgRachaMultiple(series){
+function svgRachaMultiple(series,opts){
   // series: [{nombre,color,serie:[{jornada,acumulado}]}]
+  // alto: en Análisis se pide un gráfico grande (muchas series y hasta 30
+  // fechas juntas se veían apretadas); en Próxima fecha, donde solo hay
+  // dos equipos y el panel es angosto, alcanza con uno más bajo.
   const todas=series.flatMap(s=>s.serie)
   if(!todas.length)return`<div class="empty">Sin partidos jugados todavía.</div>`
-  const pad={l:30,r:14,t:14,b:34},w=680,h=170
+  const h=(opts&&opts.alto)||210
+  const pad={l:36,r:18,t:20,b:38},w=680
   const plotW=w-pad.l-pad.r,plotH=h-pad.t-pad.b
   const maxY=Math.max(1,...todas.map(p=>p.acumulado))
   const minJ=Math.min(...todas.map(p=>p.jornada||1)),maxJ=Math.max(...todas.map(p=>p.jornada||1))
@@ -3688,10 +3695,11 @@ function svgRachaMultiple(series){
   const x=j=>pad.l+((j-minJ)/spanJ)*plotW
   const y=v=>pad.t+plotH-(v/maxY)*plotH
   let svg=`<svg class="chart-svg" width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px">`
-  for(let i=0;i<=3;i++){
-    const gy=pad.t+plotH-plotH*i/3
+  const nLineas=plotH>220?6:plotH>150?5:3
+  for(let i=0;i<=nLineas;i++){
+    const gy=pad.t+plotH-plotH*i/nLineas
     svg+=`<line x1="${pad.l}" y1="${gy}" x2="${pad.l+plotW}" y2="${gy}" class="chart-grid"/>`
-    svg+=`<text x="${pad.l-6}" y="${gy+3}" text-anchor="end" class="chart-axis">${Math.round(maxY*i/3)}</text>`
+    svg+=`<text x="${pad.l-8}" y="${gy+3}" text-anchor="end" class="chart-axis">${Math.round(maxY*i/nLineas)}</text>`
   }
   const step=Math.max(1,Math.ceil(spanJ/9))
   for(let j=minJ;j<=maxJ;j++){
@@ -3712,6 +3720,149 @@ function svgRachaMultiple(series){
   })
   svg+=`</svg>`
   return svg
+}
+
+// ===== CALCULADORA DE LIGUILLA =====
+// Simula lo que queda del torneo para responder qué necesita Temuco para
+// entrar a la liguilla (top 8). No es una predicción: es un modelo simple
+// y se dice así en pantalla.
+//
+// Cada partido pendiente se simula sorteando goles con Poisson, usando el
+// promedio de goles a favor de un equipo y en contra del otro (más una
+// ventaja de localía). Salen goles y no solo el resultado porque la
+// diferencia de gol es el primer desempate de la tabla.
+const LIGUILLA_CUPOS=8
+const SIMULACIONES=1500
+function poisson(lambda){
+  // Knuth: suficiente para lambdas chicos como los de un partido.
+  const L=Math.exp(-Math.max(0.05,lambda))
+  let k=0,pr=1
+  do{k++;pr*=Math.random()}while(pr>L)
+  return k-1
+}
+function fuerzasEquipos(equipos,jugadas){
+  const f={}
+  equipos.forEach(e=>{f[e.id]={pj:0,gf:0,gc:0}})
+  jugadas.forEach(p=>{
+    const l=f[p.equipo_local_id],v=f[p.equipo_visita_id]
+    if(!l||!v)return
+    l.pj++;v.pj++
+    l.gf+=p.goles_local;l.gc+=p.goles_visita
+    v.gf+=p.goles_visita;v.gc+=p.goles_local
+  })
+  // Promedio de la liga como respaldo para un equipo sin partidos.
+  const tot=Object.values(f).reduce((a,e)=>({pj:a.pj+e.pj,gf:a.gf+e.gf}),{pj:0,gf:0})
+  const media=tot.pj?tot.gf/tot.pj:1.2
+  Object.values(f).forEach(e=>{
+    e.gfPP=e.pj?e.gf/e.pj:media
+    e.gcPP=e.pj?e.gc/e.pj:media
+  })
+  return {f,media}
+}
+function simularPartido(p,fuerzas){
+  const l=fuerzas.f[p.equipo_local_id],v=fuerzas.f[p.equipo_visita_id]
+  if(!l||!v)return null
+  const lamL=Math.max(0.2,((l.gfPP+v.gcPP)/2)*1.12)
+  const lamV=Math.max(0.2,((v.gfPP+l.gcPP)/2)*0.92)
+  return {...p,goles_local:poisson(lamL),goles_visita:poisson(lamV)}
+}
+// Corre las simulaciones y devuelve, para cada equipo, en cuántas terminó
+// entre los primeros LIGUILLA_CUPOS. `fijos` permite forzar el resultado
+// de algunos partidos (para responder "¿y si gana tal equipo?").
+function simularTorneo(equipos,jugadas,pendientes,sanciones,tarjetas,fijos){
+  const fuerzas=fuerzasEquipos(equipos,jugadas)
+  const clasifica={},puntosFinales={}
+  equipos.forEach(e=>{clasifica[e.id]=0;puntosFinales[e.id]=0})
+  const forzados=fijos||{}
+  for(let n=0;n<SIMULACIONES;n++){
+    const simulados=[]
+    for(const p of pendientes){
+      const fijo=forzados[p.id]
+      simulados.push(fijo?{...p,goles_local:fijo[0],goles_visita:fijo[1]}:simularPartido(p,fuerzas)||{...p,goles_local:0,goles_visita:0})
+    }
+    const tabla=calcularTablaLiga(equipos,jugadas.concat(simulados),sanciones,tarjetas)
+    tabla.forEach((e,i)=>{
+      if(i<LIGUILLA_CUPOS)clasifica[e.id]++
+      puntosFinales[e.id]+=e.pts
+    })
+  }
+  const out={}
+  equipos.forEach(e=>{
+    out[e.id]={prob:clasifica[e.id]/SIMULACIONES,ptsProm:puntosFinales[e.id]/SIMULACIONES}
+  })
+  return out
+}
+// Igual que simularTorneo pero devuelve solo lo que hace falta para
+// comparar escenarios: probabilidad de un equipo y dónde queda el corte.
+// Usa menos simulaciones porque se llama muchas veces seguidas (una por
+// cada resultado posible de cada partido de la fecha).
+function simularRapido(equipos,jugadas,pendientes,sanciones,tarjetas,fijos,equipoId,n){
+  const fuerzas=fuerzasEquipos(equipos,jugadas)
+  const vueltas=n||500
+  let dentro=0,sumaCorte=0
+  const forzados=fijos||{}
+  for(let i=0;i<vueltas;i++){
+    const simulados=[]
+    for(const p of pendientes){
+      const fijo=forzados[p.id]
+      simulados.push(fijo?{...p,goles_local:fijo[0],goles_visita:fijo[1]}:simularPartido(p,fuerzas)||{...p,goles_local:0,goles_visita:0})
+    }
+    const tabla=calcularTablaLiga(equipos,jugadas.concat(simulados),sanciones,tarjetas)
+    if(tabla.findIndex(e=>e.id===equipoId)<LIGUILLA_CUPOS)dentro++
+    sumaCorte+=tabla[LIGUILLA_CUPOS-1]?tabla[LIGUILLA_CUPOS-1].pts:0
+  }
+  return {prob:dentro/vueltas,corte:sumaCorte/vueltas}
+}
+// Lo que NO depende del azar: máximos y mínimos matemáticos.
+function limitesLiguilla(equipos,tabla,pendientes){
+  const restantes={}
+  equipos.forEach(e=>{restantes[e.id]=0})
+  pendientes.forEach(p=>{
+    if(restantes[p.equipo_local_id]!=null)restantes[p.equipo_local_id]++
+    if(restantes[p.equipo_visita_id]!=null)restantes[p.equipo_visita_id]++
+  })
+  return tabla.map((e,i)=>({
+    ...e,pos:i+1,
+    restantes:restantes[e.id]||0,
+    maxPts:e.pts+3*(restantes[e.id]||0),
+  }))
+}
+// Arma todo lo que muestra la pestaña Liguilla. Se corre a pedido (no en
+// cada render) y el resultado queda guardado en S.analisis.liguilla.
+async function calcularLiguilla(){
+  const L=S.liga
+  if(!L.loaded||!L.temucoId||!L.partidosPendientes.length){
+    S.analisis.liguilla={loading:false,listo:true,vacio:true}
+    render();return
+  }
+  S.analisis.liguilla={loading:true}
+  render()
+  // Un tick para que el "Calculando…" alcance a pintarse antes de bloquear.
+  await new Promise(r=>setTimeout(r,30))
+  const args=[L.equipos,L.partidosJugados,L.partidosPendientes,L.sanciones,L.tarjetas]
+  const probs=simularTorneo(...args,null)
+  const base=simularRapido(...args,null,L.temucoId,SIMULACIONES)
+
+  // Impacto de cada partido de la próxima jornada: qué pasaría con la
+  // probabilidad de Temuco según cómo termine. Se fuerza un marcador
+  // representativo de cada resultado (1-0 / 1-1 / 0-1).
+  // La próxima fecha es la del partido más cercano en el calendario, no la
+  // jornada de número más bajo: los partidos pospuestos quedan pendientes
+  // con una jornada vieja y desordenarían el cálculo.
+  const conFecha=L.partidosPendientes.filter(p=>p.fecha_hora).sort((a,b)=>new Date(a.fecha_hora)-new Date(b.fecha_hora))
+  const jornada=(L.infoGeneral&&L.infoGeneral.jornadaProxima)||(conFecha[0]&&conFecha[0].jornada)||null
+  const deLaFecha=jornada?L.partidosPendientes.filter(p=>p.jornada===jornada):conFecha.slice(0,8)
+  const impacto=deLaFecha.map(p=>{
+    const esc=[['local',[1,0]],['empate',[1,1]],['visita',[0,1]]].map(([k,marcador])=>({
+      k,prob:simularRapido(...args,{[p.id]:marcador},L.temucoId,400).prob,
+    }))
+    const mejor=esc.reduce((a,b)=>b.prob>a.prob?b:a)
+    const peor=esc.reduce((a,b)=>b.prob<a.prob?b:a)
+    return {partido:p,esc,mejor:mejor.k,rango:mejor.prob-peor.prob}
+  }).sort((a,b)=>b.rango-a.rango)
+
+  S.analisis.liguilla={loading:false,listo:true,probs,corte:base.corte,jornada,impacto}
+  render()
 }
 
 // Próxima fecha = todo lo relacionado al próximo partido (se actualiza
@@ -4805,6 +4956,7 @@ const ANALISIS_CATS=[
   {id:'rendimiento',l:'🏠 Local / Visita'},
   {id:'descuento',l:'⏱ Descuento'},
   {id:'sub21',l:'🌱 Sub-21'},
+  {id:'liguilla',l:'🎯 Liguilla'},
 ]
 // Paleta fija para distinguir equipos en el gráfico de evolución — Temuco
 // siempre rojo (var(--v)), el resto un color distinto por posición en la
@@ -4864,7 +5016,7 @@ function renderAnalisis(){
         <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;font-size:11px;font-weight:700;color:var(--gris)">
           ${series.map(s=>`<span><span style="display:inline-block;width:9px;height:9px;background:${s.color};border-radius:2px;margin-right:4px"></span>${s.nombre}</span>`).join('')}
         </div>
-        ${svgRachaMultiple(series)}
+        ${svgRachaMultiple(series,{alto:400})}
       `
     })():
     cat==='ataque'?`
@@ -4908,7 +5060,8 @@ function renderAnalisis(){
       <div style="color:var(--gris);font-size:12px;margin-bottom:12px">Suma de minutos oficiales de todos los jugadores sub-21 usados en la temporada (dato ANFP).</div>
       ${svgBarChart(rows,{val:r=>r.sub21Min,fmt:v=>v.toLocaleString('es-CL'),maxHint:1000})}
       ${bloqueCorrelacion('Dependencia con los minutos Sub-21','Minutos oficiales sub-21 en la temporada (eje X) vs puntos por partido (eje Y)',e=>e.sub21Min,v=>Math.round(v).toLocaleString('es-CL'),'Minutos Sub-21',1000)}
-    `:''
+    `:
+    cat==='liguilla'?renderLiguilla():''
 
   return`<div class="pb">
     <div class="pt disp" style="font-size:18px;margin-bottom:4px">Análisis de datos · Liga de Ascenso</div>
@@ -4917,6 +5070,99 @@ function renderAnalisis(){
     <div class="tabs">${ANALISIS_CATS.map(c=>`<button class="tab ${cat===c.id?'on':''}" onclick="S.analisis.tab='${c.id}';render()">${c.l}</button>`).join('')}</div>
     <div class="panel"><div class="pb">${contenido}</div></div>
   </div>`
+}
+
+function renderLiguilla(){
+  const L=S.liga
+  const G=S.analisis.liguilla
+  if(!L.loaded||!L.temucoId)return`<div class="empty">Cargando datos de la liga…</div>`
+  const lim=limitesLiguilla(L.equipos,L.tabla,L.partidosPendientes)
+  const t=lim.find(e=>e.id===L.temucoId)
+  if(!t)return`<div class="empty">No encuentro a Temuco en la tabla.</div>`
+  const octavo=lim[LIGUILLA_CUPOS-1]
+  const nombreCorto=n=>n.replace('Deportes ','').replace('Club ','')
+  const intro=`<div style="color:var(--gris);font-size:12px;margin-bottom:14px">Qué necesita Temuco para meterse entre los ${LIGUILLA_CUPOS} que juegan la liguilla. Los máximos y mínimos son matemáticos; los porcentajes salen de simular ${SIMULACIONES.toLocaleString('es-CL')} veces lo que queda del torneo, sorteando los goles de cada partido según lo que viene haciendo cada equipo. Es un modelo, no una predicción.</div>`
+
+  // Bloque matemático, que no depende de la simulación.
+  const faltanParaOctavo=Math.max(0,octavo.pts-t.pts)
+  const puedeAlcanzar=t.maxPts>=octavo.pts
+  const cabeza=`<div class="g4" style="margin-bottom:14px">
+    <div class="mc"><div class="mc-l">Posición hoy</div><div class="mc-v">${t.pos}°</div><div class="mc-s">${t.pts} pts</div></div>
+    <div class="mc"><div class="mc-l">Le quedan</div><div class="mc-v">${t.restantes}</div><div class="mc-s">partidos · ${t.restantes*3} pts en juego</div></div>
+    <div class="mc az"><div class="mc-l">Máximo posible</div><div class="mc-v">${t.maxPts}</div><div class="mc-s">si gana todo</div></div>
+    <div class="mc ${G&&G.listo&&!G.vacio?(G.probs[L.temucoId].prob>=.5?'verde':'am'):''}"><div class="mc-l">Prob. de liguilla</div><div class="mc-v">${G&&G.listo&&!G.vacio?Math.round(G.probs[L.temucoId].prob*100)+'%':'—'}</div><div class="mc-s">${G&&G.listo&&!G.vacio?'corte estimado: '+G.corte.toFixed(0)+' pts':'sin calcular'}</div></div>
+  </div>`
+
+  const diagnostico=`<div class="panel" style="margin-bottom:14px"><div class="pb">
+    <div style="font-size:12.5px;line-height:1.7">
+      Hoy el 8º es <b>${nombreCorto(octavo.nombre)}</b> con <b>${octavo.pts} pts</b>.
+      ${t.pos<=LIGUILLA_CUPOS
+        ?`Temuco está <b style="color:#1f8b4d">adentro</b>, en zona de liguilla.`
+        :`Temuco está <b style="color:var(--ro)">${t.pos-LIGUILLA_CUPOS} puesto${t.pos-LIGUILLA_CUPOS>1?'s':''} afuera</b> y a <b>${faltanParaOctavo} pts</b> del 8º.`}
+      ${puedeAlcanzar
+        ?`Con ${t.restantes} fechas por jugar todavía le alcanza la matemática: ganando todo llegaría a <b>${t.maxPts} pts</b>.`
+        :`<b style="color:var(--ro)">Ya no le da la matemática:</b> ganando todo llega a ${t.maxPts} y el 8º ya tiene ${octavo.pts}.`}
+      ${G&&G.listo&&!G.vacio?`En las simulaciones la liguilla se corta alrededor de los <b>${G.corte.toFixed(0)} pts</b>, así que necesitaría sumar cerca de <b>${Math.max(0,Math.ceil(G.corte-t.pts))}</b> de los ${t.restantes*3} que le quedan en juego.`:''}
+    </div>
+  </div></div>`
+
+  // La pelea por el 8º: los que están en el rango que puede alcanzar.
+  const enPelea=lim.filter(e=>e.pos>=Math.max(1,LIGUILLA_CUPOS-3)&&e.pos<=Math.min(lim.length,t.pos+3)||e.id===L.temucoId)
+  const filas=enPelea.map(e=>{
+    const p=G&&G.listo&&!G.vacio?G.probs[e.id]:null
+    const esT=e.id===L.temucoId
+    return`<tr style="${esT?'background:rgba(200,21,39,.06)':''}">
+      <td class="center" style="font-weight:800;color:${e.pos<=LIGUILLA_CUPOS?'#1f8b4d':'var(--gris)'}">${e.pos}</td>
+      <td style="width:26px"><img src="${crestUrl(e.nombre)}" style="width:20px;height:20px;object-fit:contain;display:block"></td>
+      <td style="font-weight:${esT?800:600};color:${esT?'var(--vc)':'var(--blanco)'}">${nombreCorto(e.nombre)}</td>
+      <td class="num" style="font-weight:800">${e.pts}</td>
+      <td class="num mob-hide" style="color:var(--gris)">${e.maxPts}</td>
+      <td class="num">${p?`<span style="font-weight:800;color:${p.prob>=.5?'#1f8b4d':p.prob>=.2?'var(--am)':'var(--ro)'}">${Math.round(p.prob*100)}%</span>`:'—'}</td>
+    </tr>`
+  }).join('')
+  const tablaPelea=`<div class="panel" style="margin-bottom:14px">
+    <div class="ph"><span class="pt">La pelea por el 8º</span><span style="font-size:10px;color:var(--gris)">línea de corte tras el ${LIGUILLA_CUPOS}º</span></div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th class="center">#</th><th></th><th>Equipo</th><th class="num">PTS</th><th class="num mob-hide">MÁX</th><th class="num">Prob.</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table></div>
+  </div>`
+
+  // Qué conviene que pase en la próxima fecha.
+  const LBL={local:'gana el local',empate:'empatan',visita:'gana la visita'}
+  const fecha=G&&G.listo&&!G.vacio&&G.impacto&&G.impacto.length?`<div class="panel">
+    <div class="ph"><span class="pt">Qué le conviene en la fecha ${G.jornada}</span><span style="font-size:10px;color:var(--gris)">ordenado por cuánto mueve la aguja</span></div>
+    <div class="pb">
+      <div style="font-size:11px;color:var(--gris);margin-bottom:10px">Probabilidad de que Temuco entre a la liguilla según cómo termine cada partido de esa fecha. El resultado marcado en verde es el que más le sirve.</div>
+      ${G.impacto.map(it=>{
+        const p=it.partido
+        const eqL=L.equipos.find(e=>e.id===p.equipo_local_id),eqV=L.equipos.find(e=>e.id===p.equipo_visita_id)
+        const esDeTemuco=p.equipo_local_id===L.temucoId||p.equipo_visita_id===L.temucoId
+        return`<div style="padding:9px 0;border-top:1px solid var(--borde)">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;margin-bottom:6px">
+            ${esDeTemuco?'<span class="badge bv" style="font-size:8px">SU PARTIDO</span>':''}
+            <img src="${crestUrl(eqL?eqL.nombre:'')}" style="width:16px;height:16px;object-fit:contain">${eqL?nombreCorto(eqL.nombre):'?'}
+            <span style="color:var(--muted)">vs</span>
+            <img src="${crestUrl(eqV?eqV.nombre:'')}" style="width:16px;height:16px;object-fit:contain">${eqV?nombreCorto(eqV.nombre):'?'}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${it.esc.map(e=>`<div style="flex:1;min-width:104px;background:${e.k===it.mejor?'rgba(31,139,77,.12)':'rgba(16,24,32,.035)'};border:1px solid ${e.k===it.mejor?'rgba(31,139,77,.4)':'var(--borde)'};border-radius:6px;padding:6px 8px">
+              <div style="font-size:9.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.04em">${LBL[e.k]}</div>
+              <div style="font-weight:800;font-size:15px;color:${e.k===it.mejor?'#1f8b4d':'var(--blanco)'}">${Math.round(e.prob*100)}%</div>
+            </div>`).join('')}
+          </div>
+        </div>`
+      }).join('')}
+    </div>
+  </div>`:''
+
+  const boton=`<div style="margin-bottom:14px">
+    <button class="btn" onclick="calcularLiguilla()" ${G&&G.loading?'disabled':''}>${G&&G.loading?'Calculando…':(G&&G.listo?'Volver a calcular':'Calcular probabilidades')}</button>
+    ${G&&G.loading?'<span style="font-size:11px;color:var(--gris);margin-left:10px">simulando lo que queda del torneo…</span>':''}
+  </div>`
+
+  if(G&&G.vacio)return intro+cabeza+`<div class="empty">El torneo ya terminó: no quedan partidos por jugar.</div>`
+  return intro+cabeza+diagnostico+boton+tablaPelea+fecha
 }
 
 async function guardarSancion(){

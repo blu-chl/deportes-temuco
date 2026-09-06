@@ -3067,9 +3067,42 @@ function camisetaSvg(u,size){
     <path d="M24,6 C27,11 37,11 40,6" fill="none" stroke="${borde}" stroke-width="1.6" stroke-linecap="round"/>
   </svg>`
 }
+// Equipo completo (camiseta + short + medias) para los espacios grandes,
+// tipo la ficha de uniformes de Wikipedia. En chico se usa solo la
+// camiseta, que se lee mejor.
+function uniformeSvg(u,alto){
+  alto=alto||64
+  if(!u)return''
+  const id='uni'+(++_camisetaSeq)
+  const base=u.camiseta||'#e6e8ea'
+  const det=u.detalle||base
+  const mang=u.mangas||base
+  const sho=u.short||base
+  const med=u.medias||sho
+  const borde='rgba(16,24,32,.35)'
+  let patron=''
+  if(u.patron==='rayas')patron=[22,29,36,43].map(x=>`<rect x="${x}" y="4" width="3.6" height="56" fill="${det}"/>`).join('')
+  else if(u.patron==='bandas')patron=[16,27,38,49].map(y=>`<rect x="17" y="${y}" width="30" height="5.5" fill="${det}"/>`).join('')
+  else if(u.patron==='franja')patron=`<polygon points="17,12 26,6 47,46 47,59 39,59" fill="${det}"/>`
+  else if(u.patron==='mitades')patron=`<rect x="32" y="4" width="15" height="56" fill="${det}"/>`
+  return`<svg height="${alto}" width="${Math.round(alto*0.64)}" viewBox="0 0 64 100" style="flex-shrink:0;display:block" aria-hidden="true">
+    <defs><clipPath id="${id}"><path d="M17,5 L17,59 L47,59 L47,5 Z"/></clipPath></defs>
+    <path d="M24,6 C27,11 37,11 40,6 L58,14 L52,27 L47,23 L47,59 L17,59 L17,23 L12,27 L6,14 Z" fill="${base}" stroke="${borde}" stroke-width="1.6" stroke-linejoin="round"/>
+    <g clip-path="url(#${id})">${patron}</g>
+    <path d="M17,11 L6,14 L12,27 L17,23 Z" fill="${mang}" stroke="${borde}" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M47,11 L58,14 L52,27 L47,23 Z" fill="${mang}" stroke="${borde}" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M24,6 C27,11 37,11 40,6" fill="none" stroke="${borde}" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M18,62 L46,62 L46,81 L35,81 L32,71 L29,81 L18,81 Z" fill="${sho}" stroke="${borde}" stroke-width="1.6" stroke-linejoin="round"/>
+    <rect x="20" y="85" width="9" height="13" rx="1.5" fill="${med}" stroke="${borde}" stroke-width="1.6"/>
+    <rect x="35" y="85" width="9" height="13" rx="1.5" fill="${med}" stroke="${borde}" stroke-width="1.6"/>
+  </svg>`
+}
 // Camiseta de un equipo según cómo juega ESE partido (local o visita).
 function camisetaEquipo(equipoId,esLocal,size){
   return camisetaSvg(uniformeDe(equipoId,esLocal?'local':'visita'),size)
+}
+function uniformeEquipo(equipoId,esLocal,alto){
+  return uniformeSvg(uniformeDe(equipoId,esLocal?'local':'visita'),alto)
 }
 // Fila del medio de la hero card: si hay foto de estadio, se parte en dos
 // mitades (foto | escudos vs) para darle más peso visual a la imagen; sin
@@ -3958,14 +3991,14 @@ function renderPartidoLiga(){
           <div class="hero2-team">
             <div style="display:flex;align-items:center;gap:8px">
               <img class="hero2-crest" src="${crestUrl(d.local.nombre)}">
-              ${camisetaEquipo(d.equipo_local_id,true,42)}
+              ${uniformeEquipo(d.equipo_local_id,true,72)}
             </div>
             <div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.local.nombre.toUpperCase()}</div>
           </div>
           <div class="disp hero2-score" style="${d.goles_local==null?'font-size:36px':''}">${d.goles_local==null?'VS':`${d.goles_local}&nbsp;–&nbsp;${d.goles_visita}`}</div>
           <div class="hero2-team">
             <div style="display:flex;align-items:center;gap:8px">
-              ${camisetaEquipo(d.equipo_visita_id,false,42)}
+              ${uniformeEquipo(d.equipo_visita_id,false,72)}
               <img class="hero2-crest" src="${crestUrl(d.visita.nombre)}">
             </div>
             <div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.visita.nombre.toUpperCase()}</div>
@@ -4289,14 +4322,14 @@ function renderProximoRival(){
           <div class="hero2-team">
             <div style="display:flex;align-items:center;gap:8px">
               <img class="hero2-crest" src="${crestUrl('Deportes Temuco')}">
-              ${camisetaEquipo(S.liga.temucoId,esLocal,42)}
+              ${uniformeEquipo(S.liga.temucoId,esLocal,72)}
             </div>
             <div class="disp" style="color:#fff;font-size:14px;text-align:center">DEPORTES TEMUCO</div>${posBadge(posTemuco)}
           </div>
           <div class="disp hero2-score" style="font-size:36px">VS</div>
           <div class="hero2-team">
             <div style="display:flex;align-items:center;gap:8px">
-              ${camisetaEquipo(rival.id,!esLocal,42)}
+              ${uniformeEquipo(rival.id,!esLocal,72)}
               <img class="hero2-crest" src="${crestUrl(rival.nombre)}">
             </div>
             <div class="disp" style="color:#fff;font-size:14px;text-align:center">${rival.nombre.toUpperCase()}</div>${posBadge(posRival)}

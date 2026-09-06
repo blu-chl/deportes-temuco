@@ -1,6 +1,13 @@
 name: Web Scraper
 
 on:
+  # Automático: dos veces al día. Los informes de ANFP salen con retraso
+  # variable después de cada fecha, así que en vez de adivinar el día se
+  # revisa seguido — cada corrida solo procesa los partidos nuevos, los
+  # que ya están en la base se saltan.
+  schedule:
+    - cron: '0 13 * * *' # 09:00 en Chile
+    - cron: '0 1 * * *' # 21:00 en Chile
   workflow_dispatch:
     inputs:
       liga_url:
@@ -17,9 +24,20 @@ on:
         default: false
         type: boolean
 
+# Que no se pisen dos corridas si una manual cae junto a una programada.
+concurrency:
+  group: scrape-liga
+  cancel-in-progress: false
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    # En las corridas programadas los inputs vienen vacíos, por eso cada
+    # uno tiene su valor por defecto acá: si no, el scraper correría con
+    # la URL en blanco.
+    env:
+      LIGA_URL: ${{ github.event.inputs.liga_url || 'https://www.campeonatochileno.cl/ligas/liga-de-ascenso-caixun/' }}
+      LIMIT: ${{ github.event.inputs.limit || '0' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,8 +56,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           node scrape.mjs \
-            --liga "${{ github.event.inputs.liga_url }}" \
-            --limit "${{ github.event.inputs.limit }}" \
+            --liga "$LIGA_URL" \
+            --limit "$LIMIT" \
             ${{ github.event.inputs.force == 'true' && '--force' || '' }}
 
       - name: Scrapear tabla oficial de minutos sub-21
@@ -48,7 +66,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node scrapeU21.mjs --liga "${{ github.event.inputs.liga_url }}"
+        run: node scrapeU21.mjs --liga "$LIGA_URL"
 
       - name: Vincular plantel propio con liga_jugadores
         if: ${{ !cancelled() }}

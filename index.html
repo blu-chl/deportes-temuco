@@ -377,7 +377,7 @@ let S={
   consulta:{tipoEv:'todos',posicion:'todos',posEsp:'todos',condicion:'todos',competencia:'todos',resultado:'todos',periodo:'todos'},
   addLes:{jugador_id:'',tipo:'Desgarro muscular',fecha_inicio:hoy(),semanas_recuperacion:3},
   visitante:false,
-  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosCoords:{},estadiosLista:[],uniformes:{},partidosPendientes:[]},
+  liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,rivalDetalle:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosCoords:{},estadiosLista:[],uniformes:{},partidosPendientes:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
   enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,expandUniformes:false,filtroGoles:'sinTipo',golesSnapshot:null,
@@ -2213,7 +2213,7 @@ function franjaCard(label,evs,color,totalMitad,avatarJ,nombreJ){
       <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreJ(g.jugador)}</div><div style="font-size:10px;color:${color};font-weight:600">⚽ ${g.mins.map(m=>`${m.minuto}'${m.minuto_extra?`+${m.minuto_extra}`:''}`).join(' ')}</div></div>
     </div>`
   ).join('')
-  return`<div style="text-align:center;padding:8px;background:rgba(0,0,0,.2);border-radius:6px">
+  return`<div style="text-align:center;padding:10px 9px;background:var(--panel);border:1px solid var(--borde);border-radius:8px">
     <div style="font-size:22px;font-weight:800;color:${color}">${n}</div>
     <div style="font-size:9px;color:var(--gris)">${label}</div>
     <div class="bar-w" style="margin-top:6px"><div class="bar-f" style="width:${pct}%;background:${color}"></div></div>
@@ -2421,22 +2421,20 @@ function renderEstadisticas(){
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">Goles por período</span></div>
       <div class="pb">
-        <div class="g2" style="margin-bottom:14px">
-          <div class="mc verde"><div class="mc-l">Goles en el 1er tiempo</div><div class="mc-v">${totalT1}</div></div>
-          <div class="mc az"><div class="mc-l">Goles en el 2do tiempo</div><div class="mc-v">${totalT2}</div></div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px">
-          <div style="text-align:center;font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;grid-column:1/4;border-bottom:1px solid var(--borde);padding-bottom:4px">Primer tiempo</div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
-          ${[['1-22\'',franja1,'var(--vc)'],['23-44\'',franja2,'var(--am)'],['45\'+desc.',franja3,'var(--ro)']].map(([label,evs,color])=>franjaCard(label,evs,color,totalT1,avatarJ,nombreJ)).join('')}
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px">
-          <div style="text-align:center;font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;grid-column:1/4;border-bottom:1px solid var(--borde);padding-bottom:4px">Segundo tiempo</div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-          ${[['46-67\'',franja4,'var(--vc)'],['68-89\'',franja5,'var(--am)'],['90\'+desc.',franja6,'var(--ro)']].map(([label,evs,color])=>franjaCard(label,evs,color,totalT2,avatarJ,nombreJ)).join('')}
-        </div>
+        ${[['Primer tiempo',totalT1,[['1-22\'',franja1,'var(--vc)'],['23-44\'',franja2,'var(--am)'],['45\'+desc.',franja3,'var(--ro)']]],
+           ['Segundo tiempo',totalT2,[['46-67\'',franja4,'var(--vc)'],['68-89\'',franja5,'var(--am)'],['90\'+desc.',franja6,'var(--ro)']]]]
+          .map(([titulo,total,franjas],i)=>`<div style="${i?'margin-top:16px':''}">
+            <div style="font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--borde);padding-bottom:4px;margin-bottom:8px">${titulo}</div>
+            <div style="display:flex;gap:10px;align-items:stretch">
+              <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                ${franjas.map(([label,evs,color])=>franjaCard(label,evs,color,total,avatarJ,nombreJ)).join('')}
+              </div>
+              <div style="flex:0 0 76px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(16,24,32,.03);border:1px solid var(--borde);border-radius:8px;padding:8px 6px">
+                <div style="font-size:26px;font-weight:800;line-height:1">${total}</div>
+                <div style="font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.04em;text-align:center;margin-top:2px">goles<br>del tiempo</div>
+              </div>
+            </div>
+          </div>`).join('')}
       </div>
     </div>
     <div class="g2">
@@ -3544,8 +3542,9 @@ function renderTablaGeneral(){
 
 async function verRival(id){
   if(S.liga.rivalSel===id){S.liga.rivalSel=null;render();return}
-  S.liga.rivalSel=id;S.liga.rivalPartidos=null;S.liga.rivalStats=null;render()
+  S.liga.rivalSel=id;S.liga.rivalPartidos=null;S.liga.rivalStats=null;S.liga.rivalDetalle=null;render()
   const esTemuco=id===S.liga.temucoId
+  const jug='jugador:liga_jugadores!%s(id,nombre,apellido,foto_url)'
   const[partidos,stats,destacado,suspendidos]=await Promise.all([
     ligaGet('liga_partidos',`?or=(equipo_local_id.eq.${id},equipo_visita_id.eq.${id})&goles_local=not.is.null&select=id,jornada,fecha_hora,local:liga_equipos!liga_partidos_equipo_local_id_fkey(nombre),visita:liga_equipos!liga_partidos_equipo_visita_id_fkey(nombre),goles_local,goles_visita&order=fecha_hora.desc&limit=5`),
     statsEquipoLiga(id),
@@ -3555,6 +3554,25 @@ async function verRival(id){
   if(S.liga.rivalSel!==id)return // cambió de equipo mientras cargaba
   S.liga.rivalPartidos=Array.isArray(partidos)?partidos:[]
   S.liga.rivalStats={stats,destacado,suspendidos}
+  render()
+  // El detalle fino (goleadores, cambios, disciplina, minutaje, goles por
+  // período) se pide aparte y después: son cuatro consultas más y así la
+  // ficha principal aparece de inmediato. Es la misma data que tenemos de
+  // Temuco, salvo lo que solo existe para él (quién asistió y cómo fue
+  // cada gol, que son carga manual).
+  const[goles,tarjetas,subs,alineaciones]=await Promise.all([
+    ligaGet('liga_goles',`?equipo_id=eq.${id}&select=minuto,minuto_extra,penal,autogol,${jug.replace('%s','liga_goles_jugador_id_fkey')}`),
+    ligaGet('liga_tarjetas',`?equipo_id=eq.${id}&select=tipo,${jug.replace('%s','liga_tarjetas_jugador_id_fkey')}`),
+    ligaGet('liga_sustituciones',`?equipo_id=eq.${id}&select=entra:liga_jugadores!liga_sustituciones_entra_jugador_id_fkey(id,nombre,apellido,foto_url,posicion),sale:liga_jugadores!liga_sustituciones_sale_jugador_id_fkey(id,nombre,apellido,foto_url,posicion)`),
+    ligaGet('liga_alineaciones',`?equipo_id=eq.${id}&select=minutos_jugados,titular,${jug.replace('%s','liga_alineaciones_jugador_id_fkey')}`),
+  ])
+  if(S.liga.rivalSel!==id)return
+  S.liga.rivalDetalle={
+    goles:Array.isArray(goles)?goles:[],
+    tarjetas:Array.isArray(tarjetas)?tarjetas:[],
+    sustituciones:Array.isArray(subs)?subs:[],
+    alineaciones:Array.isArray(alineaciones)?alineaciones:[],
+  }
   render()
 }
 function toggleGoleadores(){S.liga.golExpand=!S.liga.golExpand;render()}
@@ -3623,6 +3641,127 @@ function renderLigaDestacados(){
     </div>` :''}
   `
 }
+// Todo lo que se puede calcular de CUALQUIER equipo con lo que trae el
+// informe de ANFP: goleadores, goles por período, cambios más repetidos,
+// disciplina y minutaje. Es la misma data que ya mostrábamos de Temuco,
+// ahora comparable equipo por equipo.
+//
+// Lo único que no se puede replicar es lo que se carga a mano y solo
+// existe para Temuco: quién dio la asistencia y cómo fue cada gol.
+function renderDetalleEquipo(){
+  const D=S.liga.rivalDetalle
+  if(!D)return`<div class="empty" style="margin-bottom:14px">Cargando el detalle del equipo…</div>`
+  const nom=j=>j?nombreCompacto(j.nombre,j.apellido):'?'
+  const ini=j=>iniciales(nom(j))
+  const av=(j,size)=>j&&j.foto_url
+    ?`<img src="${j.foto_url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+    :`<div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(16,24,32,0.05);display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*.33)}px;font-weight:800;flex-shrink:0">${ini(j)}</div>`
+  const porJugador=(filas,fn)=>{
+    const m={}
+    filas.forEach(f=>{
+      const j=f.jugador;if(!j||!j.id)return
+      if(!m[j.id])m[j.id]={jugador:j,n:0,extra:0}
+      fn(m[j.id],f)
+    })
+    return Object.values(m)
+  }
+  const reales=D.goles.filter(g=>!g.autogol)
+
+  // --- Goleadores
+  const goleadores=porJugador(reales,(acc,g)=>{acc.n++;if(g.penal)acc.extra++}).sort((a,b)=>b.n-a.n).slice(0,10)
+  const panelGol=`<div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">⚽ Goleadores</span><span style="font-size:10px;color:var(--gris)">${reales.length} goles</span></div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th></th><th>Jugador</th><th class="num">Goles</th><th class="num">Penales</th></tr></thead>
+      <tbody>${goleadores.map((g,i)=>`<tr><td style="width:30px">${av(g.jugador,22)}</td><td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':''} ${nom(g.jugador)}</td><td class="num" style="color:var(--vc);font-weight:800">${g.n}</td><td class="num" style="color:var(--gris)">${g.extra||'—'}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin goles</td></tr>'}</tbody>
+    </table></div>
+  </div>`
+
+  // --- Goles por período (mismas franjas que usamos para Temuco)
+  const enFranja=(a,b)=>reales.filter(g=>g.minuto>=a&&g.minuto<=b)
+  const f1=enFranja(1,22),f2=enFranja(23,44),f3=reales.filter(g=>g.minuto===45)
+  const f4=enFranja(46,67),f5=enFranja(68,89),f6=reales.filter(g=>g.minuto>=90)
+  const t1=f1.length+f2.length+f3.length,t2=f4.length+f5.length+f6.length
+  const panelPeriodo=`<div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">Goles por período</span></div>
+    <div class="pb">
+      ${[['Primer tiempo',t1,[["1-22'",f1,'var(--vc)'],["23-44'",f2,'var(--am)'],["45'+desc.",f3,'var(--ro)']]],
+         ['Segundo tiempo',t2,[["46-67'",f4,'var(--vc)'],["68-89'",f5,'var(--am)'],["90'+desc.",f6,'var(--ro)']]]]
+        .map(([titulo,total,franjas],i)=>`<div style="${i?'margin-top:16px':''}">
+          <div style="font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--borde);padding-bottom:4px;margin-bottom:8px">${titulo}</div>
+          <div style="display:flex;gap:10px;align-items:stretch">
+            <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+              ${franjas.map(([label,evs,color])=>franjaCard(label,evs,color,total,av,nom)).join('')}
+            </div>
+            <div style="flex:0 0 76px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(16,24,32,.03);border:1px solid var(--borde);border-radius:8px;padding:8px 6px">
+              <div style="font-size:26px;font-weight:800;line-height:1">${total}</div>
+              <div style="font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.04em;text-align:center;margin-top:2px">goles<br>del tiempo</div>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`
+
+  // --- Cambios más recurrentes
+  const cambios={}
+  D.sustituciones.forEach(s=>{
+    if(!s.entra||!s.sale)return
+    const k=`${s.sale.id}_${s.entra.id}`
+    if(!cambios[k])cambios[k]={sale:s.sale,entra:s.entra,n:0}
+    cambios[k].n++
+  })
+  const topCambios=Object.values(cambios).sort((a,b)=>b.n-a.n)
+  const panelCambios=`<div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">🔄 Cambios más recurrentes</span><span style="font-size:10px;color:var(--gris)">${topCambios.length} combinaciones</span></div>
+    <div class="pb">${topCambios.length?`<div style="max-height:300px;overflow-y:auto">${topCambios.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(200,21,39,0.07)">
+      <div style="width:20px;text-align:right;font-size:11px;color:var(--muted)">${i+1}</div>
+      <div style="flex:1;font-size:11px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;gap:4px;color:var(--ro)">↓${av(c.sale,16)}${nom(c.sale)}</span>
+        <span style="color:var(--muted)">por</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;color:#1f8b4d">↑${av(c.entra,16)}${nom(c.entra)}</span>
+      </div>
+      <div style="font-size:14px;font-weight:800;color:var(--am)">${c.n}<span style="font-size:9px;color:var(--gris);font-weight:400">×</span></div>
+    </div>`).join('')}</div>`:'<div class="empty">Sin sustituciones registradas.</div>'}</div>
+  </div>`
+
+  // --- Disciplina
+  const disc=porJugador(D.tarjetas,(acc,t)=>{if(t.tipo==='amarilla')acc.n++;else acc.extra++})
+    .sort((a,b)=>(b.n+b.extra*2)-(a.n+a.extra*2))
+  const am=D.tarjetas.filter(t=>t.tipo==='amarilla').length,ro=D.tarjetas.length-am
+  const panelDisc=`<div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">Disciplina</span><span style="font-size:10px;color:var(--gris)">${am} amarillas · ${ro} rojas</span></div>
+    <div style="overflow-x:auto;max-height:300px;overflow-y:auto"><table>
+      <thead><tr><th></th><th>Jugador</th><th class="num">🟡</th><th class="num">🔴</th></tr></thead>
+      <tbody>${disc.map(j=>`<tr><td style="width:30px">${av(j.jugador,22)}</td><td>${nom(j.jugador)}</td><td class="num" style="color:var(--am)">${j.n||'—'}</td><td class="num" style="color:#b3261e">${j.extra||'—'}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:var(--gris);padding:12px">Sin tarjetas</td></tr>'}</tbody>
+    </table></div>
+  </div>`
+
+  // --- Minutaje
+  const min=porJugador(D.alineaciones,(acc,a)=>{acc.n+=a.minutos_jugados||0;if((a.minutos_jugados||0)>0)acc.extra++})
+    .filter(j=>j.n>0).sort((a,b)=>b.n-a.n)
+  const maxMin=Math.max(1,...min.map(j=>j.n))
+  const panelMin=`<div class="panel" style="margin-bottom:12px">
+    <div class="ph"><span class="pt">⏱ Minutaje</span><span style="font-size:10px;color:var(--gris)">${min.length} jugadores usados</span></div>
+    <div style="max-height:320px;overflow-y:auto;padding:6px 14px">
+      ${min.map((m,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(200,21,39,0.07)">
+        <div style="width:20px;text-align:right;font-size:11px;color:var(--muted)">${i+1}</div>
+        ${av(m.jugador,22)}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nom(m.jugador)}</div>
+          <div style="height:3px;background:rgba(16,24,32,0.06);border-radius:2px;margin-top:3px"><div style="height:100%;background:var(--vc);border-radius:2px;width:${Math.round(m.n/maxMin*100)}%"></div></div>
+        </div>
+        <div style="text-align:right;min-width:52px">
+          <div style="font-size:13px;font-weight:800;color:var(--vc)">${m.n}'</div>
+          <div style="font-size:10px;color:var(--gris)">${m.extra} ${m.extra===1?'partido':'partidos'}</div>
+        </div>
+      </div>`).join('')||'<div class="empty">Sin minutaje registrado.</div>'}
+    </div>
+  </div>`
+
+  const esTemuco=S.liga.rivalSel===S.liga.temucoId
+  const aviso=esTemuco?'':`<div style="font-size:10.5px;color:var(--muted);margin-bottom:10px">De este equipo no tenemos quién dio cada asistencia ni cómo fue cada gol: ese detalle no viene en el informe de ANFP y se carga a mano solo para Temuco.</div>`
+  return aviso+panelGol+panelPeriodo+panelCambios+`<div class="g2">${panelDisc}${panelMin}</div>`
+}
 function renderLigaExplorar(){
   const L=S.liga
   const nomJ=j=>j?nombreCompacto(j.nombre,j.apellido):'?'
@@ -3656,6 +3795,7 @@ function renderLigaExplorar(){
           <div style="font-size:10px;color:var(--gris);margin-bottom:8px">Estimado, no es dato oficial de ANFP.</div>
           ${RS.suspendidos.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><span style="font-size:12.5px;font-weight:600">${nomJ(s.jugador)}</span><span class="badge br" style="font-size:9px">${s.rojaUltimo?'Roja':`${s.amarillas}ª amarilla`}</span></div>`).join('')}
         </div></div>`:''}
+        ${renderDetalleEquipo()}
       `}`
     })():''}
     ${L.rivalSel?`<div class="panel" style="margin-top:0"><div class="pb">

@@ -2172,7 +2172,7 @@ async function guardarJugador(){
 // guardando además el partido y el momento exacto del vuelco, para poder
 // hacer clic y ver cuáles fueron y qué pasaba en ese momento.
 function calcularRachas(partidos,golesAmbos,tid){
-  const cats={remontadas:[],vueltas:[],ganoAbajoDescanso:[],perdioArribaDescanso:[]}
+  const cats={remontadas:[],vueltas:[],empatesDesdeArriba:[],ganoAbajoDescanso:[],perdioArribaDescanso:[]}
   partidos.forEach(p=>{
     if(!p.resultado)return
     const golesPartido=golesAmbos.filter(g=>g.partido_id===p.id)
@@ -2191,7 +2191,10 @@ function calcularRachas(partidos,golesAmbos,tid){
     if(!pasoDescanso){descansoFavor=favor;descansoContra=contra}
     const ganoFinal=p.resultado==='G',perdioFinal=p.resultado==='P'
     if(peorDeficit>0&&ganoFinal)cats.remontadas.push({p,texto:`Iba perdiendo ${peorDeficitFavor}-${peorDeficitContra} (min ${peorDeficitMin}') → terminó ganando ${p.gf}-${p.gc}`})
-    if(mejorVentaja>0&&(perdioFinal||p.resultado==='E'))cats.vueltas.push({p,texto:`Iba ganando ${mejorVentajaFavor}-${mejorVentajaContra} (min ${mejorVentajaMin}') → terminó ${p.resultado==='E'?'empatando':'perdiendo'} ${p.gf}-${p.gc}`})
+    // Dar vuelta un partido es ganarlo: si terminó empatado no hubo vuelta,
+    // por eso los empates desde arriba tienen su propia categoría.
+    if(mejorVentaja>0&&perdioFinal)cats.vueltas.push({p,texto:`Iba ganando ${mejorVentajaFavor}-${mejorVentajaContra} (min ${mejorVentajaMin}') → terminó perdiendo ${p.gf}-${p.gc}`})
+    if(mejorVentaja>0&&p.resultado==='E')cats.empatesDesdeArriba.push({p,texto:`Iba ganando ${mejorVentajaFavor}-${mejorVentajaContra} (min ${mejorVentajaMin}') → terminó empatando ${p.gf}-${p.gc}`})
     if(descansoFavor<descansoContra&&ganoFinal)cats.ganoAbajoDescanso.push({p,texto:`Al descanso iba ${descansoFavor}-${descansoContra} → terminó ganando ${p.gf}-${p.gc}`})
     if(descansoFavor>descansoContra&&!ganoFinal)cats.perdioArribaDescanso.push({p,texto:`Al descanso iba ${descansoFavor}-${descansoContra} → terminó ${p.resultado==='E'?'empatando':'perdiendo'} ${p.gf}-${p.gc}`})
   })
@@ -2567,7 +2570,8 @@ function renderEstadisticas(){
       const cats=calcularRachas(jugados,PL.golesAmbos,S.liga.temucoId)
       const tiles=[
         {id:'remontadas',l:'Remontadas',s:'iba perdiendo y ganó',color:'verde'},
-        {id:'vueltas',l:'Le dieron vuelta',s:'iba ganando y no ganó',color:'ro'},
+        {id:'vueltas',l:'Le dieron vuelta',s:'iba ganando y perdió',color:'ro'},
+        {id:'empatesDesdeArriba',l:'Se le escapó',s:'iba ganando y empató',color:'am'},
         {id:'ganoAbajoDescanso',l:'Ganó yendo abajo al descanso',s:'',color:'verde'},
         {id:'perdioArribaDescanso',l:'No ganó yendo arriba al descanso',s:'',color:'ro'},
       ]
@@ -3145,12 +3149,16 @@ function uniformeEquipo(equipoId,tipo,alto){
 // mitades (foto | escudos vs) para darle más peso visual a la imagen; sin
 // foto, los escudos ocupan todo el ancho como antes. flex-wrap hace que en
 // mobile las mitades se apilen en vez de achicarse hasta romper.
-function heroMatchupRow(fotoUrl,matchupHtml){
+// climaHtml (opcional) se dibuja ENCIMA de la foto del estadio, abajo a la
+// izquierda: es dónde va a hacer ese frío o ese calor, así que va junto a
+// la imagen del lugar y no perdido en el texto de la cabecera.
+function heroMatchupRow(fotoUrl,matchupHtml,climaHtml){
   if(!fotoUrl)return`<div class="hero2-mid">${matchupHtml}</div>`
   return`<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:stretch">
     <div class="hero2-mid" style="flex:1 1 240px;margin:0">${matchupHtml}</div>
-    <div style="flex:1 1 240px;min-height:180px;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.25)">
+    <div style="flex:1 1 240px;min-height:180px;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.25);position:relative">
       <img src="${fotoUrl}" style="width:100%;height:100%;object-fit:cover;display:block;min-height:180px">
+      ${climaHtml?`<div style="position:absolute;left:0;right:0;bottom:0;padding:16px 12px 10px;background:linear-gradient(to top,rgba(8,16,24,.85),rgba(8,16,24,0))">${climaHtml}</div>`:''}
     </div>
   </div>`
 }
@@ -3887,23 +3895,92 @@ function renderProximaFechaVista(){
   if(S.rivales.loaded)return`<div class="empty">No hay una próxima fecha con día confirmado todavía.</div>`
   return`<div class="empty">Cargando el próximo partido…</div>`
 }
+// Cómo llega un equipo a un partido que todavía no se juega: posición,
+// puntos, forma reciente y su rendimiento EN LA CONDICIÓN en que va a
+// jugar (de local o de visita), que es más informativo que el promedio
+// general. Sale todo de lo que ya está cargado en S.liga.
+function fichaPrevia(equipoId,esLocal){
+  const L=S.liga
+  const idx=L.tabla.findIndex(e=>e.id===equipoId)
+  const enTabla=idx>=0?L.tabla[idx]:null
+  const suyos=L.partidosJugados
+    .filter(p=>p.equipo_local_id===equipoId||p.equipo_visita_id===equipoId)
+    .slice().sort((a,b)=>new Date(a.fecha_hora||0)-new Date(b.fecha_hora||0))
+  const resultadoDe=p=>{
+    const local=p.equipo_local_id===equipoId
+    const gf=local?p.goles_local:p.goles_visita,gc=local?p.goles_visita:p.goles_local
+    return{gf,gc,r:gf>gc?'G':gf===gc?'E':'P'}
+  }
+  const u5=suyos.slice(-5).map(resultadoDe)
+  const enCondicion=suyos.filter(p=>(p.equipo_local_id===equipoId)===esLocal).map(resultadoDe)
+  const suma=(arr,k)=>arr.reduce((a,x)=>a+x[k],0)
+  return{
+    id:equipoId,esLocal,
+    pos:idx>=0?idx+1:null,
+    pts:enTabla?enTabla.pts:0,
+    forma:u5.map(x=>x.r),
+    ptsU5:u5.reduce((a,x)=>a+(x.r==='G'?3:x.r==='E'?1:0),0),
+    condLabel:esLocal?'De local':'De visita',
+    gfCond:enCondicion.length?suma(enCondicion,'gf')/enCondicion.length:0,
+    gcCond:enCondicion.length?suma(enCondicion,'gc')/enCondicion.length:0,
+  }
+}
+// Los cruces que ya hubo entre dos equipos esta temporada, desde la
+// vereda del primero.
+function historialEntre(equipoId,rivalId){
+  return S.liga.partidosJugados
+    .filter(p=>(p.equipo_local_id===equipoId&&p.equipo_visita_id===rivalId)||(p.equipo_local_id===rivalId&&p.equipo_visita_id===equipoId))
+    .slice().sort((a,b)=>new Date(a.fecha_hora||0)-new Date(b.fecha_hora||0))
+    .map(p=>{
+      const local=p.equipo_local_id===equipoId
+      const gf=local?p.goles_local:p.goles_visita,gc=local?p.goles_visita:p.goles_local
+      return{jornada:p.jornada,marcador:`${gf}-${gc}`,resultado:gf>gc?'G':gf===gc?'E':'P',condicion:local?'Local':'Visita'}
+    })
+}
 function renderProximasFechasVista(){
   const PL=S.partidosLiga
   if(!PL.loaded)return`<div class="empty">Cargando partidos…</div>`
   const programados=PL.partidos.filter(p=>!p.resultado&&p.fecha_hora).sort((a,b)=>new Date(a.fecha_hora)-new Date(b.fecha_hora))
-  const cards=programados.map((p,i)=>`<div class="pcard" ${p.jornada?`onclick="verPartidoLiga(${p.id},'inicio:proximas')"`:''} style="border-left:3px solid ${i===0?'var(--v)':'var(--borde2)'};padding:9px 12px">
-    <div style="display:flex;align-items:center;gap:8px">
-      <span class="badge ${i===0?'bv':''}" style="font-size:9px;flex-shrink:0">F${p.jornada||'?'}</span>
-      <img src="${crestUrl(p.rival)}" style="width:20px;height:20px;object-fit:contain;flex-shrink:0">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.rival}</div>
-        <div style="font-size:9.5px;color:var(--gris)">${fmtFechaLarga(p.fecha_hora)}${p.estadio?' · '+p.estadio:''}</div>
+  // Sin link al detalle: el partido todavía no se jugó, así que esa ficha
+  // no tendría nada que mostrar. En vez de eso, la tarjeta trae acá mismo
+  // cómo llega cada equipo.
+  const cards=programados.map((p,i)=>{
+    const rivalId=p.esLocal?p.equipo_visita_id:p.equipo_local_id
+    const t=fichaPrevia(S.liga.temucoId,p.esLocal)
+    const r=fichaPrevia(rivalId,!p.esLocal)
+    const cruces=historialEntre(S.liga.temucoId,rivalId)
+    const col=(f,nombre,esT)=>`<div style="flex:1 1 150px;min-width:0">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+        ${camisetaEquipo(f.id,tipoUniformePartido(p,f.esLocal),20)}
+        <span style="font-size:11.5px;font-weight:800;color:${esT?'var(--vc)':'var(--blanco)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombre}</span>
+        ${f.pos?`<span style="font-size:9.5px;color:var(--gris);flex-shrink:0">${f.pos}°</span>`:''}
       </div>
-      <span class="badge ${p.condicion==='Local'?'baz':'bg'}" style="font-size:8px;flex-shrink:0">${p.condicion==='Local'?'L':'V'}</span>
-    </div>
-  </div>`).join('')
+      <div style="display:flex;gap:3px;margin-bottom:4px">${f.forma.map(rr=>`<span title="${LABEL_RESULTADO[rr]||''}" style="width:9px;height:9px;border-radius:50%;background:${COLOR_RESULTADO[rr]||'var(--borde2)'};display:inline-block"></span>`).join('')||'<span style="font-size:9.5px;color:var(--muted)">sin partidos</span>'}</div>
+      <div style="font-size:9.5px;color:var(--gris);line-height:1.5">
+        ${f.pts} pts · ${f.ptsU5} en las últimas ${f.forma.length}<br>
+        ${f.condLabel}: ${f.gfCond.toFixed(1)} GF · ${f.gcCond.toFixed(1)} GC por partido
+      </div>
+    </div>`
+    return`<div class="pcard" style="cursor:default;border-left:3px solid ${i===0?'var(--v)':'var(--borde2)'};padding:11px 13px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+        <span class="badge ${i===0?'bv':''}" style="font-size:9px;flex-shrink:0">F${p.jornada||'?'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">vs ${p.rival}</div>
+          <div style="font-size:9.5px;color:var(--gris)">${fmtFechaLarga(p.fecha_hora)}${fmtHora(p.fecha_hora)?' · '+fmtHora(p.fecha_hora)+' hrs':''}${p.estadio?' · '+p.estadio:''}</div>
+        </div>
+        <span class="badge ${p.condicion==='Local'?'baz':'bg'}" style="font-size:8px;flex-shrink:0">${p.condicion==='Local'?'L':'V'}</span>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;padding-top:9px;border-top:1px solid var(--borde)">
+        ${col(t,'Deportes Temuco',true)}
+        ${col(r,p.rival,false)}
+      </div>
+      ${cruces.length?`<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--borde);font-size:9.5px;color:var(--gris)">
+        <b style="color:var(--blanco)">Ya se cruzaron:</b> ${cruces.map(c=>`F${c.jornada||'?'} ${c.marcador} <span style="color:${c.resultado==='G'?'#1f8b4d':c.resultado==='E'?'var(--am)':'var(--ro)'}">(${c.resultado==='G'?'ganó':c.resultado==='E'?'empató':'perdió'} de ${c.condicion.toLowerCase()})</span>`).join(' · ')}
+      </div>`:''}
+    </div>`
+  }).join('')
   return`<div style="margin-top:16px">
-    ${programados.length?`<div style="font-size:11px;color:var(--gris);margin-bottom:8px">${programados.length} partido${programados.length>1?'s':''} programado${programados.length>1?'s':''} con fecha confirmada. El primero de la lista es el mismo de la pestaña "Próxima fecha".</div>${cards}`:'<div class="empty">No hay fechas próximas con día confirmado todavía.</div>'}
+    ${programados.length?`<div style="font-size:11px;color:var(--gris);margin-bottom:8px">${programados.length} partido${programados.length>1?'s':''} programado${programados.length>1?'s':''} con fecha confirmada, con cómo llega cada equipo. El primero es el mismo de la pestaña "Próxima fecha", donde está el análisis completo.</div>${cards}`:'<div class="empty">No hay fechas próximas con día confirmado todavía.</div>'}
   </div>`
 }
 function renderFechasPasadasVista(){
@@ -4533,7 +4610,7 @@ function renderProximoRival(){
             <div style="font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.85)">Liga de Ascenso Caixun 2026</div>
             <div class="disp" style="color:#fff;font-size:28px;margin-top:4px">FECHA ${p.jornada||''}</div>
           </div>
-          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(p.fecha_hora)}${fmtHora(p.fecha_hora)?` · ${fmtHora(p.fecha_hora)} hrs`:''}${p.estadio?'<br>'+p.estadio:''}${S.rivales.clima?`<br><span style="color:#fff">${S.rivales.clima.emoji} ${Math.round(S.rivales.clima.temp)}°C</span> ${S.rivales.clima.texto}${S.rivales.clima.esPronostico?' (pronóstico)':''}`:''}</div>
+          <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:600;text-align:right">${fmtFechaLarga(p.fecha_hora)}${fmtHora(p.fecha_hora)?` · ${fmtHora(p.fecha_hora)} hrs`:''}${p.estadio?'<br>'+p.estadio:''}</div>
         </div>
         ${heroMatchupRow(estadioFotoUrl(p.estadio),`
           <div class="hero2-team">
@@ -4551,7 +4628,11 @@ function renderProximoRival(){
             </div>
             <div class="disp" style="color:#fff;font-size:14px;text-align:center">${der.nombre.toUpperCase()}</div>${posBadge(der.pos)}
           </div>
-        `)}
+        `,S.rivales.clima?`<div style="display:flex;align-items:center;gap:7px;color:#fff">
+          <span style="font-size:20px">${S.rivales.clima.emoji}</span>
+          <span style="font-weight:800;font-size:17px">${Math.round(S.rivales.clima.temp)}°C</span>
+          <span style="font-size:11px;color:rgba(255,255,255,.8)">${S.rivales.clima.texto}${S.rivales.clima.esPronostico?' · pronóstico':''}</span>
+        </div>`:'')}
         <div style="display:flex;justify-content:center"><div class="hero2-meta">${esLocal?'Juega de Local':'Juega de Visita'}</div></div>
         ${selectorUniformePartido(p,izq,der)}
       </div>

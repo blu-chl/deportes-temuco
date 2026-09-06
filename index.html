@@ -3965,14 +3965,27 @@ function renderPartidoLiga(){
   const P=S.partidoLiga
   if(!P.loaded||!P.data)return`<div class="pb"><div class="empty">Cargando partido…</div></div>`
   const d=P.data
+  // Esta es una app de Temuco, no un marcador neutral: si Temuco juega de
+  // visita se invierte el orden para que quede SIEMPRE a la izquierda —
+  // marcador, comparación previa y línea de tiempo, todo junto. La
+  // condición real de cada equipo se muestra igual bajo su nombre, para
+  // que no se pierda quién era local.
+  const invertir=d.equipo_visita_id===S.liga.temucoId
+  const ladoIzq=invertir
+    ?{eq:d.visita,id:d.equipo_visita_id,esLocal:false,goles:d.goles_visita,previo:'visita'}
+    :{eq:d.local,id:d.equipo_local_id,esLocal:true,goles:d.goles_local,previo:'local'}
+  const ladoDer=invertir
+    ?{eq:d.local,id:d.equipo_local_id,esLocal:true,goles:d.goles_local,previo:'local'}
+    :{eq:d.visita,id:d.equipo_visita_id,esLocal:false,goles:d.goles_visita,previo:'visita'}
+  const condLabel=lado=>`<div style="font-size:9.5px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${lado.esLocal?'Local':'Visita'}</div>`
   const filasTimeline=P.eventos.map(ev=>{
-    const esLocal=ev.equipo_id===d.equipo_local_id
+    const esIzq=ev.equipo_id===ladoIzq.id
     const min=`${ev.minuto}'${ev.minuto_extra?`+${ev.minuto_extra}`:''}`
     const contenido=filaEventoPartido(ev)
     return`<div class="tl-row">
-      <div class="tl-side tl-l">${esLocal?contenido:''}</div>
+      <div class="tl-side tl-l">${esIzq?contenido:''}</div>
       <div class="tl-min">${min}</div>
-      <div class="tl-side tl-r">${esLocal?'':contenido}</div>
+      <div class="tl-side tl-r">${esIzq?'':contenido}</div>
     </div>`
   }).join('')
   return`<div class="pb">
@@ -3990,18 +4003,20 @@ function renderPartidoLiga(){
         ${heroMatchupRow(estadioFotoUrl(d.estadio),`
           <div class="hero2-team">
             <div style="display:flex;align-items:center;gap:8px">
-              <img class="hero2-crest" src="${crestUrl(d.local.nombre)}">
-              ${uniformeEquipo(d.equipo_local_id,true,72)}
+              <img class="hero2-crest" src="${crestUrl(ladoIzq.eq.nombre)}">
+              ${uniformeEquipo(ladoIzq.id,ladoIzq.esLocal,72)}
             </div>
-            <div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.local.nombre.toUpperCase()}</div>
+            <div class="disp" style="color:#fff;font-size:14px;text-align:center">${ladoIzq.eq.nombre.toUpperCase()}</div>
+            ${condLabel(ladoIzq)}
           </div>
-          <div class="disp hero2-score" style="${d.goles_local==null?'font-size:36px':''}">${d.goles_local==null?'VS':`${d.goles_local}&nbsp;–&nbsp;${d.goles_visita}`}</div>
+          <div class="disp hero2-score" style="${d.goles_local==null?'font-size:36px':''}">${d.goles_local==null?'VS':`${ladoIzq.goles}&nbsp;–&nbsp;${ladoDer.goles}`}</div>
           <div class="hero2-team">
             <div style="display:flex;align-items:center;gap:8px">
-              ${uniformeEquipo(d.equipo_visita_id,false,72)}
-              <img class="hero2-crest" src="${crestUrl(d.visita.nombre)}">
+              ${uniformeEquipo(ladoDer.id,ladoDer.esLocal,72)}
+              <img class="hero2-crest" src="${crestUrl(ladoDer.eq.nombre)}">
             </div>
-            <div class="disp" style="color:#fff;font-size:14px;text-align:center">${d.visita.nombre.toUpperCase()}</div>
+            <div class="disp" style="color:#fff;font-size:14px;text-align:center">${ladoDer.eq.nombre.toUpperCase()}</div>
+            ${condLabel(ladoDer)}
           </div>
         `)}
       </div>
@@ -4039,20 +4054,20 @@ function renderPartidoLiga(){
       <div class="pb">
         <div style="font-size:11px;color:var(--gris);margin-bottom:8px">Con los partidos jugados hasta antes de esta fecha (F${d.jornada}) — para ver si se cumplió lo que anticipaban.</div>
         <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--gris);margin-bottom:4px">
-          <span style="display:flex;align-items:center;gap:5px"><img src="${crestUrl(d.local.nombre)}" style="width:16px;height:16px;object-fit:contain">${d.local.nombre}</span>
-          <span style="display:flex;align-items:center;gap:5px">${d.visita.nombre}<img src="${crestUrl(d.visita.nombre)}" style="width:16px;height:16px;object-fit:contain"></span>
+          <span style="display:flex;align-items:center;gap:5px"><img src="${crestUrl(ladoIzq.eq.nombre)}" style="width:16px;height:16px;object-fit:contain">${ladoIzq.eq.nombre}</span>
+          <span style="display:flex;align-items:center;gap:5px">${ladoDer.eq.nombre}<img src="${crestUrl(ladoDer.eq.nombre)}" style="width:16px;height:16px;object-fit:contain"></span>
         </div>
-        ${filaComparacion('Goles a favor / PJ',P.previo.local.gfPP,P.previo.visita.gfPP,v=>v.toFixed(2))}
-        ${filaComparacion('Goles en contra / PJ',P.previo.local.gcPP,P.previo.visita.gcPP,v=>v.toFixed(2),false)}
-        ${filaComparacion('Puntos / PJ',P.previo.local.ptsPP,P.previo.visita.ptsPP,v=>v.toFixed(2))}
+        ${filaComparacion('Goles a favor / PJ',P.previo[ladoIzq.previo].gfPP,P.previo[ladoDer.previo].gfPP,v=>v.toFixed(2))}
+        ${filaComparacion('Goles en contra / PJ',P.previo[ladoIzq.previo].gcPP,P.previo[ladoDer.previo].gcPP,v=>v.toFixed(2),false)}
+        ${filaComparacion('Puntos / PJ',P.previo[ladoIzq.previo].ptsPP,P.previo[ladoDer.previo].ptsPP,v=>v.toFixed(2))}
       </div>
     </div>`:''}
 
     <div class="pt disp" style="font-size:18px;margin:20px 0 12px">Minutaje de eventos</div>
     <div class="panel">
       <div class="tl-hdr">
-        <div class="tl-hdr-team"><img src="${crestUrl(d.local.nombre)}">${d.local.nombre}</div>
-        <div class="tl-hdr-team" style="justify-content:flex-end">${d.visita.nombre}<img src="${crestUrl(d.visita.nombre)}"></div>
+        <div class="tl-hdr-team"><img src="${crestUrl(ladoIzq.eq.nombre)}">${ladoIzq.eq.nombre}</div>
+        <div class="tl-hdr-team" style="justify-content:flex-end">${ladoDer.eq.nombre}<img src="${crestUrl(ladoDer.eq.nombre)}"></div>
       </div>
       <div class="pb">${P.eventos.length?filasTimeline:'<div class="empty">Sin eventos registrados.</div>'}</div>
     </div>

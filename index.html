@@ -4081,9 +4081,8 @@ function renderProximasFechasVista(){
   const PL=S.partidosLiga
   if(!PL.loaded)return`<div class="empty">Cargando partidos…</div>`
   const programados=PL.partidos.filter(p=>!p.resultado&&p.fecha_hora).sort((a,b)=>new Date(a.fecha_hora)-new Date(b.fecha_hora))
-  // Sin link al detalle: el partido todavía no se jugó, así que esa ficha
-  // no tendría nada que mostrar. En vez de eso, la tarjeta trae acá mismo
-  // cómo llega cada equipo.
+  // La tarjeta adelanta cómo llega cada equipo y sigue llevando al detalle
+  // del partido, donde está la previa completa.
   const cards=programados.map((p,i)=>{
     const rivalId=p.esLocal?p.equipo_visita_id:p.equipo_local_id
     const t=fichaPrevia(S.liga.temucoId,p.esLocal)
@@ -4101,7 +4100,7 @@ function renderProximasFechasVista(){
         ${f.condLabel}: ${f.gfCond.toFixed(1)} GF · ${f.gcCond.toFixed(1)} GC por partido
       </div>
     </div>`
-    return`<div class="pcard" style="cursor:default;border-left:3px solid ${i===0?'var(--v)':'var(--borde2)'};padding:11px 13px">
+    return`<div class="pcard" ${p.jornada?`onclick="verPartidoLiga(${p.id},'inicio:proximas')"`:''} style="border-left:3px solid ${i===0?'var(--v)':'var(--borde2)'};padding:11px 13px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
         <span class="badge ${i===0?'bv':''}" style="font-size:9px;flex-shrink:0">F${p.jornada||'?'}</span>
         <div style="flex:1;min-width:0">
@@ -4277,7 +4276,9 @@ async function verPartidoLiga(id,volverA){
   S.partidoLiga.loaded=true
   if(S.pag==='partido')render()
   const d=S.partidoLiga.data
-  if(d&&d.goles_local!=null&&d.jornada>1)cargarPrevioPartido(id,d.jornada,d.equipo_local_id,d.equipo_visita_id)
+  // También para un partido que no se jugó: ahí la comparación deja de ser
+  // "qué anticipaba" y pasa a ser la previa de lo que viene.
+  if(d&&d.jornada>1)cargarPrevioPartido(id,d.jornada,d.equipo_local_id,d.equipo_visita_id)
   if(d&&d.goles_local!=null)cargarVotosMvp(id)
   if(d&&d.estadio&&d.fecha_hora)cargarClimaPartido(id,d.estadio,d.fecha_hora)
 }
@@ -4416,12 +4417,18 @@ function renderPartidoLiga(){
             <div class="disp" style="color:#fff;font-size:14px;text-align:center">${ladoDer.eq.nombre.toUpperCase()}</div>
             ${condLabel(ladoDer)}
           </div>
-        `)}
+        `,P.clima?`<div style="display:flex;align-items:center;gap:7px;color:#fff">
+          <span style="font-size:20px">${P.clima.emoji}</span>
+          ${P.clima.temp!=null?`<span style="font-weight:800;font-size:17px">${Math.round(P.clima.temp)}°C</span>`:''}
+          <span style="font-size:11px;color:rgba(255,255,255,.8)">${P.clima.texto}${P.clima.esPronostico?' · pronóstico':''}</span>
+        </div>`:'')}
         ${selectorUniformePartido(d,ladoIzq,ladoDer)}
       </div>
     </div>
 
     ${(()=>{
+      // Un partido que no se jugó no tiene resumen que mostrar ni que cargar.
+      if(d.goles_local==null)return''
       const embed=youtubeEmbedUrl(d.resumen_youtube_url)
       if(!embed&&!S.isAdmin)return''
       return`<div class="panel" style="margin-top:16px">
@@ -4437,7 +4444,7 @@ function renderPartidoLiga(){
       </div>`
     })()}
 
-    ${P.clima?`<div class="panel" style="margin-top:16px">
+    ${P.clima&&!estadioFotoUrl(d.estadio)?`<div class="panel" style="margin-top:16px">
       <div class="ph"><div class="pt disp" style="font-size:15px">${P.clima.esPronostico?'Pronóstico':'Clima'}</div></div>
       <div class="pb" style="display:flex;align-items:center;gap:14px">
         <div style="font-size:32px">${P.clima.emoji}</div>
@@ -4449,9 +4456,9 @@ function renderPartidoLiga(){
     </div>`:''}
 
     ${P.previo?`<div class="panel" style="margin-top:16px">
-      <div class="ph"><div class="pt disp" style="font-size:15px">📊 Cómo llegaban las estadísticas</div></div>
+      <div class="ph"><div class="pt disp" style="font-size:15px">📊 ${d.goles_local==null?'Cómo llegan las estadísticas':'Cómo llegaban las estadísticas'}</div></div>
       <div class="pb">
-        <div style="font-size:11px;color:var(--gris);margin-bottom:8px">Con los partidos jugados hasta antes de esta fecha (F${d.jornada}) — para ver si se cumplió lo que anticipaban.</div>
+        <div style="font-size:11px;color:var(--gris);margin-bottom:8px">Con los partidos jugados hasta antes de esta fecha (F${d.jornada})${d.goles_local==null?'.':' — para ver si se cumplió lo que anticipaban.'}</div>
         <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--gris);margin-bottom:4px">
           <span style="display:flex;align-items:center;gap:5px"><img src="${crestUrl(ladoIzq.eq.nombre)}" style="width:16px;height:16px;object-fit:contain">${ladoIzq.eq.nombre}</span>
           <span style="display:flex;align-items:center;gap:5px">${ladoDer.eq.nombre}<img src="${crestUrl(ladoDer.eq.nombre)}" style="width:16px;height:16px;object-fit:contain"></span>
@@ -4462,6 +4469,39 @@ function renderPartidoLiga(){
       </div>
     </div>`:''}
 
+    ${d.goles_local==null?(()=>{
+      // Previa: el partido no se jugó, así que en vez de una línea de
+      // tiempo vacía va cómo llega cada equipo y qué pasó las veces
+      // anteriores que se cruzaron.
+      const fi=fichaPrevia(ladoIzq.id,true),fd=fichaPrevia(ladoDer.id,false)
+      const cruces=historialEntre(ladoIzq.id,ladoDer.id)
+      const col=(f,lado)=>`<div style="flex:1 1 190px;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
+          <img src="${crestUrl(lado.eq.nombre)}" style="width:22px;height:22px;object-fit:contain">
+          <span style="font-size:12.5px;font-weight:800">${lado.eq.nombre}</span>
+          ${f.pos?`<span style="font-size:10px;color:var(--gris)">${f.pos}°</span>`:''}
+        </div>
+        <div style="display:flex;gap:3px;margin-bottom:6px">${f.forma.map(r=>`<span title="${LABEL_RESULTADO[r]||''}" style="width:10px;height:10px;border-radius:50%;background:${COLOR_RESULTADO[r]||'var(--borde2)'};display:inline-block"></span>`).join('')||'<span style="font-size:10px;color:var(--muted)">sin partidos</span>'}</div>
+        <div style="font-size:11px;color:var(--gris);line-height:1.6">
+          <b style="color:var(--blanco)">${f.pts}</b> pts en la tabla · <b style="color:var(--blanco)">${f.ptsU5}</b> en los últimos ${f.forma.length}<br>
+          ${f.condLabel}: <b style="color:var(--blanco)">${f.gfCond.toFixed(1)}</b> goles a favor y <b style="color:var(--blanco)">${f.gcCond.toFixed(1)}</b> en contra por partido
+        </div>
+      </div>`
+      return`<div class="panel" style="margin-top:16px">
+        <div class="ph"><div class="pt disp" style="font-size:15px">🔮 La previa</div></div>
+        <div class="pb">
+          <div style="display:flex;gap:18px;flex-wrap:wrap">${col(fi,ladoIzq)}${col(fd,ladoDer)}</div>
+          ${cruces.length?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--borde)">
+            <div style="font-size:10px;font-weight:800;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Cuando ya se cruzaron esta temporada</div>
+            ${cruces.map(c=>`<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0">
+              <span style="color:var(--gris);width:34px">F${c.jornada||'?'}</span>
+              <span class="disp" style="font-weight:800;width:44px">${c.marcador}</span>
+              <span style="color:${c.resultado==='G'?'#1f8b4d':c.resultado==='E'?'var(--am)':'var(--ro)'}">${ladoIzq.eq.nombre} ${c.resultado==='G'?'ganó':c.resultado==='E'?'empató':'perdió'} de ${c.condicion.toLowerCase()}</span>
+            </div>`).join('')}
+          </div>`:'<div style="margin-top:12px;font-size:11px;color:var(--muted)">Todavía no se cruzaron esta temporada.</div>'}
+        </div>
+      </div>`
+    })():`
     <div class="pt disp" style="font-size:18px;margin:20px 0 12px">Minutaje de eventos</div>
     <div class="panel">
       <div class="tl-hdr">
@@ -4469,7 +4509,7 @@ function renderPartidoLiga(){
         <div class="tl-hdr-team" style="justify-content:flex-end">${ladoDer.eq.nombre}<img src="${crestUrl(ladoDer.eq.nombre)}"></div>
       </div>
       <div class="pb">${P.eventos.length?filasTimeline:'<div class="empty">Sin eventos registrados.</div>'}</div>
-    </div>
+    </div>`}
 
     ${d.goles_local!=null?(()=>{
       const M=P.mvp

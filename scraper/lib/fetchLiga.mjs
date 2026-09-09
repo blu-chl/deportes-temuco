@@ -42,6 +42,23 @@ function pista(status) {
   );
 }
 
+// Un 403 de Cloudflare no dice por qué en el código: hay que mirar la
+// respuesta. 'cf-mitigated: challenge' es un desafío JS (el sitio quiere un
+// navegador de verdad); un cuerpo con "you have been blocked" o "Access
+// denied" es la WAF cortando por IP o reputación, y ahí cambiar headers no
+// sirve de nada. Esto lo imprime una sola vez, al fallar definitivamente,
+// para no tener que adivinar desde el log del workflow.
+async function diagnostico403(r) {
+  const h = (n) => r.headers.get(n) || '—';
+  console.error(`  cf-ray: ${h('cf-ray')} | cf-mitigated: ${h('cf-mitigated')} | server: ${h('server')}`);
+  try {
+    const cuerpo = (await r.text()).replace(/\s+/g, ' ').trim();
+    console.error(`  cuerpo (${cuerpo.length} chars): ${cuerpo.slice(0, 300)}`);
+  } catch {
+    console.error('  cuerpo: no se pudo leer');
+  }
+}
+
 async function fetchConReintentos(url, options, intentos = 3) {
   const espera = (i) => new Promise((res) => setTimeout(res, 1000 * i));
   let ultimo;
@@ -61,7 +78,9 @@ async function fetchConReintentos(url, options, intentos = 3) {
     // Este throw va FUERA del try a propósito: cuando estaba adentro, el
     // catch se lo tragaba y terminaba reintentando incluso los códigos que
     // no son reintentables.
-    if (!REINTENTABLE(r.status) || i === intentos) throw ultimo;
+    const seRinde = !REINTENTABLE(r.status) || i === intentos;
+    if (seRinde && r.status === 403) await diagnostico403(r);
+    if (seRinde) throw ultimo;
     await espera(i);
   }
   throw ultimo;

@@ -1,25 +1,74 @@
 import * as cheerio from 'cheerio';
 
-const UA = 'Mozilla/5.0 (compatible; deportes-temuco-scraper/1.0; +https://github.com/blu-chl/deportes-temuco)';
+// Antes acá iba un User-Agent honesto de robot
+// ('...deportes-temuco-scraper/1.0; +https://github.com/...'). Cloudflare
+// lo empezó a rechazar con 403: desde el 06-09-2026 murieron ahí TODAS las
+// corridas programadas, siempre en la primera request. La página es pública
+// y se abre sin problema en cualquier navegador, así que la pedimos igual
+// que un navegador. El volumen sigue siendo mínimo — dos corridas al día, y
+// los partidos que ya están en la base se saltan sin volver a pedirlos.
+const HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'es-CL,es;q=0.9,en;q=0.8',
+  'Upgrade-Insecure-Requests': '1',
+};
+// Ojo: NO agregar headers Sec-Fetch-*. El fetch de Node deja pasar
+// Sec-Fetch-Dest/Site/User pero pisa Sec-Fetch-Mode con 'cors', y un
+// navegador de verdad navegando manda 'navigate'. Esa combinación
+// incoherente (Dest: document + Mode: cors) no la produce ningún Chrome,
+// así que llamaría más la atención que no mandar ninguno. Verificado
+// contra un servidor local; si alguna vez Node deja setearlo, se pueden
+// sumar los cuatro juntos.
 
 // Cloudflare devuelve de vez en cuando un 5xx transitorio (ej. 520) sin que
 // haya nada mal con la request; un reintento simple con backoff resuelve
-// casi todos esos casos sin tener que relanzar todo el workflow.
+// casi todos esos casos sin tener que relanzar todo el workflow. Los 403 y
+// 429 también se reintentan: cuando vienen de un desafío de Cloudflare son
+// intermitentes, y si el bloqueo es de verdad igual terminamos fallando,
+// solo que unos segundos después. Un 404 o un 400, en cambio, no mejoran
+// esperando: esos cortan al primer intento.
+const REINTENTABLE = (status) => status >= 500 || status === 403 || status === 429;
+
+// El 403 es el más difícil de diagnosticar desde el log del workflow, así
+// que el error dice qué mirar en vez de solo el número.
+function pista(status) {
+  if (status !== 403) return '';
+  return (
+    ' — el sitio está bloqueando al scraper (Cloudflare). Revisa HEADERS en' +
+    ' scraper/lib/fetchLiga.mjs; si abriendo la URL en tu navegador sí carga,' +
+    ' el bloqueo es por IP del runner y hay que correr el scraper desde otro lado.'
+  );
+}
+
 async function fetchConReintentos(url, options, intentos = 3) {
+  const espera = (i) => new Promise((res) => setTimeout(res, 1000 * i));
+  let ultimo;
   for (let i = 1; i <= intentos; i++) {
+    let r;
     try {
-      const r = await fetch(url, options);
-      if (r.ok) return r;
-      if (r.status < 500 || i === intentos) throw new Error(`HTTP ${r.status} al pedir ${url}`);
+      r = await fetch(url, options);
     } catch (e) {
+      // Caída de red (DNS, socket cortado): siempre vale reintentar.
+      ultimo = e;
       if (i === intentos) throw e;
+      await espera(i);
+      continue;
     }
-    await new Promise((res) => setTimeout(res, 1000 * i));
+    if (r.ok) return r;
+    ultimo = new Error(`HTTP ${r.status} al pedir ${url}${pista(r.status)}`);
+    // Este throw va FUERA del try a propósito: cuando estaba adentro, el
+    // catch se lo tragaba y terminaba reintentando incluso los códigos que
+    // no son reintentables.
+    if (!REINTENTABLE(r.status) || i === intentos) throw ultimo;
+    await espera(i);
   }
+  throw ultimo;
 }
 
 async function fetchHtml(url) {
-  const r = await fetchConReintentos(url, { headers: { 'User-Agent': UA } });
+  const r = await fetchConReintentos(url, { headers: HEADERS });
   return r.text();
 }
 
@@ -135,6 +184,8 @@ export async function findMinutosU21Url(ligaUrl) {
 }
 
 export async function downloadPdf(pdfUrl) {
-  const r = await fetchConReintentos(pdfUrl, { headers: { 'User-Agent': UA } });
+  const r = await fetchConReintentos(pdfUrl, {
+    headers: { ...HEADERS, Accept: 'application/pdf,*/*' },
+  });
   return Buffer.from(await r.arrayBuffer());
 }

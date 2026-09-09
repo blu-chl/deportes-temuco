@@ -1,13 +1,21 @@
 name: Web Scraper
 
+# Las corridas automáticas están APAGADAS desde el 09-09-2026.
+#
+# Cloudflare empezó a bloquear por IP a los runners de GitHub: toda request
+# a campeonatochileno.cl vuelve 403 con la página de bloqueo del firewall
+# (cf-mitigated vacío, o sea que ni siquiera es un desafío que se pueda
+# resolver). Cambiar headers no sirve — se probó. Mientras siga así, el
+# scraper se corre desde el PC de casa con scraper/actualizar.bat, que sale
+# por una IP residencial chilena y pasa sin problema.
+#
+# El cron quedó comentado en vez de borrado: si alguna vez se levanta el
+# bloqueo, se descomenta y vuelve solo. El disparo manual sigue disponible
+# acá abajo para probar si ya se puede.
 on:
-  # Automático: dos veces al día. Los informes de ANFP salen con retraso
-  # variable después de cada fecha, así que en vez de adivinar el día se
-  # revisa seguido — cada corrida solo procesa los partidos nuevos, los
-  # que ya están en la base se saltan.
-  schedule:
-    - cron: '0 13 * * *' # 09:00 en Chile
-    - cron: '0 1 * * *' # 21:00 en Chile
+  # schedule:
+  #   - cron: '0 13 * * *' # 09:00 en Chile
+  #   - cron: '0 1 * * *' # 21:00 en Chile
   workflow_dispatch:
     inputs:
       liga_url:

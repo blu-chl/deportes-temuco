@@ -1,14 +1,48 @@
 // Cliente REST minimalista para Supabase, mismo patrón que usa index.html
 // (fetch directo a /rest/v1/), pero acá con la service_role key: el scraper
-// corre en GitHub Actions (server-side), nunca en el navegador, así que
-// puede saltarse RLS para escribir. La llave nunca queda en el repo, se lee
-// de variables de entorno / secrets de GitHub.
+// corre server-side, nunca en el navegador, así que puede saltarse RLS para
+// escribir. La llave nunca queda en el repo: sale de variables de entorno
+// (secrets en GitHub Actions) o de un archivo .env local que está ignorado
+// por git.
+
+import { readFileSync } from 'node:fs';
+
+// Desde que Cloudflare bloquea las IP de los runners de GitHub, el scraper
+// se corre desde el PC de casa (ver README). Ahí las llaves no vienen de
+// los secrets sino de scraper/.env. Se lee a mano en vez de sumar dotenv:
+// son unas pocas líneas y evita una dependencia. Si el archivo no existe
+// —como en GitHub Actions— no hace nada y se usan las variables del entorno.
+function cargarDotEnv() {
+  let texto;
+  try {
+    texto = readFileSync(new URL('../.env', import.meta.url), 'utf8');
+  } catch {
+    return;
+  }
+  for (const linea of texto.split('\n')) {
+    const limpia = linea.trim();
+    if (!limpia || limpia.startsWith('#')) continue;
+    const i = limpia.indexOf('=');
+    if (i < 1) continue;
+    const clave = limpia.slice(0, i).trim();
+    // Las comillas alrededor del valor son opcionales: si alguien copia la
+    // llave con comillas desde Supabase, igual funciona.
+    const valor = limpia.slice(i + 1).trim().replace(/^["']|["']$/g, '');
+    // Lo que ya está en el entorno gana: así un secret de CI nunca queda
+    // pisado por un .env que se haya colado en la máquina.
+    if (!(clave in process.env)) process.env[clave] = valor;
+  }
+}
+cargarDotEnv();
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SB_URL || !SB_KEY) {
-  throw new Error('Faltan SUPABASE_URL y/o SUPABASE_SERVICE_ROLE_KEY en las variables de entorno');
+  throw new Error(
+    'Faltan SUPABASE_URL y/o SUPABASE_SERVICE_ROLE_KEY.\n' +
+      'Si lo corres en tu PC: copia scraper/.env.example a scraper/.env y pega ahí las dos llaves.'
+  );
 }
 
 async function sb(method, table, { body, params = '', prefer } = {}) {

@@ -1,6 +1,9 @@
 .DS_Store
 scraper/node_modules/
 scraper/*.pdf
+# Llaves de Supabase para correr el scraper localmente (service_role):
+# nunca deben subirse al repo.
+scraper/.env
 telegram-bot/node_modules/
 telegram-bot/.dev.vars
 telegram-bot/.wrangler/

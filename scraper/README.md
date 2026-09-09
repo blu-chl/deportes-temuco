@@ -25,34 +25,61 @@ cualquier equipo, no solo el propio.
    (nunca la llave pública del navegador).
 5. `scrape.mjs` — orquesta todo lo anterior.
 
+## ⚠ Se corre desde tu PC, no desde GitHub
+
+Desde el **09-09-2026** Cloudflare bloquea por IP a los runners de GitHub
+Actions: cualquier request a campeonatochileno.cl vuelve `403` con la
+página de bloqueo del firewall. No es un desafío de JavaScript que un
+navegador headless pueda resolver — el header `cf-mitigated` viene vacío,
+o sea que corta antes de mirar nada. Se probó pidiendo con headers de
+Chrome y da exactamente lo mismo.
+
+Desde una conexión doméstica chilena entra sin problema, así que el
+scraper ahora se corre en el computador de casa. Las corridas programadas
+del workflow quedaron comentadas (no borradas: si algún día se levanta el
+bloqueo, se descomentan y vuelve a andar solo).
+
 ## Setup (una sola vez)
 
 1. **Crear las tablas**: copiar y pegar [`sql/liga_schema.sql`](sql/liga_schema.sql)
    completo en el SQL Editor de Supabase y ejecutarlo.
-2. **Agregar secrets en GitHub** (Settings → Secrets and variables →
-   Actions → New repository secret):
+2. **Instalar Node.js** desde [nodejs.org](https://nodejs.org) (versión LTS).
+3. **Poner las llaves**: copiar `.env.example` como `.env` y pegar adentro:
    - `SUPABASE_URL`: `https://vskhzbstwadaabzyhzwh.supabase.co`
    - `SUPABASE_SERVICE_ROLE_KEY`: la *service_role key* del proyecto
      (Supabase → Project Settings → API → `service_role`, **no** la
-     `anon`/`publishable`). Esta llave sí puede escribir saltándose RLS —
-     por eso vive solo en GitHub Secrets, nunca en el código.
+     `anon`/`publishable`). Esta llave escribe saltándose RLS, así que
+     `.env` está en `.gitignore` y nunca se sube al repo.
 
 ## Cómo correrlo
 
-**Desde GitHub (recomendado):** pestaña *Actions* → workflow "Scrapear
-liga" → *Run workflow*. Parámetros opcionales: URL de la liga, límite de
-partidos (0 = todos) y si forzar re-scrapeo de partidos ya cargados.
+**Lo normal — doble clic:**
 
-**Local, para probar:**
+- Windows: `actualizar.bat`
+- macOS / Linux: `actualizar.sh`
+
+Hace los tres pasos seguidos (partidos, minutos sub-21, vincular plantel),
+instala las dependencias sola la primera vez y avisa si falta Node o el
+`.env`. Cada corrida solo procesa los partidos nuevos: los que ya están en
+la base se saltan, así que correrla de más no cuesta nada.
+
+Conviene correrla **un par de días después de cada fecha**, que es cuando
+ANFP publica los informes de árbitro.
+
+**Por consola, para casos puntuales:**
 
 ```bash
 cd scraper
 npm install
 node scrape.mjs --dry-run --limit 5   # prueba sin tocar Supabase
-node scrape.mjs --limit 20            # requiere SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el entorno
+node scrape.mjs --limit 20            # solo los primeros 20
 node scrape.mjs                       # liga completa
 node scrape.mjs --force               # re-scrapea aunque ya exista el partido
 ```
+
+**Desde GitHub:** *Actions* → "Web Scraper" → *Run workflow*. Hoy falla con
+403 por lo explicado arriba; sirve para chequear si ya se levantó el
+bloqueo.
 
 ## Tabla oficial de minutos sub-21
 

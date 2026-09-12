@@ -1,0 +1,34 @@
+name: Sonda Cloudflare
+
+# Prueba si un Chromium de verdad pasa el bloqueo de campeonatochileno.cl
+# desde un runner de GitHub. No escribe nada en Supabase: solo pide la
+# página de la liga y reporta si entró.
+#
+# Existe porque el 403 que devuelve el sitio es la página del WAF/Bot Fight
+# Mode, no la del error 1020: eso significa que la decisión mira la huella
+# del cliente y no solo la IP, así que un navegador real puede pasar donde
+# Node no pasa. Si esta sonda da verde, el scraper se puede quedar en
+# GitHub y no hace falta un runner en una máquina personal.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    if: github.event_name != 'pull_request' && github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      # --no-save: playwright es solo para esta sonda, no una dependencia
+      # del scraper.
+      - name: Instalar Playwright + Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+
+      - name: Probar si Chromium pasa
+        run: node probe-browser.mjs

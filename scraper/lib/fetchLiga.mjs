@@ -42,21 +42,59 @@ function pista(status) {
   );
 }
 
-// Un 403 de Cloudflare no dice por qué en el código: hay que mirar la
-// respuesta. 'cf-mitigated: challenge' es un desafío JS (el sitio quiere un
-// navegador de verdad); un cuerpo con "you have been blocked" o "Access
-// denied" es la WAF cortando por IP o reputación, y ahí cambiar headers no
-// sirve de nada. Esto lo imprime una sola vez, al fallar definitivamente,
-// para no tener que adivinar desde el log del workflow.
+// Un 403 de Cloudflare no dice por qué en el código HTTP: hay que leer la
+// respuesta. La página de bloqueo trae el dato que importa —el número de
+// error— y ese número dice qué regla disparó y, por lo tanto, si hay forma
+// de evitarla:
+//
+//   1020  regla de firewall (por país, ASN, IP…)  → no se evita con código
+//   1010  firma del cliente marcada como bot      → puede servir otro cliente
+//   1006/7/8  IP baneada                          → hay que cambiar de red
+//   1015  rate limit                              → basta con ir más lento
+//   1101/1102  error del sitio, no bloqueo        → reintentar más tarde
+//
+// Antes esto imprimía los primeros 300 caracteres del HTML crudo y el corte
+// caía justo antes del número. Ahora se saca el texto y se extraen los
+// campos a mano.
+const ERRORES_CF = {
+  '1006': 'IP baneada por el dueño del sitio',
+  '1007': 'IP baneada por el dueño del sitio',
+  '1008': 'IP baneada por el dueño del sitio',
+  '1010': 'la firma del cliente fue marcada como bot',
+  '1015': 'rate limit: demasiadas peticiones',
+  '1020': 'regla de firewall del sitio (país, ASN o IP)',
+  '1101': 'error interno del sitio, no un bloqueo',
+  '1102': 'error interno del sitio, no un bloqueo',
+};
+
 async function diagnostico403(r) {
   const h = (n) => r.headers.get(n) || '—';
+  // 'cf-mitigated: challenge' significa desafío resolvible; vacío, bloqueo seco.
   console.error(`  cf-ray: ${h('cf-ray')} | cf-mitigated: ${h('cf-mitigated')} | server: ${h('server')}`);
+  let html;
   try {
-    const cuerpo = (await r.text()).replace(/\s+/g, ' ').trim();
-    console.error(`  cuerpo (${cuerpo.length} chars): ${cuerpo.slice(0, 300)}`);
+    html = await r.text();
   } catch {
     console.error('  cuerpo: no se pudo leer');
+    return;
   }
+  const texto = html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const codigo = (texto.match(/Error\s*(\d{4})/i) || [])[1];
+  if (codigo) {
+    console.error(`  ⇒ Cloudflare error ${codigo}: ${ERRORES_CF[codigo] || 'código no catalogado'}`);
+  } else {
+    console.error('  ⇒ sin número de error en la página (puede ser un bloqueo del propio sitio, no de Cloudflare)');
+  }
+  // La página de bloqueo suele decir con qué IP nos vio: sirve para saber si
+  // el problema es la IP concreta o todo el rango del que sale.
+  const ip = (texto.match(/(?:Your IP|IP address)[:\s]*([0-9a-f.:]{7,45})/i) || [])[1];
+  if (ip) console.error(`  ⇒ nos vio con la IP ${ip}`);
+  console.error(`  texto de la página: ${texto.slice(0, 700)}`);
 }
 
 async function fetchConReintentos(url, options, intentos = 3) {

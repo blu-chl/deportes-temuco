@@ -1,23 +1,42 @@
 name: Web Scraper
 
-# Las corridas automáticas están APAGADAS desde el 09-09-2026.
-#
-# Cloudflare empezó a bloquear por IP a los runners de GitHub: toda request
-# a campeonatochileno.cl vuelve 403 con la página de bloqueo del firewall
-# (cf-mitigated vacío, o sea que ni siquiera es un desafío que se pueda
-# resolver). Cambiar headers no sirve — se probó. Mientras siga así, el
-# scraper se corre desde el PC de casa con scraper/actualizar.bat, que sale
-# por una IP residencial chilena y pasa sin problema.
-#
-# El cron quedó comentado en vez de borrado: si alguna vez se levanta el
-# bloqueo, se descomenta y vuelve solo. El disparo manual sigue disponible
-# acá abajo para probar si ya se puede.
+# ┌────────────────────────────────────────────────────────────────────┐
+# │  CORRE EN UN RUNNER PROPIO (el PC de casa), NO en los de GitHub.   │
+# │                                                                    │
+# │  Desde el 06-09-2026 Cloudflare bloquea por IP a los runners de    │
+# │  GitHub: campeonatochileno.cl devuelve 403 con la página del       │
+# │  firewall (cf-mitigated vacío, o sea que no es un desafío que se   │
+# │  pueda resolver — se probó con headers de Chrome y da lo mismo).    │
+# │  Desde una conexión doméstica chilena entra sin problema.           │
+# │                                                                    │
+# │  ⚠ SEGURIDAD — este repo es PÚBLICO y hay un runner en una         │
+# │  máquina personal. NO AGREGAR NUNCA disparadores `pull_request`    │
+# │  ni `pull_request_target` a este workflow: cualquiera podría abrir │
+# │  un PR desde un fork y ejecutar su código en ese computador. El    │
+# │  `if` del job de abajo es la red de seguridad si alguien lo        │
+# │  agrega por descuido de todas formas.                              │
+# └────────────────────────────────────────────────────────────────────┘
+
 on:
-  # schedule:
-  #   - cron: '0 13 * * *' # 09:00 en Chile
-  #   - cron: '0 1 * * *' # 21:00 en Chile
+  # Dos veces al día. Los informes de ANFP salen con retraso variable
+  # después de cada fecha, así que en vez de adivinar el día se revisa
+  # seguido — cada corrida solo procesa los partidos nuevos.
+  #
+  # Si el PC está apagado a esta hora, la corrida se salta y la siguiente
+  # recupera todo lo que falte (nada se pierde, solo se atrasa).
+  schedule:
+    - cron: '0 13 * * *' # 09:00 en Chile
+    - cron: '0 1 * * *' # 21:00 en Chile
   workflow_dispatch:
     inputs:
+      runner:
+        description: 'Dónde correr'
+        required: false
+        type: choice
+        default: self-hosted
+        options:
+          - self-hosted # el PC de casa: el único que pasa el bloqueo
+          - ubuntu-latest # para chequear si Cloudflare ya lo soltó
       liga_url:
         description: 'URL de la liga en campeonatochileno.cl'
         required: false
@@ -33,53 +52,51 @@ on:
         type: boolean
 
 # Que no se pisen dos corridas si una manual cae junto a una programada.
+# Importa más con un runner propio: es una sola máquina, no una por corrida.
 concurrency:
   group: scrape-liga
   cancel-in-progress: false
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest
-    # En las corridas programadas los inputs vienen vacíos, por eso cada
-    # uno tiene su valor por defecto acá: si no, el scraper correría con
-    # la URL en blanco.
+    # Red de seguridad del aviso de arriba: aunque alguien agregue un
+    # disparador de pull_request, el job no corre. Es código, no confianza.
+    if: github.event_name != 'pull_request' && github.event_name != 'pull_request_target'
+    runs-on: ${{ github.event.inputs.runner || 'self-hosted' }}
+    # Todo se pasa por env en vez de armar el comando en el shell: el runner
+    # propio es Windows y su shell no es el mismo que el de ubuntu-latest.
+    # scrape.mjs y scrapeU21.mjs leen estas variables (ver el comentario del
+    # helper `flag` en scrape.mjs). En las corridas programadas los inputs
+    # vienen vacíos, de ahí los valores por defecto acá.
     env:
       LIGA_URL: ${{ github.event.inputs.liga_url || 'https://www.campeonatochileno.cl/ligas/liga-de-ascenso-caixun/' }}
       LIMIT: ${{ github.event.inputs.limit || '0' }}
+      FORCE: ${{ github.event.inputs.force || 'false' }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    defaults:
+      run:
+        working-directory: scraper
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      # En el runner propio se usa el Node que ya está instalado en el PC
+      # (el mismo que necesita actualizar.bat), así no hay que descargarlo
+      # en cada corrida. ubuntu-latest ya trae Node, así que tampoco hace
+      # falta allá.
+      - name: Revisar que haya Node
+        run: node --version
 
       - name: Instalar dependencias
-        working-directory: scraper
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Scrapear partidos (alineaciones, goles, tarjetas, minutaje)
-        working-directory: scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          node scrape.mjs \
-            --liga "$LIGA_URL" \
-            --limit "$LIMIT" \
-            ${{ github.event.inputs.force == 'true' && '--force' || '' }}
+        run: node scrape.mjs
 
       - name: Scrapear tabla oficial de minutos sub-21
         if: ${{ !cancelled() }}
-        working-directory: scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node scrapeU21.mjs --liga "$LIGA_URL"
+        run: node scrapeU21.mjs
 
       - name: Vincular plantel propio con liga_jugadores
         if: ${{ !cancelled() }}
-        working-directory: scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node link-jugadores.mjs

@@ -4,13 +4,21 @@ import { calcMinutaje } from './lib/minutaje.mjs';
 import { ladoEquipo } from './lib/teamMatch.mjs';
 
 const args = process.argv.slice(2);
-const flag = (name, def = null) => {
+// Cada parámetro se puede dar de dos formas: bandera en la línea de comandos
+// (gana) o variable de entorno. Lo segundo es para el workflow: el scraper
+// corre en un runner propio en Windows, donde la sintaxis del shell no es la
+// misma que en Linux, así que pasar todo por `env:` evita tener que escribir
+// el comando distinto según la máquina.
+const flag = (name, env, def = null) => {
   const i = args.indexOf(`--${name}`);
-  return i === -1 ? def : args[i + 1];
+  if (i !== -1) return args[i + 1];
+  return process.env[env] || def;
 };
-const dryRun = args.includes('--dry-run');
-const ligaUrl = flag('liga', 'https://www.campeonatochileno.cl/ligas/liga-de-ascenso-caixun/');
-const limit = Number(flag('limit', '0')) || Infinity;
+const bandera = (name, env) => args.includes(`--${name}`) || process.env[env] === 'true';
+const dryRun = bandera('dry-run', 'DRY_RUN');
+const force = bandera('force', 'FORCE');
+const ligaUrl = flag('liga', 'LIGA_URL', 'https://www.campeonatochileno.cl/ligas/liga-de-ascenso-caixun/');
+const limit = Number(flag('limit', 'LIMIT', '0')) || Infinity;
 
 const db = dryRun ? null : await import('./lib/db.mjs');
 
@@ -229,7 +237,7 @@ async function main() {
     try {
       if (!dryRun) {
         const existeId = await db.partidoYaExiste(url);
-        if (existeId && !args.includes('--force')) {
+        if (existeId && !force) {
           console.log(`  · ya está en la base (id ${existeId}), se salta (usa --force para re-scrapear)`);
           saltados++;
           continue;

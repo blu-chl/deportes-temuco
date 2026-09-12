@@ -4,12 +4,15 @@ import { encontrarEquipo } from './lib/teamMatch.mjs';
 import { encontrarJugador, partirNombreCorto } from './lib/nameMatch.mjs';
 
 const args = process.argv.slice(2);
-const dryRun = args.includes('--dry-run');
-const flag = (name, def = null) => {
+// Bandera o variable de entorno, igual que en scrape.mjs (ver el comentario
+// de allá: es para que el workflow no dependa del shell del runner).
+const flag = (name, env, def = null) => {
   const i = args.indexOf(`--${name}`);
-  return i === -1 ? def : args[i + 1];
+  if (i !== -1) return args[i + 1];
+  return process.env[env] || def;
 };
-const ligaUrl = flag('liga', 'https://www.campeonatochileno.cl/ligas/liga-de-ascenso-caixun/');
+const dryRun = args.includes('--dry-run') || process.env.DRY_RUN === 'true';
+const ligaUrl = flag('liga', 'LIGA_URL', 'https://www.campeonatochileno.cl/ligas/liga-de-ascenso-caixun/');
 
 const db = dryRun ? null : await import('./lib/db.mjs');
 

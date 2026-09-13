@@ -264,3 +264,18 @@ export async function partidoYaExiste(matchUrl) {
   const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
   return row && row.goles_local !== null ? row.id : null;
 }
+
+// Lo mismo que partidoYaExiste pero para TODOS de una vez: devuelve un Map
+// de match_url -> id con los partidos que ya tienen resultado cargado.
+//
+// Preguntar de a uno eran ~240 viajes de ida y vuelta a Supabase por
+// corrida, casi todos para que respondiera "sí, sáltalo". Una consulta
+// trae lo mismo. Solo se piden los que tienen goles: un partido guardado
+// sin resultado (programado a futuro) tiene que volver a mirarse cuando
+// se juegue.
+export async function partidosYaCargados() {
+  const rows = await get('liga_partidos', '?goles_local=not.is.null&select=id,match_url&limit=5000');
+  const m = new Map();
+  if (Array.isArray(rows)) for (const r of rows) if (r.match_url) m.set(r.match_url, r.id);
+  return m;
+}

@@ -224,25 +224,39 @@ function matchLadoPdf(nombreCorto, informe) {
 async function main() {
   console.log(`Liga: ${ligaUrl}${dryRun ? '  [dry-run, no escribe en Supabase]' : ''}`);
   const urls = await listMatchUrls(ligaUrl);
-  console.log(`${urls.length} partidos en el fixture. Procesando hasta ${limit === Infinity ? 'todos' : limit}...\n`);
+
+  // Una sola consulta con todos los partidos ya cargados, en vez de una por
+  // partido: antes eran ~240 viajes a Supabase por corrida, casi todos para
+  // responder "sáltalo".
+  const yaCargados = dryRun || force ? new Map() : await db.partidosYaCargados();
+  console.log(
+    `${urls.length} partidos en el fixture` +
+      (yaCargados.size ? `, ${yaCargados.size} ya cargados` : '') +
+      `. Procesando hasta ${limit === Infinity ? 'todos' : limit}...\n`
+  );
 
   let procesados = 0;
   let saltados = 0;
   let errores = 0;
+  let pedidos = 0; // cuántas veces le pedimos algo al sitio
 
   for (const url of urls) {
     if (procesados + saltados + errores >= limit) break;
-    if (procesados + saltados + errores > 0) await new Promise((r) => setTimeout(r, 400));
+
+    // El salteo va ANTES de la pausa: esos 400 ms son para no bombardear el
+    // sitio del campeonato, y a un partido que se saltea no se le pide nada.
+    // Aplicárselos igual eran ~96 segundos de espera pura por corrida.
+    const existeId = yaCargados.get(url);
+    if (existeId) {
+      console.log(`${url}\n  · ya está en la base (id ${existeId}), se salta (usa --force para re-scrapear)`);
+      saltados++;
+      continue;
+    }
+
+    if (pedidos > 0) await new Promise((r) => setTimeout(r, 400));
+    pedidos++;
     console.log(url);
     try {
-      if (!dryRun) {
-        const existeId = await db.partidoYaExiste(url);
-        if (existeId && !force) {
-          console.log(`  · ya está en la base (id ${existeId}), se salta (usa --force para re-scrapear)`);
-          saltados++;
-          continue;
-        }
-      }
       const resultado = await procesarPartido(url);
       if (resultado === 'skipped') saltados++;
       else procesados++;

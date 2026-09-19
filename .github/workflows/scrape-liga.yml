@@ -29,14 +29,6 @@ on:
     - cron: '0 1 * * *' # 21:00 en Chile
   workflow_dispatch:
     inputs:
-      runner:
-        description: 'Dónde correr'
-        required: false
-        type: choice
-        default: self-hosted
-        options:
-          - self-hosted # el PC de casa: el único que pasa el bloqueo
-          - ubuntu-latest # para chequear si Cloudflare ya lo soltó
       liga_url:
         description: 'URL de la liga en campeonatochileno.cl'
         required: false
@@ -62,7 +54,7 @@ jobs:
     # Red de seguridad del aviso de arriba: aunque alguien agregue un
     # disparador de pull_request, el job no corre. Es código, no confianza.
     if: github.event_name != 'pull_request' && github.event_name != 'pull_request_target'
-    runs-on: ${{ github.event.inputs.runner || 'self-hosted' }}
+    runs-on: self-hosted
     # Todo se pasa por env en vez de armar el comando en el shell: el runner
     # propio es Windows y su shell no es el mismo que el de ubuntu-latest.
     # scrape.mjs y scrapeU21.mjs leen estas variables (ver el comentario del
@@ -76,6 +68,15 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     defaults:
       run:
+        # cmd y no PowerShell: el runner corre como servicio bajo
+        # NETWORK SERVICE, y la política de ejecución de scripts de esa
+        # cuenta bloquea los .ps1 que el runner genera para cada paso
+        # ("PSSecurityException / UnauthorizedAccess"). Set-ExecutionPolicy
+        # -Scope CurrentUser no la alcanza, porque es otra cuenta. Con cmd
+        # esa restricción no existe y no hay que tocar la seguridad de la
+        # máquina. Los pasos son `node` y `npm` pelados, sin sintaxis de
+        # shell, así que no cambia nada más.
+        shell: cmd
         working-directory: scraper
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +85,8 @@ jobs:
       # (el mismo que necesita actualizar.bat), así no hay que descargarlo
       # en cada corrida. ubuntu-latest ya trae Node, así que tampoco hace
       # falta allá.
+      # Si falta Node, que el log lo diga en la primera línea y no a mitad
+      # de un stack trace.
       - name: Revisar que haya Node
         run: node --version
 

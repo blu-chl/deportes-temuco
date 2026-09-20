@@ -396,6 +396,7 @@ let S={
   golesSubtipoExpand:null,
   asistSubtipoExpand:null,
   golTab:'goleadores',
+  arbOrden:'pj',arbTodos:false,arbAbierto:null,
   cambiosTab:'jugadores',
 }
 
@@ -3298,7 +3299,7 @@ async function cargarLiga(){
     ligaGet('liga_equipos','?select=id,nombre,sub21_minutos_contable&order=nombre'),
     ligaGet('liga_goles','?select=jugador_id,autogol&autogol=eq.false&limit=1000'),
     ligaGet('liga_jugadores','?select=id,apellido,nombre,equipo_id,sub21,minutos_oficial_temporada,fecha_nacimiento,numero,foto_url&limit=1000'),
-    ligaGetAll('liga_partidos','id,jornada,fecha_hora,estadio,equipo_local_id,equipo_visita_id,goles_local,goles_visita'),
+    ligaGetAll('liga_partidos','id,jornada,fecha_hora,estadio,arbitro,equipo_local_id,equipo_visita_id,goles_local,goles_visita'),
     ligaGet('liga_sanciones','?select=id,equipo_id,puntos,motivo,fecha&order=fecha.desc'),
     ligaGetAll('liga_alineaciones','partido_id,equipo_id,jugador_id'),
     ligaGet('liga_estadios','?select=nombre,foto_url,lat,lon'),
@@ -3585,7 +3586,8 @@ function renderLiga(){
   const vista=S.ligaVista||'tabla'
   const subs=[
     {id:'tabla',l:'📋 Tabla'},{id:'destacados',l:'⭐ Destacados'},
-    {id:'explorar',l:'🔍 Explorar equipo'},{id:'jugClave',l:'🎯 Jugadores clave'},
+    {id:'explorar',l:'🔍 Explorar equipo'},{id:'arbitros',l:'🧑‍⚖️ Árbitros'},
+    {id:'jugClave',l:'🎯 Jugadores clave'},
   ]
   return`<div class="pb">
     <div class="tabs">${subs.map(t=>`<button class="tab ${vista===t.id?'on':''}" onclick="S.ligaVista='${t.id}';render()">${t.l}</button>`).join('')}</div>
@@ -3593,9 +3595,158 @@ function renderLiga(){
       vista==='tabla'?renderTablaGeneral():
       vista==='destacados'?renderLigaDestacados():
       vista==='explorar'?renderLigaExplorar():
+      vista==='arbitros'?renderArbitros():
       renderConsultas()
     }
   </div>`
+}
+// ===== ÁRBITROS =====
+// Todo sale de datos que ya están en memoria: liga_partidos trae el árbitro
+// y liga_tarjetas ya se carga entera para otras pantallas. No hay consulta
+// nueva.
+//
+// MIN_ARBITRO: con 2 o 3 partidos, "80% gana el local" es una moneda tirada
+// pocas veces, no una tendencia. Por defecto se muestran solo los que tienen
+// suficientes partidos, con un botón para ver el resto igual.
+const MIN_ARBITRO=5
+function statsArbitros(){
+  const partidos=S.liga.partidosJugados.filter(p=>p.arbitro)
+  const porPartido={}
+  ;(S.liga.tarjetas||[]).forEach(t=>{
+    const r=(porPartido[t.partido_id]=porPartido[t.partido_id]||{am:0,ro:0})
+    if(t.tipo==='roja')r.ro++;else r.am++
+  })
+  const tid=S.liga.temucoId
+  const mapa={}
+  partidos.forEach(p=>{
+    const a=(mapa[p.arbitro]=mapa[p.arbitro]||{nombre:p.arbitro,pj:0,am:0,ro:0,L:0,E:0,V:0,goles:0,temuco:[]})
+    a.pj++
+    const t=porPartido[p.id]||{am:0,ro:0}
+    a.am+=t.am;a.ro+=t.ro
+    a.goles+=p.goles_local+p.goles_visita
+    if(p.goles_local>p.goles_visita)a.L++
+    else if(p.goles_local<p.goles_visita)a.V++
+    else a.E++
+    if(p.equipo_local_id===tid||p.equipo_visita_id===tid){
+      const local=p.equipo_local_id===tid
+      const gf=local?p.goles_local:p.goles_visita,gc=local?p.goles_visita:p.goles_local
+      a.temuco.push({jornada:p.jornada,local,gf,gc,rivalId:local?p.equipo_visita_id:p.equipo_local_id,
+        r:gf>gc?'G':gf===gc?'E':'P',amarillas:t.am,rojas:t.ro})
+    }
+  })
+  const lista=Object.values(mapa).map(a=>({
+    ...a,
+    amPP:+(a.am/a.pj).toFixed(2),roPP:+(a.ro/a.pj).toFixed(2),
+    golPP:+(a.goles/a.pj).toFixed(2),pctLocal:Math.round(a.L/a.pj*100),
+    temuco:a.temuco.sort((x,y)=>(x.jornada||0)-(y.jornada||0)),
+  }))
+  const tot=lista.reduce((s,a)=>({pj:s.pj+a.pj,am:s.am+a.am,ro:s.ro+a.ro,L:s.L+a.L,goles:s.goles+a.goles}),{pj:0,am:0,ro:0,L:0,goles:0})
+  return{lista,liga:tot.pj?{
+    pj:tot.pj,amPP:+(tot.am/tot.pj).toFixed(2),roPP:+(tot.ro/tot.pj).toFixed(2),
+    golPP:+(tot.goles/tot.pj).toFixed(2),pctLocal:Math.round(tot.L/tot.pj*100),
+  }:null}
+}
+function ordenarArbitros(clave){S.liga.arbOrden=clave;render()}
+function toggleArbitro(nombre){S.liga.arbAbierto=S.liga.arbAbierto===nombre?null:nombre;render()}
+
+function renderArbitros(){
+  const{lista,liga}=statsArbitros()
+  if(!liga)return`<div class="empty">Todavía no hay partidos con árbitro registrado.</div>`
+  const orden=S.liga.arbOrden||'pj'
+  const cmp={pj:(a,b)=>b.pj-a.pj,am:(a,b)=>b.amPP-a.amPP,ro:(a,b)=>b.roPP-a.roPP,
+    local:(a,b)=>b.pctLocal-a.pctLocal,gol:(a,b)=>b.golPP-a.golPP}
+  const visibles=lista.filter(a=>S.liga.arbTodos||a.pj>=MIN_ARBITRO).sort(cmp[orden]||cmp.pj)
+  const ocultos=lista.length-lista.filter(a=>a.pj>=MIN_ARBITRO).length
+  // Diferencia contra el promedio de la liga: es lo que convierte "4.9
+  // amarillas" en un dato con sentido.
+  // Siempre dos decimales al mostrar: los valores se guardan como número
+  // (para poder ordenar), y ahí 3.00 queda en 3 y 0.50 en 0.5, lo que deja
+  // la columna despareja al lado de 2.54.
+  const n2=v=>v.toFixed(2)
+  const vs=(v,prom)=>{
+    const d=+(v-prom).toFixed(2)
+    if(Math.abs(d)<0.05)return`<span style="font-size:9.5px;color:var(--muted)">=</span>`
+    return`<span style="font-size:9.5px;color:${d>0?'var(--ro)':'var(--gris)'}">${d>0?'+':''}${n2(d)}</span>`
+  }
+  const th=(clave,label,titulo)=>`<th class="num" onclick="ordenarArbitros('${clave}')" style="cursor:pointer;white-space:nowrap" title="${titulo}">${label}${orden===clave?' ▾':''}</th>`
+  const barra=a=>{
+    const p=n=>Math.round(n/a.pj*100)
+    return`<div style="display:flex;height:7px;border-radius:3px;overflow:hidden;min-width:70px" title="${a.L} local · ${a.E} empate · ${a.V} visita">
+      <div style="width:${p(a.L)}%;background:#27ae60"></div>
+      <div style="width:${p(a.E)}%;background:var(--muted)"></div>
+      <div style="width:${p(a.V)}%;background:var(--az)"></div>
+    </div>`
+  }
+  return`
+    <div class="g4" style="margin-top:12px">
+      <div class="mc"><div class="mc-l">Árbitros</div><div class="mc-v">${lista.length}</div><div class="mc-s">en ${liga.pj} partidos</div></div>
+      <div class="mc am"><div class="mc-l">Amarillas / partido</div><div class="mc-v">${liga.amPP.toFixed(2)}</div><div class="mc-s">promedio de la liga</div></div>
+      <div class="mc ro"><div class="mc-l">Rojas / partido</div><div class="mc-v">${liga.roPP.toFixed(2)}</div><div class="mc-s">promedio de la liga</div></div>
+      <div class="mc verde"><div class="mc-l">Gana el local</div><div class="mc-v">${liga.pctLocal}%</div><div class="mc-s">de los partidos</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">
+        <div class="pt disp" style="font-size:15px">🧑‍⚖️ Árbitro por árbitro</div>
+        ${ocultos?`<button class="bsm" onclick="S.liga.arbTodos=!S.liga.arbTodos;render()">${S.liga.arbTodos?`Solo con ${MIN_ARBITRO}+ partidos`:`Ver los ${ocultos} con menos partidos`}</button>`:''}
+      </div>
+      <div class="pb">
+        <div style="font-size:11px;color:var(--gris);margin-bottom:10px">
+          Toca un árbitro para ver los partidos que le dirigió a Temuco. Los números chicos
+          al lado de cada promedio son la diferencia contra la liga.
+          <b style="color:var(--blanco)">Ojo con leer de más el local-empate-visita</b>: con
+          ${MIN_ARBITRO} a 15 partidos, esas diferencias son en buena parte azar y no dicen que el árbitro
+          favorezca a nadie.
+        </div>
+        <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Árbitro</th>
+            ${th('pj','PJ','Partidos dirigidos')}
+            ${th('am','AM/P','Amarillas por partido')}
+            ${th('ro','RJ/P','Rojas por partido')}
+            ${th('gol','GOL/P','Goles por partido')}
+            <th class="center mob-hide" style="white-space:nowrap">L · E · V</th>
+            ${th('local','%L','Porcentaje de victorias del local')}
+            <th class="center">Temuco</th>
+          </tr></thead>
+          <tbody>
+            ${visibles.map(a=>{
+              const abierto=S.liga.arbAbierto===a.nombre
+              const t=a.temuco
+              const g=t.filter(x=>x.r==='G').length,e=t.filter(x=>x.r==='E').length,pe=t.filter(x=>x.r==='P').length
+              return`<tr onclick="toggleArbitro('${a.nombre.replace(/'/g,"\\'")}')" style="cursor:pointer;${abierto?'background:rgba(200,21,39,0.05)':''}">
+                <td style="font-weight:600">${a.nombre}${a.pj<MIN_ARBITRO?'<span style="color:var(--muted);font-size:10px"> · pocos partidos</span>':''}</td>
+                <td class="num">${a.pj}</td>
+                <td class="num"><span style="font-weight:800;color:var(--am)">${n2(a.amPP)}</span> ${vs(a.amPP,liga.amPP)}</td>
+                <td class="num"><span style="font-weight:800;color:${a.roPP>0?'var(--ro)':'var(--muted)'}">${n2(a.roPP)}</span> ${vs(a.roPP,liga.roPP)}</td>
+                <td class="num">${n2(a.golPP)} ${vs(a.golPP,liga.golPP)}</td>
+                <td class="center mob-hide">${barra(a)}</td>
+                <td class="num" style="font-weight:800">${a.pctLocal}%</td>
+                <td class="center" style="white-space:nowrap">${t.length?`<span style="color:#1f8b4d">${g}</span>-<span style="color:var(--gris)">${e}</span>-<span style="color:var(--ro)">${pe}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
+              </tr>
+              ${abierto?`<tr><td colspan="8" style="padding:0">
+                <div style="padding:8px 10px 12px;background:rgba(16,24,32,0.02)">
+                  ${t.length?t.map(x=>{
+                    const eq=S.liga.equipos.find(q=>q.id===x.rivalId)
+                    return`<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;padding:3px 0">
+                      <span style="color:var(--gris);width:30px">F${x.jornada||'?'}</span>
+                      <span class="badge ${x.local?'baz':'bg'}" style="font-size:8px">${x.local?'L':'V'}</span>
+                      ${eq?`<img src="${crestUrl(eq.nombre)}" style="width:16px;height:16px;object-fit:contain">`:''}
+                      <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${eq?eq.nombre:'—'}</span>
+                      <span class="disp" style="font-weight:800;color:${x.r==='G'?'#1f8b4d':x.r==='E'?'var(--gris)':'var(--ro)'}">${x.gf}-${x.gc}</span>
+                      <span style="color:var(--gris);font-size:10.5px;width:74px;text-align:right">${x.amarillas} 🟡${x.rojas?` ${x.rojas} 🔴`:''}</span>
+                    </div>`
+                  }).join(''):'<div style="font-size:11px;color:var(--muted)">Todavía no le dirigió a Temuco.</div>'}
+                </div>
+              </td></tr>`:''}`
+            }).join('')}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  `
 }
 function renderLigaDestacados(){
   const L=S.liga

@@ -380,7 +380,7 @@ let S={
   liga:{loaded:false,equipos:[],temucoId:null,ultimo:null,goleadores:[],sub21:[],rivalSel:null,rivalPartidos:null,rivalStats:null,rivalDetalle:null,golExpand:false,tabla:[],partidosJugados:[],tablaJornada:null,sanciones:[],infoGeneral:null,debutsPorEquipo:[],estadiosFoto:{},estadiosCoords:{},estadiosLista:[],uniformes:{},partidosPendientes:[]},
   debutsExpand:false,
   jugClave:{equipoId:null,loaded:false,jugadores:[],filtroPos:'todos'},
-  enriq:{loaded:false,goles:[],sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandEstadios:false,expandUniformes:false,filtroGoles:'sinTipo',golesSnapshot:null,
+  enriq:{loaded:false,goles:[],golesContra:null,jugadoresRivales:{},sustituciones:[],jugadores:[],sqlPendiente:false,expandFotos:false,expandGoles:false,expandGolesContra:false,expandEstadios:false,expandUniformes:false,filtroGoles:'sinTipo',golesSnapshot:null,
     expandBorrador:false,borrador:{loaded:false,loading:false,partidos:[],partidoSel:'',items:[],nuevoJugador:'',nuevoSubtipo:'',nuevoAsistidor:'',nuevoAsistSubtipo:''}},
   partidosLiga:{loaded:false,partidos:[],goles:[],golesAmbos:[],autogolesPropios:[],tarjetas:[],sustituciones:[],alineaciones:[]},
   sancionForm:{equipo_id:'',puntos:1,motivo:'',fecha:hoy()},
@@ -396,6 +396,7 @@ let S={
   golesSubtipoExpand:null,
   asistSubtipoExpand:null,
   golTab:'goleadores',
+  periodoLado:'favor',
   arbOrden:'pj',arbTodos:false,arbAbierto:null,
   cambiosTab:'jugadores',
 }
@@ -1218,6 +1219,34 @@ async function sincronizarFotosLiga(manual){
   else if(manual)toast('Error al sincronizar',true)
 }
 
+// Los goles EN CONTRA y los planteles de quienes nos los hicieron. Se pide
+// al abrir la sección y no junto con el resto: son dos consultas más y no
+// tiene sentido pagarlas cada vez que se entra a Enriquecer.
+async function cargarGolesContra(){
+  if(S.enriq.golesContra)return
+  const tid=S.liga.temucoId
+  if(!tid)return
+  const ids=S.liga.partidosJugados
+    .filter(p=>p.equipo_local_id===tid||p.equipo_visita_id===tid).map(p=>p.id)
+  if(!ids.length){S.enriq.golesContra=[];render();return}
+  // equipo_id=neq.tid deja fuera los goles de Temuco y deja dentro los
+  // autogoles propios, que en contra cuentan igual porque pesaron en el
+  // marcador.
+  const goles=await ligaGet('liga_goles',`?partido_id=in.(${ids.join(',')})&equipo_id=neq.${tid}&select=id,equipo_id,minuto,minuto_extra,penal,autogol,subtipo,asistidor_id,asist_subtipo,jugador:liga_jugadores!liga_goles_jugador_id_fkey(id,nombre,apellido),partido:liga_partidos!liga_goles_partido_id_fkey(jornada)&order=minuto.asc`)
+  if(!Array.isArray(goles)){S.enriq.golesContra=[];S.enriq.sqlPendiente=true;render();return}
+  S.enriq.golesContra=goles
+  // El asistidor tiene que ser del mismo equipo que convirtió, así que hace
+  // falta el plantel de cada rival que nos marcó.
+  const equipos=[...new Set(goles.map(g=>g.equipo_id).filter(Boolean))]
+  if(equipos.length){
+    const js=await ligaGet('liga_jugadores',`?equipo_id=in.(${equipos.join(',')})&select=id,nombre,apellido,numero,equipo_id&order=apellido&limit=1000`)
+    const porEquipo={}
+    if(Array.isArray(js))js.forEach(j=>{(porEquipo[j.equipo_id]=porEquipo[j.equipo_id]||[]).push(j)})
+    S.enriq.jugadoresRivales=porEquipo
+  }
+  render()
+}
+
 // Filtra los goles de Enriquecer por nombre de jugador tocando el DOM, sin
 // pasar por render(): si redibujáramos en cada tecla, el campo perdería el
 // foco a la primera letra. Esconde además los encabezados de fecha que
@@ -1239,10 +1268,17 @@ function filtrarGolesEnriquecer(texto){
   if(vacio)vacio.hidden=!(q&&visibles===0)
 }
 
+// El gol editado puede estar en la lista de a favor o en la de en contra:
+// las dos secciones de Enriquecer usan las mismas funciones de guardado, y
+// sin esto el cambio se escribía en Supabase pero el desplegable volvía
+// atrás al redibujar, porque el estado local no se había actualizado.
+function golEnriqPorId(id){
+  return S.enriq.goles.find(x=>x.id===id)||(S.enriq.golesContra||[]).find(x=>x.id===id)||null
+}
 async function guardarGolDetalle(id,campo,val){
   const r=await patch('liga_goles',{[campo]:val||null},`?id=eq.${id}`)
   if(r&&r.code){toast('Error al guardar — ¿corriste sql/liga_enriquecimiento.sql?',true);return}
-  const g=S.enriq.goles.find(x=>x.id===id)
+  const g=golEnriqPorId(id)
   if(g)g[campo]=val||null
   render()
 }
@@ -1256,7 +1292,7 @@ async function cambiarAsistidor(id,val){
   const asist_subtipo=val==='individual'?'Individual':null
   const r=await patch('liga_goles',{asistidor_id,asist_subtipo},`?id=eq.${id}`)
   if(r&&r.code){toast('Error al guardar — ¿corriste sql/liga_enriquecimiento.sql?',true);return}
-  const g=S.enriq.goles.find(x=>x.id===id)
+  const g=golEnriqPorId(id)
   if(g){g.asistidor_id=asistidor_id;g.asist_subtipo=asist_subtipo}
   render()
 }
@@ -1771,6 +1807,79 @@ function renderEnriquecer(){
         `).join('')}
       `
     },'S.enriq.golesSnapshot=null;')}
+
+    ${seccion('expandGolesContra','🥅 Goles en contra',
+      (E.golesContra&&E.golesContra.filter(g=>!g.subtipo).length)?`⚠ ${E.golesContra.filter(g=>!g.subtipo).length} sin tipo`:'',
+      E.golesContra?'todo al día ✓':'',()=>{
+      if(!E.golesContra){cargarGolesContra();return`<div class="empty">Cargando goles en contra…</div>`}
+      if(!E.golesContra.length)return`<div class="empty">Sin goles en contra registrados.</div>`
+      const equipoDe=id=>S.liga.equipos.find(e=>e.id===id)
+      // Ordenados por fecha y minuto, agrupados por partido, igual que los
+      // de a favor.
+      const orden=E.golesContra.slice().sort((a,b)=>(b.partido?.jornada||0)-(a.partido?.jornada||0)||a.minuto-b.minuto)
+      const grupos=[]
+      orden.forEach(g=>{
+        const jornada=g.partido?.jornada??'?'
+        let grp=grupos[grupos.length-1]
+        if(!grp||grp.jornada!==jornada||grp.equipoId!==g.equipo_id){
+          grp={jornada,equipoId:g.equipo_id,goles:[]}
+          grupos.push(grp)
+        }
+        grp.goles.push(g)
+      })
+      return`
+        <div style="color:var(--gris);font-size:11px;margin-bottom:10px">
+          Cómo nos hicieron los goles y quién dio el pase. El scraper saca el goleador y el
+          minuto; esto se carga a mano, igual que los goles a favor.
+        </div>
+        <input placeholder="Buscar por jugador…" oninput="filtrarGolesEnriquecer(this.value)"
+          style="width:100%;margin-bottom:12px;padding:7px 10px;font-size:12px;border:1px solid var(--borde2);border-radius:6px;background:var(--panel);color:var(--blanco);font-family:var(--font)">
+        ${grupos.map(grp=>{
+          const eq=equipoDe(grp.equipoId)
+          const plantel=(E.jugadoresRivales[grp.equipoId]||[])
+          return`<div class="grupo-gol" data-jornada="${grp.jornada}">
+            <div style="font-size:11px;font-weight:800;color:var(--gris);margin:14px 0 6px;display:flex;align-items:center;gap:6px">
+              ${eq?`<img src="${crestUrl(eq.nombre)}" style="width:16px;height:16px;object-fit:contain">`:''}
+              F${grp.jornada} · ${eq?eq.nombre:'—'}
+            </div>
+            ${grp.goles.map(g=>`<div class="pcard fila-gol" data-jugador="${(g.jugador?`${g.jugador.nombre} ${g.jugador.apellido}`:'').toLowerCase()}" style="cursor:default;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+                <span style="font-weight:800;font-family:var(--font-disp);color:var(--gris)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
+                <span style="font-weight:700;font-size:12.5px">${g.jugador?nombreCompacto(g.jugador.nombre,g.jugador.apellido):'?'}</span>
+                ${g.autogol?'<span class="badge br" style="font-size:8px">Autogol nuestro</span>':''}
+                ${g.penal?'<span class="badge bg" style="font-size:8px">Penal</span>':''}
+                ${g.subtipo?'<span class="badge bv" style="font-size:8px">✓ tipo</span>':'<span class="badge ba" style="font-size:8px">falta tipo</span>'}
+              </div>
+              <div class="fr2">
+                <div class="fg" style="margin-bottom:0"><label>Cómo fue el gol</label>
+                  <select onchange="guardarGolDetalle(${g.id},'subtipo',this.value)">
+                    <option value="">Sin definir</option>
+                    ${SUBTIPOS_GOL.map(t=>`<option value="${t}" ${g.subtipo===t?'selected':''}>${t}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="fg" style="margin-bottom:0"><label>Quién dio el pase</label>
+                  ${g.autogol
+                    ?'<div style="font-size:11px;color:var(--muted);padding:7px 0">Autogol — no corresponde</div>'
+                    :plantel.length
+                      ?`<select onchange="cambiarAsistidor(${g.id},this.value)">
+                          <option value="">Sin definir</option>
+                          <option value="individual" ${!g.asistidor_id&&g.asist_subtipo==='Individual'?'selected':''}>⚽ Jugada Individual</option>
+                          ${plantel.map(j=>`<option value="${j.id}" ${g.asistidor_id===j.id?'selected':''}>${j.apellido} ${j.nombre} #${j.numero??'-'}</option>`).join('')}
+                        </select>`
+                      :'<div style="font-size:11px;color:var(--muted);padding:7px 0">Sin plantel cargado de este equipo</div>'}
+                </div>
+              </div>
+              ${g.asistidor_id?`<div class="fg" style="margin-top:8px;margin-bottom:0"><label>Cómo fue la asistencia</label>
+                <select onchange="guardarGolDetalle(${g.id},'asist_subtipo',this.value)">
+                  <option value="">Sin definir</option>
+                  ${SUBTIPOS_ASIST.map(t=>`<option value="${t}" ${g.asist_subtipo===t?'selected':''}>${t}</option>`).join('')}
+                </select>
+              </div>`:''}
+            </div>`).join('')}
+          </div>`
+        }).join('')}
+      `
+    })}
   </div>`
 }
 
@@ -2308,7 +2417,13 @@ function renderEstadisticas(){
 
   // 6 franjas (3 por tiempo: arranque / cierre / descuento) para ver el
   // ritmo real del partido, no solo un promedio por tercio.
-  const mitadesGol=franjasQuinceMin(golesReales)
+  // Goles EN CONTRA: golesAmbos trae todos los de los partidos de Temuco, y
+  // equipo_id ya apunta al equipo que se beneficia, así que "no es Temuco"
+  // incluye también el autogol propio — que en contra cuenta igual, porque
+  // en el marcador pesó.
+  const golesContra=PL.golesAmbos.filter(g=>g.equipo_id!==L.temucoId)
+  const ladoPeriodo=S.periodoLado||'favor'
+  const mitadesGol=franjasQuinceMin(ladoPeriodo==='contra'?golesContra:golesReales)
 
   const golMap={}
   golesReales.forEach(g=>{
@@ -2465,8 +2580,15 @@ function renderEstadisticas(){
       </div>
     </div>`:''}
     <div class="panel" style="margin-bottom:12px">
-      <div class="ph"><span class="pt">Goles por período</span></div>
+      <div class="ph">
+        <span class="pt">Goles por período</span>
+        <div class="tabs" style="margin:0;border:none">
+          ${[['favor',`A favor (${golesReales.length})`],['contra',`En contra (${golesContra.length})`]]
+            .map(([id,l])=>`<button class="tab ${ladoPeriodo===id?'on':''}" onclick="S.periodoLado='${id}';render()">${l}</button>`).join('')}
+        </div>
+      </div>
       <div class="pb">
+        ${ladoPeriodo==='contra'?'<div style="font-size:11px;color:var(--gris);margin-bottom:10px">En qué minutos nos convierten. Los nombres son los goleadores rivales.</div>':''}
         ${mitadesGol
           .map(([titulo,total,franjas],i)=>`<div style="${i?'margin-top:16px':''}">
             <div style="font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--borde);padding-bottom:4px;margin-bottom:8px">${titulo}</div>

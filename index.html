@@ -1186,6 +1186,11 @@ async function cargarEnriquecimiento(){
   S.enriq.sqlPendiente=!Array.isArray(goles)||!Array.isArray(jugadores)
   S.enriq.goles=Array.isArray(goles)?goles:[]
   S.enriq.jugadores=Array.isArray(jugadores)?jugadores:[]
+  // Si no quedó nada pendiente, abrir en "Todos". El filtro por defecto
+  // ("falta tipo") mostraría una lista vacía y parecería que los goles ya
+  // cargados no se pueden volver a editar — que es justo lo contrario.
+  const pendientes=S.enriq.goles.some(g=>!g.subtipo||(!g.asistidor_id&&g.asist_subtipo!=='Individual'))
+  S.enriq.filtroGoles=pendientes?'sinTipo':'todos'
   S.enriq.golesSnapshot=null
   S.enriq.loaded=true
   render()
@@ -1211,6 +1216,27 @@ async function sincronizarFotosLiga(manual){
   resultados.forEach(({j,url,ok})=>{if(ok){j.foto_url=url;sincronizadas++}})
   if(sincronizadas>0){render();toast(`${sincronizadas} foto${sincronizadas>1?'s':''} sincronizada${sincronizadas>1?'s':''} desde Plantilla`)}
   else if(manual)toast('Error al sincronizar',true)
+}
+
+// Filtra los goles de Enriquecer por nombre de jugador tocando el DOM, sin
+// pasar por render(): si redibujáramos en cada tecla, el campo perdería el
+// foco a la primera letra. Esconde además los encabezados de fecha que
+// quedan sin goles visibles, para que no floten sueltos.
+function filtrarGolesEnriquecer(texto){
+  const q=(texto||'').trim().toLowerCase()
+  let visibles=0
+  document.querySelectorAll('.grupo-gol').forEach(grupo=>{
+    let enGrupo=0
+    grupo.querySelectorAll('.fila-gol').forEach(fila=>{
+      const calza=!q||(fila.dataset.jugador||'').includes(q)
+      fila.hidden=!calza
+      if(calza)enGrupo++
+    })
+    grupo.hidden=enGrupo===0
+    visibles+=enGrupo
+  })
+  const vacio=document.getElementById('busca-gol-vacio')
+  if(vacio)vacio.hidden=!(q&&visibles===0)
 }
 
 async function guardarGolDetalle(id,campo,val){
@@ -1701,12 +1727,16 @@ function renderEnriquecer(){
       })
       return`
         <div style="color:var(--gris);font-size:11px;margin-bottom:10px">El scraper detecta el gol y el minuto solo — cómo fue y quién dio el pase se carga acá.</div>
-        <div class="tabs" style="margin-bottom:14px">${FILTROS.map(f=>`<button class="tab ${filtro===f.id?'on':''}" onclick="S.enriq.filtroGoles='${f.id}';S.enriq.golesSnapshot=null;render()">${f.l}${f.n?` (${f.n})`:''}</button>`).join('')}</div>
+        <div class="tabs" style="margin-bottom:10px">${FILTROS.map(f=>`<button class="tab ${filtro===f.id?'on':''}" onclick="S.enriq.filtroGoles='${f.id}';S.enriq.golesSnapshot=null;render()">${f.l}${f.n?` (${f.n})`:''}</button>`).join('')}</div>
+        <input id="busca-gol" placeholder="Buscar por jugador…" oninput="filtrarGolesEnriquecer(this.value)"
+          style="width:100%;margin-bottom:12px;padding:7px 10px;font-size:12px;border:1px solid var(--borde2);border-radius:6px;background:var(--panel);color:var(--blanco);font-family:var(--font)">
+        <div id="busca-gol-vacio" class="empty" hidden>Ningún gol de ese jugador.</div>
         ${!visibles.length?`<div class="empty">${filtro==='todos'?'Sin goles registrados todavía.':'Nada pendiente en este filtro ✓'}</div>`:grupos.map(grp=>`
+          <div class="grupo-gol" data-jornada="${grp.jornada}">
           <div style="font-size:11px;font-weight:800;color:var(--gris);margin:14px 0 6px">F${grp.jornada} · vs ${grp.rival}</div>
           ${grp.goles.map(g=>{
             const otros=E.jugadores.filter(j=>j.id!==g.jugador?.id).slice().sort((a,b)=>(a.apellido||'').localeCompare(b.apellido||''))
-            return`<div class="pcard" style="cursor:default;margin-bottom:8px">
+            return`<div class="pcard fila-gol" data-jugador="${(g.jugador?`${g.jugador.nombre} ${g.jugador.apellido}`:'').toLowerCase()}" style="cursor:default;margin-bottom:8px">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
                 <span style="font-weight:800;font-family:var(--font-disp);color:var(--gris)">${g.minuto}'${g.minuto_extra?`+${g.minuto_extra}`:''}</span>
                 <span style="font-weight:700;font-size:12.5px">${g.jugador?nombreCompacto(g.jugador.nombre,g.jugador.apellido):'?'}</span>
@@ -1737,6 +1767,7 @@ function renderEnriquecer(){
               </div>`:''}
             </div>`
           }).join('')}
+          </div>
         `).join('')}
       `
     },'S.enriq.golesSnapshot=null;')}

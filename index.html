@@ -2201,6 +2201,27 @@ function calcularRachas(partidos,golesAmbos,tid){
   })
   return cats
 }
+// Goles repartidos en bloques de 15 minutos, con el descuento aparte.
+//
+// El descuento se reconoce por minuto_extra, no por el minuto: en los
+// informes de ANFP `minuto` nunca pasa de 90 y minuto_extra solo aparece en
+// el 45 y el 90 (verificado sobre la temporada completa). Así, un gol en el
+// 45 exacto entra en 31-45 y uno en el 45+2 va al descuento, que es como se
+// leen de verdad.
+//
+// Devuelve las dos mitades ya armadas para franjaCard. Vive acá porque la
+// usan Estadísticas (Temuco) y Liga → Explorar equipo, y antes cada una
+// tenía su propia copia de los cortes.
+function franjasQuinceMin(goles){
+  const bloque=(a,b)=>goles.filter(g=>!g.minuto_extra&&g.minuto>=a&&g.minuto<=b)
+  const descuento=m=>goles.filter(g=>g.minuto_extra>0&&g.minuto===m)
+  const t1=[["1-15'",bloque(1,15),'var(--vc)'],["16-30'",bloque(16,30),'var(--am)'],
+            ["31-45'",bloque(31,45),'var(--ro)'],["45'+desc.",descuento(45),'var(--az)']]
+  const t2=[["46-60'",bloque(46,60),'var(--vc)'],["61-75'",bloque(61,75),'var(--am)'],
+            ["76-90'",bloque(76,90),'var(--ro)'],["90'+desc.",descuento(90),'var(--az)']]
+  const suma=f=>f.reduce((n,x)=>n+x[1].length,0)
+  return[['Primer tiempo',suma(t1),t1],['Segundo tiempo',suma(t2),t2]]
+}
 // Una franja de "Goles por período" — cuenta, % dentro de su mitad, y
 // hasta 5 goleadores de esa franja con los minutos exactos.
 function franjaCard(label,evs,color,totalMitad,avatarJ,nombreJ){
@@ -2256,14 +2277,7 @@ function renderEstadisticas(){
 
   // 6 franjas (3 por tiempo: arranque / cierre / descuento) para ver el
   // ritmo real del partido, no solo un promedio por tercio.
-  const franja1=golesReales.filter(g=>g.minuto>=1&&g.minuto<=22)
-  const franja2=golesReales.filter(g=>g.minuto>=23&&g.minuto<=44)
-  const franja3=golesReales.filter(g=>g.minuto===45)
-  const franja4=golesReales.filter(g=>g.minuto>=46&&g.minuto<=67)
-  const franja5=golesReales.filter(g=>g.minuto>=68&&g.minuto<=89)
-  const franja6=golesReales.filter(g=>g.minuto>=90)
-  const totalT1=franja1.length+franja2.length+franja3.length
-  const totalT2=franja4.length+franja5.length+franja6.length
+  const mitadesGol=franjasQuinceMin(golesReales)
 
   const golMap={}
   golesReales.forEach(g=>{
@@ -2422,12 +2436,11 @@ function renderEstadisticas(){
     <div class="panel" style="margin-bottom:12px">
       <div class="ph"><span class="pt">Goles por período</span></div>
       <div class="pb">
-        ${[['Primer tiempo',totalT1,[['1-22\'',franja1,'var(--vc)'],['23-44\'',franja2,'var(--am)'],['45\'+desc.',franja3,'var(--ro)']]],
-           ['Segundo tiempo',totalT2,[['46-67\'',franja4,'var(--vc)'],['68-89\'',franja5,'var(--am)'],['90\'+desc.',franja6,'var(--ro)']]]]
+        ${mitadesGol
           .map(([titulo,total,franjas],i)=>`<div style="${i?'margin-top:16px':''}">
             <div style="font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--borde);padding-bottom:4px;margin-bottom:8px">${titulo}</div>
             <div style="display:flex;gap:10px;align-items:stretch">
-              <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+              <div style="flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:10px">
                 ${franjas.map(([label,evs,color])=>franjaCard(label,evs,color,total,avatarJ,nombreJ)).join('')}
               </div>
               <div style="flex:0 0 76px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(16,24,32,.03);border:1px solid var(--borde);border-radius:8px;padding:8px 6px">
@@ -3828,20 +3841,16 @@ function renderDetalleEquipo(){
     </table></div>
   </div>`
 
-  // --- Goles por período (mismas franjas que usamos para Temuco)
-  const enFranja=(a,b)=>reales.filter(g=>g.minuto>=a&&g.minuto<=b)
-  const f1=enFranja(1,22),f2=enFranja(23,44),f3=reales.filter(g=>g.minuto===45)
-  const f4=enFranja(46,67),f5=enFranja(68,89),f6=reales.filter(g=>g.minuto>=90)
-  const t1=f1.length+f2.length+f3.length,t2=f4.length+f5.length+f6.length
+  // --- Goles por período (mismos bloques que en Estadísticas)
+  const mitades=franjasQuinceMin(reales)
   const panelPeriodo=`<div class="panel" style="margin-bottom:12px">
     <div class="ph"><span class="pt">Goles por período</span></div>
     <div class="pb">
-      ${[['Primer tiempo',t1,[["1-22'",f1,'var(--vc)'],["23-44'",f2,'var(--am)'],["45'+desc.",f3,'var(--ro)']]],
-         ['Segundo tiempo',t2,[["46-67'",f4,'var(--vc)'],["68-89'",f5,'var(--am)'],["90'+desc.",f6,'var(--ro)']]]]
+      ${mitades
         .map(([titulo,total,franjas],i)=>`<div style="${i?'margin-top:16px':''}">
           <div style="font-size:9px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--borde);padding-bottom:4px;margin-bottom:8px">${titulo}</div>
           <div style="display:flex;gap:10px;align-items:stretch">
-            <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+            <div style="flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:10px">
               ${franjas.map(([label,evs,color])=>franjaCard(label,evs,color,total,av,nom)).join('')}
             </div>
             <div style="flex:0 0 76px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(16,24,32,.03);border:1px solid var(--borde);border-radius:8px;padding:8px 6px">

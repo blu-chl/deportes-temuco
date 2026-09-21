@@ -30,7 +30,14 @@ async function procesarPartido(matchUrl) {
   }
 
   if (!meta.finalizado) {
-    console.log(`  · ${meta.equipoLocal} vs ${meta.equipoVisita} · programado, sin informe todavía (fecha ${meta.jornada || '?'})`);
+    // Si la página ya muestra marcador, el partido se jugó y lo que falta es
+    // otra cosa — casi siempre el informe de árbitro. Decirlo en el log evita
+    // tener que adivinar por qué un partido de hace días sigue pendiente.
+    const pista = meta.marcadorVisto
+      ? ` — la página ya muestra ${meta.marcadorVisto}` +
+        ` (estado: "${meta.textoResultado || 'sin texto'}", informe: ${meta.pdfUrl ? 'sí' : 'NO'})`
+      : '';
+    console.log(`  · ${meta.equipoLocal} vs ${meta.equipoVisita} · programado, sin informe todavía (fecha ${meta.jornada || '?'})${pista}`);
     if (dryRun) return 'dry-run';
     const equipoLocal = await db.upsertEquipo(meta.equipoLocal, meta.slugLocal);
     const equipoVisita = await db.upsertEquipo(meta.equipoVisita, meta.slugVisita);

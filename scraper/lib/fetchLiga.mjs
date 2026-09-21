@@ -215,6 +215,12 @@ export async function fetchMatch(matchUrl) {
     golesLocal: finalizado ? Number(golesLocal) : null,
     golesVisita: finalizado ? Number(golesVisita) : null,
     finalizado: finalizado && !!pdfUrl,
+    // Lo que se vio en la página, aunque no alcance para darlo por jugado.
+    // Sirve para saber POR QUÉ un partido ya disputado sigue apareciendo
+    // como pendiente: si falta el marcador, si el texto todavía no dice
+    // "completo", o si lo que falta es el PDF del informe.
+    marcadorVisto: golesLocal !== '' && golesVisita !== '' ? `${golesLocal}-${golesVisita}` : null,
+    textoResultado: resultado || null,
     fechaHoraIso: datetimeIso,
     competencia,
     jornada: jornada ? Number(jornada) : null,

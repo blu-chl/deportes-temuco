@@ -19,7 +19,10 @@ const db = dryRun ? null : await import('./lib/db.mjs');
 async function main() {
   console.log(`Liga: ${ligaUrl}${dryRun ? '  [dry-run, no escribe en Supabase]' : ''}`);
   const pdfUrl = await findMinutosU21Url(ligaUrl);
-  if (!pdfUrl) throw new Error('No se encontró el link a la Tabla Oficial de Minutos Sub 21 en la página de la liga');
+  if (!pdfUrl) {
+    console.log('Sin datos aún: la liga no tiene publicado el link a la Tabla Oficial de Minutos Sub 21 (normal mientras el torneo está en pausa). Se omite este paso.');
+    return;
+  }
   console.log(`PDF: ${pdfUrl}\n`);
 
   const buf = await downloadPdf(pdfUrl);
